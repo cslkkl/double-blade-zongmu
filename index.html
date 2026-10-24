@@ -613,7 +613,12 @@ window.addEventListener("keydown", function(e){
   }
 
   if(G.phase==="title") openModeSelect();      /* 标题阶段：改开模式选择页，不再直接开打 */
-  else if(!uiOwned && (G.phase==="win" || G.phase==="lose")) restartAll();
+  /* 结算页：**不在这里直接 restartAll()**。
+     玩家最后一刀还按在 F / D 上时，失败页淡入的同一帧就会被顶掉 ——
+     「两人都倒下了」根本没看清。手柄那边早就有两道闸（先见到全松开 + 停留
+     CONFIRM_ARM 秒），键盘这条腿以前一道都没有。现在只置请求标记，
+     由 update() 的结算分支统一走闸（见 kbConfirmEdge）。 */
+  else if(!uiOwned && (G.phase==="win" || G.phase==="lose")) KEYS.__confirmReq = true;
 });
 window.addEventListener("keyup", function(e){
   KEYS[e.code] = false;
@@ -1149,7 +1154,10 @@ function introSyncHint(){
   var e = introEls();
   if(!e.key) return;
   var pad = PADS[0] || PADS[1];
-  var padActive = !!(window.Guide && window.Guide.device === "pad");
+  /* Guide.device 导出的是**函数**（见 js/guide.js 的 device: function(){...}），
+     不是字符串。以前这里写成 Guide.device === "pad"，恒为 false ——
+     插着手柄的玩家看到「长按 空格 跳过」，手上只有手柄，只能干等 20 秒。 */
+  var padActive = !!(window.Guide && window.Guide.device && window.Guide.device() === "pad");
   var touchOn = !!(window.Touch && Touch.active && Touch.active());
   /* 文案跟设备走：手柄版写 A / Start，触屏版写「按住屏幕」，键盘版写空格。
      三套不同时出现（与 guide.js 的 dev-pad / dev-kbd 同一口径）。 */
@@ -1267,11 +1275,16 @@ var CONFIRM_ARM = 0.40;
 var confirmT = 0;
 var uiPadPrev = [false,false];
 var uiPadSeenUp = [false,false];
+/* 键盘那条腿的闸。与手柄同构：结算页起来后必须先见到「所有动作键都松开」
+   的一帧，才接受下一次按下。否则「最后一刀还按在 F 上」会把页面当场顶掉。 */
+var uiKbSeenUp = false;
 
 function resetConfirm(){
   confirmT = 0;
   uiPadPrev[0] = uiPadPrev[1] = false;
   uiPadSeenUp[0] = uiPadSeenUp[1] = false;
+  uiKbSeenUp = false;
+  KEYS.__confirmReq = false;
 }
 function padHeld(p, i){
   if(!p || !p.buttons) return false;
@@ -1288,6 +1301,29 @@ function padConfirmEdge(){
     uiPadPrev[i] = on;
   }
   return hit;
+}
+
+/* 键盘那条腿的确认边沿。与 padConfirmEdge 同构，只是「按着」的来源是 KEYS。
+   ① 先见到所有动作键都松开的一帧 → uiKbSeenUp = true
+   ② 之后任何一次「请求标记 + 真的还按着某个动作键」才算确认。
+   请求标记由 keydown 置位（见输入段的 __confirmReq），这里负责消费它。 */
+var CONFIRM_KEYS = ["KeyA","KeyD","KeyW","Space","KeyF","KeyJ","KeyG","KeyE","KeyR",
+                    "ArrowLeft","ArrowRight","ArrowUp","ShiftRight",
+                    "Slash","Numpad0","KeyK","Semicolon","Period","Quote"];
+function kbConfirmEdge(){
+  var anyHeld = false;
+  for(var i=0;i<CONFIRM_KEYS.length;i++){
+    if(KEYS[CONFIRM_KEYS[i]]){ anyHeld = true; break; }
+  }
+  if(!anyHeld) uiKbSeenUp = true;
+
+  if(!KEYS.__confirmReq) return false;
+  /* 请求标记只在「闸已开」时消费；闸没开就先留着 ——
+     但也不能留太久，否则松开手过两秒会突然自己重开。
+     所以闸没开时直接丢掉这个请求：玩家想重开就再按一下。 */
+  KEYS.__confirmReq = false;
+  if(!uiKbSeenUp) return false;
+  return true;
 }
 
 function showOv(id){
@@ -1524,6 +1560,11 @@ function updatePlayer(p, dt, inp, other){
      手柄有了独立的 B，键盘保持「攻击+跳」的手感，两条路都通。 */
   if(p.energy >= 100 && (inp.skill || (inp.atk && inp.jump)) && p.whirlT<=0){
     p.whirlT = 1.5; p.whirlTick = 0; p.energy = 0;
+    /* 无敌帧与 whirlT 同寿 —— 文档与 HUD 都承诺「1.5 秒无敌」，而敌人的命中判定
+       只看 p.inv。不给这一行，玩家转到一半会被小兵砍中掉血，读到的是「技能是假的」。
+       注意：whirlT>0 时本函数在上面直接 return（连击退都被吃掉），所以
+       没有这行就是「站着不动却掉血」，比普通受击更费解。 */
+    p.inv = Math.max(p.inv, 1.5);
     p.swingT = 0; p.swingIdx = 0;
     G.shake = Math.max(G.shake, 12);
     sfxCrit();
@@ -2460,7 +2501,7 @@ function update(dt){
 
     /* 结算页：手柄确认。键盘走 keydown（见输入段），这里只补手柄那条腿。 */
     confirmT += dt;
-    if(confirmT >= CONFIRM_ARM && padConfirmEdge()){
+    if(confirmT >= CONFIRM_ARM && (padConfirmEdge() || kbConfirmEdge())){
       if(G.phase === "lose" || G.phase === "win") restartAll();
       else if(G.phase === "clear") nextWave();
     }
@@ -2475,6 +2516,11 @@ function anyPress(){
     var b = p.buttons;
     for(var j=0;j<b.length;j++){ if(b[j] && (b[j].pressed||b[j].value>0.5)) return true; }
   }
+  /* 触屏：手机上「按任意键开始」没有键可按，得认手指。
+     标题页与结算页的虚拟键是收起的（覆盖层由 DOM 按钮接管），
+     所以这里不能读 Touch.state —— 那是给对局用的。改读「刚刚有没有手指落下」：
+     Touch 在全局捕获阶段记了这一下，anyPress 只问一次就消费掉。 */
+  if(window.Touch && Touch.takeTap && Touch.takeTap()) return true;
   return false;
 }
 function updateParticles(dt){

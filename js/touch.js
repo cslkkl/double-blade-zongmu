@@ -252,6 +252,10 @@
   pointer-events:auto;touch-action:none;
 }
 #${LAYER_ID}.tch-intro .tch-skip{display:flex}
+/* 短片期间只留跳过区：动作键与方向键此时按了没有任何作用
+   （loop 走的是 introTick，不进 update），摆在屏幕上只会误触 */
+#${LAYER_ID}.tch-intro .tch-b,
+#${LAYER_ID}.tch-intro .tch-top{display:none}
 #${LAYER_ID} .tch-skip .hint{
   font-size:13px;letter-spacing:.10em;color:rgba(230,214,178,.62);
   padding:8px 18px;border-radius:999px;
@@ -282,15 +286,21 @@
     return mirror ? flip(raw) : raw;
   }
 
-  /* 动作键簇：刀最大最常按、贴底；技在它右边同一行；
-     拾在刀上方（够得着又不挡画面）；丢 / 递缩成小键贴右边缘往上排。 */
+  /* 动作键簇（单人）：刀最大最常按、贴底；技在它右边同一行；
+     拾在刀上方（够得着又不挡画面）；丢 / 递缩成小键贴右边缘往上排。
+
+     ⚠️ 纵向间距按「最大那颗」算：刀是 big（1.22 倍直径），
+     它与上方「拾」的 y 差必须 ≥ (1.22 + 1)/2 + 0.15 ≈ 1.26。
+     实测坑：刀 0.55 / 拾 1.75 差 1.2，在 844×390 上勉强不撞，
+     到 1365×1024（按钮跟着变大）就相交了 —— 间距必须用直径倍数留足余量，
+     不能卡在临界值上。 */
   function actCluster(mirror) {
     var raw = [
-      { field: "atk",   label: "刀", cls: "big", x: 57, y: 0.55 },
+      { field: "atk",   label: "刀", cls: "big", x: 57, y: 0.6 },
       { field: "skill", label: "技", cls: "",    x: 82, y: 0.5 },
-      { field: "act",   label: "拾", cls: "",    x: 70, y: 1.75 },
-      { field: "drop",  label: "丢", cls: "sm",  x: 93, y: 1.6 },
-      { field: "give",  label: "递", cls: "sm",  x: 93, y: 2.75 }
+      { field: "act",   label: "拾", cls: "",    x: 70, y: 2.05 },
+      { field: "drop",  label: "丢", cls: "sm",  x: 93, y: 1.9 },
+      { field: "give",  label: "递", cls: "sm",  x: 93, y: 3.1 }
     ];
     return mirror ? flip(raw) : raw;
   }
@@ -313,19 +323,51 @@
      所以 p2 那半屏直接用原表即可，手感天然镜像、功能顺序一致。 */
 
   /* 单人：移动在左半屏、动作在右半屏 —— 手机上的通用握法，两只拇指各管一块。
-     双人：每人独占一半。
-       p1（左半屏）：移动贴屏幕左边缘，动作簇往中线方向排。
-       p2（右半屏）：移动贴屏幕右边缘，动作簇往中线方向排。
-     两侧的「刀」都靠外、「技」都靠外上 —— 手感镜像，功能顺序一致。 */
+     双人：每人独占一半，两簇并排塞进同一个半屏。
+       p1（左半屏）：移动贴屏幕左边缘，动作簇在右侧。
+       p2（右半屏）：移动贴屏幕右边缘（镜像），动作簇在左侧。
+     两个半屏各自独立，x 都按「本半屏宽度的百分比」算 —— 所以动作簇用同一张表
+     就已经天然镜像了：p1 的「刀」在半屏 57% 处（靠中线），
+     p2 的「刀」也在自己半屏 57% 处（也靠中线）。两个玩家的刀都在中线附近，
+     这是对的 —— 拇指自然落在内侧。
+
+     ⚠️ 双人时半屏只有 422px 宽（844 屏），要塞 8 枚键（最宽 70px），
+     所以两簇的 x 必须错开：移动簇压到 3~22%，动作簇拉到 40~92%。
+     实测过的坑：动作簇用 57% 时，它的「技」（82%）会压到 p2 移动簇镜像后的
+     「◀」（82% 镜像 = 18% … 但因为镜像，实际落在 p2 半屏的 18% 处，
+     而 p2 的 ◀ 在 91%）—— 两簇在边缘相撞。 */
   function layoutFor(tag, half) {
     if (mode === "solo") {
       return (half === "l") ? moveCluster(false) : actCluster(false);
     }
-    /* duo：两个半屏各自独立，p2 那半屏镜像。
-       镜像只翻移动簇（左右方向要反过来），动作簇的位置照原表 —— 因为
-       动作簇的 x 本来就是「相对本半屏」，翻它反而会把刀挪到靠中线。 */
-    if (tag === "p1") return moveCluster(false).concat(actCluster(false));
-    return moveCluster(true).concat(actCluster(false));
+    /* duo：两簇都塞进本半屏。移动簇贴外缘、动作簇靠内缘，中间留出缝。 */
+    if (tag === "p1") return moveDuo(false).concat(actDuo(false));
+    return moveDuo(true).concat(actDuo(true));
+  }
+
+  /* 双人专用：移动簇压到本半屏的左 1/3，跳抬高一档 */
+  function moveDuo(mirror) {
+    var raw = [
+      { field: "left",  label: "◀", cls: "dir", x: 5,  y: 0.5 },
+      { field: "right", label: "▶", cls: "dir", x: 20, y: 0.5 },
+      { field: "jump",  label: "跳", cls: "dir", x: 12.5, y: 1.95 }
+    ];
+    return mirror ? flip(raw) : raw;
+  }
+
+  /* 双人专用：动作簇压到本半屏的右 2/3 之内，最外那颗不超过 90%。
+     ⚠️ 纵向间距要按「最大那颗」算：「刀」是 big（1.22 倍直径），
+     所以它与上方「拾」的 y 差必须 ≥ (1.22 + 1)/2 + 0.15 ≈ 1.26，
+     否则包围盒会相交（实测 0.55 vs 1.75 差 1.2 就撞了）。 */
+  function actDuo(mirror) {
+    var raw = [
+      { field: "atk",   label: "刀", cls: "big", x: 46, y: 0.6 },
+      { field: "skill", label: "技", cls: "",    x: 74, y: 0.5 },
+      { field: "act",   label: "拾", cls: "",    x: 58, y: 2.05 },
+      { field: "drop",  label: "丢", cls: "sm",  x: 87, y: 1.9 },
+      { field: "give",  label: "递", cls: "sm",  x: 87, y: 3.1 }
+    ];
+    return mirror ? flip(raw) : raw;
   }
 
   /* ---------------------------------------------------------------------
@@ -461,6 +503,38 @@
         step.host.appendChild(el);
       }
     }
+
+    /* 布局自检：任意两枚键的包围盒不许相交。
+       这类 bug 靠人眼看截图极难发现（重合一两像素时只是「有点怪」），
+       而玩家的拇指会实打实地按错。只在布局重建时跑一次，不进热路径。 */
+    checkOverlap();
+  }
+
+  /* 两两求交。相交就 warn 并把重叠的那对键记下来 ——
+     不自动改布局（那会让位置变得不可预测），只把问题暴露出来。
+     长期价值：以后改布局表，控制台立刻告诉你撞了。 */
+  function checkOverlap() {
+    if (!layer || typeof layer.querySelectorAll !== "function") return [];
+    var els = layer.querySelectorAll(".tch-b");
+    var rects = [];
+    for (var i = 0; i < els.length; i++) {
+      var r = els[i].getBoundingClientRect();
+      if (r.width <= 0) continue;                 /* 还没布局完（display:none）就跳过 */
+      rects.push({ k: els[i].getAttribute("data-tch"), r: r });
+    }
+    var bad = [];
+    for (var a = 0; a < rects.length; a++) {
+      for (var b = a + 1; b < rects.length; b++) {
+        var A = rects[a].r, B = rects[b].r;
+        var ox = Math.min(A.right, B.right) - Math.max(A.left, B.left);
+        var oy = Math.min(A.bottom, B.bottom) - Math.max(A.top, B.top);
+        if (ox > 0 && oy > 0) bad.push(rects[a].k + " × " + rects[b].k);
+      }
+    }
+    if (bad.length && global.console && console.warn) {
+      console.warn("[Touch] 虚拟键重叠:", bad.join(", "));
+    }
+    return bad;
   }
 
   /* 把一枚键摆到位置。x = 半屏宽度的百分比（居中于该点），y = 距底的 vmin 偏移。 */
@@ -685,10 +759,11 @@
 
   /* 该不该显示。规则：
      ① 有触屏 ② 手指真的动过（或强制显示） ③ 没插手柄（插了手柄就用不着虚拟键了）
-     ④ 不在「非对局」的覆盖层里（标题 / 失败 / 通关 / 暂停页）
+     ④ 只在真正对局里（`G.phase === "play"`），且没在暂停 / 短片中
      第三条很关键：手柄玩家的屏幕不该被一堆虚拟按钮挡掉三分之一。
-     第四条是手机特有的：覆盖层上的按钮是 DOM，虚拟键盖在上面会抢掉点击，
-     而且失败页上那十个圆钮没有任何意义 —— 收起来才对。 */
+     第四条是手机特有的：覆盖层上的按钮是 DOM，虚拟键盖在上面会抢掉点击
+     （#tch-layer 的 z-index 比 ui-shell 高），而且模式选择页上那十个圆钮
+     按了什么都不会发生 —— 因为 update() 只在 play 分支读 Touch.state。 */
   function active() {
     if (!available()) return false;
     if (forced === true) return true;
@@ -697,10 +772,13 @@
     try {
       if (global.Guide && global.Guide.padCount && global.Guide.padCount() > 0) return false;
     } catch (e) { /* 忽略 */ }
-    /* 只在真正对局（含短片）里出现。标题页与结算页由 DOM 按钮接管。 */
     try {
-      var ph = global.G && global.G.phase;
-      if (ph !== "play") return false;
+      var g = global.G;
+      if (!g) return false;
+      if (g.phase !== "play") return false;    /* 标题 / 结算页由 DOM 按钮接管 */
+      if (g.paused) return false;              /* 暂停页也是 DOM */
+      /* 短片期间要显示，但只为了亮出「长按跳过」那块 —— 动作键本身没意义。
+         由 .tch-intro 那条 CSS 把动作键藏起来，只留跳过区。 */
     } catch (e2) { /* 读不到就当在对局里 */ }
     return true;
   }
@@ -751,6 +829,17 @@
     return false;
   }
 
+  /* 「刚刚有没有手指落下」。给标题页 / 结算页的「按任意键」用 ——
+     那些页面上虚拟键是收起的（覆盖层由 DOM 按钮接管），
+     所以不能读 state()，只能读这个一次性标记。
+     读一次即消费，避免同一根手指连触发两页。 */
+  var tapPending = false;
+  function takeTap() {
+    if (!tapPending) return false;
+    tapPending = false;
+    return true;
+  }
+
   /* ---------------------------------------------------------------------
      振动（安卓 Chrome 有，iOS 没有）
      --------------------------------------------------------------------- */
@@ -782,6 +871,9 @@
   function armFirstTouch() {
     if (!available()) return;
     var kick = function () {
+      /* 不管是不是第一次，都记一个「刚有手指落下」的标记 ——
+         标题页与结算页的「按任意键」靠它（见 takeTap）。 */
+      tapPending = true;
       if (everTouched) return;
       everTouched = true;
       unlockAudio();
@@ -850,9 +942,11 @@
     tick: tick,
     clearAll: clearAll,
     skipHeld: skipHeld,
+    takeTap: takeTap,
     buzz: buzz,
     init: init,
-    /* 调试用：看当前是按着什么 */
-    debug: function () { return { mode: mode, shown: lastShown, pointers: pointers }; }
+    /* 调试用：看当前是按着什么；overlaps 供自动化验收调用 */
+    debug: function () { return { mode: mode, shown: lastShown, pointers: pointers }; },
+    overlaps: function () { return checkOverlap(); }
   };
 })(window, document);
