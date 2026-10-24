@@ -294,6 +294,11 @@ var BREATHER = 3.0;             /* 每阵之间的喘息，玩家可以走动、
 var MAX_ALIVE = 7;              /* 同屏存活上限：刷怪排队，波次因此被拉长 */
 var INTERACT_R = { x: 80, y: 150 };   /* 宝箱 / 机关的开箱判定半径 */
 
+/* 地上东西的寿命（秒）。没人捡就消失，防止场上杂物越积越多、画面变脏。 */
+var DROP_LIFE = 12;             /* 掉落武器 */
+var RESIDUE_LIFE = 12;          /* 投掷物残片 */
+var PICKUP_LIFE = 12;           /* 宝箱碎片（海贝 / 玉器） */
+
 var cv = document.getElementById("cv");
 var ctx = cv.getContext("2d");
 var $stage = document.getElementById("stage");
@@ -1306,7 +1311,7 @@ function tryPickup(p){
   return false;
 }
 function dropWeapon(x, y, wp){
-  G.drops.push({ x:x, y:GROUND, vy:-420, weapon:wp, taken:false, life:22, bob:rnd(0,6) });
+  G.drops.push({ x:x, y:GROUND, vy:-420, weapon:wp, taken:false, life:DROP_LIFE, bob:rnd(0,6) });
 }
 
 /* 投掷物残骸回收（走上去按攻击键）
@@ -1431,7 +1436,7 @@ function chestReward(c, p, i){
   G.pickups.push({
     kind: kind, x: c.x + ox, y: c.y - 80,
     vx: ox*2.4, vy: -470, g: 1700,
-    life: 20, bob: rnd(0,6)
+    life: PICKUP_LIFE, bob: rnd(0,6)
   });
 }
 
@@ -2234,7 +2239,7 @@ function leaveResidue(pr){
   }
   var def = WEAPONS[pr.wkey];
   G.drops.push({
-    x: rx, y: GROUND, vy: -280, taken: false, life: 18, bob: rnd(0,6),
+    x: rx, y: GROUND, vy: -280, taken: false, life: RESIDUE_LIFE, bob: rnd(0,6),
     residue: true, wkey: pr.wkey, weapon: null,
     name: (def ? def.name : "投掷物") + "残片"
   });
