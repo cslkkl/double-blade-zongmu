@@ -1,0 +1,417 @@
+/* node + mock canvas 自检：武器视觉三件套（站立帧 / 出招姿态 / 专属刀光）
+ * 用法：node tools/selftest_weapons.mjs
+ *
+ * 只证明三件事，不证明好不好看：
+ *   1. 每把武器都有落点 —— 三份数据块覆盖 WEAPONS 的 key，图真的在磁盘上；
+ *   2. 绘制分流对 —— 站定画出 hold-*、挥砍画出 atk-*、走路不画 hold-*；
+ *   3. 缺键逐级落回 —— 没有出招姿态回到攻击 clip，没有专属刀光回到通用三档，
+ *      弓与投掷物不出手上弧光；任何一条降级都不许抛异常。
+ *
+ * 不启浏览器：多 agent 共用 Playwright 会互相抢浏览器，自检一律 node + mock canvas。
+ */
+import fs from "node:fs";
+import vm from "node:vm";
+import { fileURLToPath } from "node:url";
+
+const ROOT = fileURLToPath(new URL("..", import.meta.url)).replace(/[\\/]+$/, "");
+const read = (p) => fs.readFileSync(ROOT + "/" + p, "utf8");
+
+const animSrc = read("js/anim-data.js");
+const rigSrc = read("js/char-rig.js");
+const fxSrc = read("js/fx.js");
+
+/* ---------------------------------------------------------------- mock canvas */
+
+const METHODS = [
+  "save", "restore", "translate", "scale", "rotate", "setTransform", "transform",
+  "beginPath", "closePath", "moveTo", "lineTo", "quadraticCurveTo", "bezierCurveTo",
+  "arc", "arcTo", "ellipse", "rect", "fill", "stroke", "clip",
+  "fillRect", "strokeRect", "clearRect", "drawImage",
+  "createLinearGradient", "createRadialGradient", "createPattern",
+  "setLineDash", "getLineDash", "measureText", "fillText", "strokeText", "putImageData"
+];
+
+let drawCalls = [];
+
+function gradient() {
+  return { addColorStop() {} };
+}
+
+function makeCtx() {
+  const ctx = {
+    canvas: { width: 1280, height: 720 },
+    globalAlpha: 1,
+    globalCompositeOperation: "source-over",
+    fillStyle: "#000",
+    strokeStyle: "#000",
+    lineWidth: 1,
+    lineCap: "butt",
+    lineJoin: "miter",
+    shadowColor: "transparent",
+    shadowBlur: 0,
+    font: "10px sans-serif",
+    textAlign: "left"
+  };
+  for (const m of METHODS) {
+    if (m === "createLinearGradient" || m === "createRadialGradient" || m === "createPattern") {
+      ctx[m] = () => gradient();
+    } else if (m === "measureText") {
+      ctx[m] = () => ({ width: 8 });
+    } else if (m === "getLineDash") {
+      ctx[m] = () => [];
+    } else if (m === "drawImage") {
+      ctx[m] = (img, ...rest) => {
+        drawCalls.push({
+          src: img && img.src,
+          args: rest,
+          comp: ctx.globalCompositeOperation,
+          alpha: ctx.globalAlpha
+        });
+      };
+    } else {
+      ctx[m] = () => {};
+    }
+  }
+  return ctx;
+}
+
+function makeSandbox() {
+  const stats = { images: 0, canvases: 0 };
+  const ctx = {};
+  ctx.window = ctx;
+  ctx.console = { log() {}, warn() {}, error() {} };
+  ctx.Math = Math;
+  ctx.isFinite = isFinite;
+  ctx.document = {
+    createElement(tag) {
+      if (tag === "canvas") stats.canvases++;
+      return { tag, width: 1, height: 1, getContext() { return makeCtx(); } };
+    }
+  };
+  ctx.Image = class {
+    constructor() {
+      stats.images++;
+      this.complete = false;
+      this.naturalWidth = 0;
+      this.naturalHeight = 0;
+      this._src = "";
+    }
+    set src(v) {
+      this._src = v;
+      this.complete = true;
+      this.naturalWidth = 400;
+      this.naturalHeight = 400;
+    }
+    get src() { return this._src; }
+  };
+  /* 通用档素材：不给它们的话「无 wkey 回落通用刀光」会落到纯代码弧光，
+     测不出 drawImage 那一步，等于把降级路径当成失败。
+     路径照真实文件名写，别用键名 —— 下面按路径判档。 */
+  ctx.IMG = {};
+  const genericFiles = {
+    slash1: "assets/slash-1.webp",
+    slash2: "assets/slash-2.webp",
+    slash3: "assets/slash-3.webp",
+    hit1: "assets/hit-1.webp",
+    hit2: "assets/hit-2.webp",
+    hit3: "assets/hit-3.webp",
+    whirlRing: "assets/whirl-ring.webp",
+    jadeTablet: "assets/props/jade-tablet.webp",
+    pose0: "assets/char/pose-0.webp"
+  };
+  for (const k of Object.keys(genericFiles)) {
+    ctx.IMG[k] = { complete: true, naturalWidth: 300, naturalHeight: 400, src: genericFiles[k] };
+  }
+  vm.createContext(ctx);
+  return { ctx, stats };
+}
+
+/* Node 的 console.log 不认 %-8s 补位（那是 Python 的写法），自己补 */
+function pad(s, n) {
+  s = String(s);
+  while (s.length < n) s += " ";
+  return s;
+}
+function row(a, b, c) {
+  return pad(a, 8) + " " + pad(b, 26) + " " + pad(c, 26);
+}
+
+/* ---------------------------------------------------------------- 载入 */
+
+const { ctx: S } = makeSandbox();
+vm.runInContext(animSrc, S);
+vm.runInContext(rigSrc, S);
+vm.runInContext(fxSrc, S);
+
+const ANIM = S.window.ANIM || {};
+const HOLD = S.window.ANIM_HOLD || {};
+const ATK = S.window.WEAPON_ATTACK || {};
+const WFX = S.window.WEAPON_FX || {};
+const HITM = S.window.HIT_MATERIAL || {};
+const CharArt = S.window.CharArt;
+const FX = S.window.FX;
+
+let fails = 0;
+const rows = [];
+function ok(cond, msg) {
+  if (!cond) { fails++; console.error("  FAIL " + msg); }
+}
+function onDisk(rel) {
+  if (!rel) return false;
+  try { return fs.statSync(ROOT + "/" + rel).isFile(); } catch (e) { return false; }
+}
+function drawnPng(prefix) {
+  /* 找出本帧画过、路径里带这个前缀（或匹配这个正则）的那条 drawImage */
+  const re = prefix instanceof RegExp ? prefix : null;
+  for (const c of drawCalls) {
+    if (!c.src) continue;
+    const s = String(c.src);
+    if (re ? re.test(s) : s.indexOf(prefix) >= 0) return c;
+  }
+  return null;
+}
+/* 通用三档刀光的路径特征：assets/slash-1..3.webp（与专属的 wp-slash-* 区分） */
+const GENERIC_SLASH = /(^|[\\/])slash-[123]\.webp$/;
+const GENERIC_HIT = /(^|[\\/])hit-[123]\.webp$/;
+function clear() { drawCalls = []; }
+
+/* ---------------------------------------------------------------- 1. 契约与覆盖 */
+
+ok(FX && typeof FX.drawSlash === "function", "FX.drawSlash 存在");
+ok(FX && typeof FX.drawHit === "function", "FX.drawHit 存在");
+ok(FX && typeof FX.drawProjFx === "function", "FX.drawProjFx 存在");
+ok(FX && typeof FX.weaponFxReady === "function", "FX.weaponFxReady 存在");
+ok(FX && typeof FX.matHitReady === "function", "FX.matHitReady 存在");
+ok(CharArt && typeof CharArt.draw === "function", "CharArt.draw 存在");
+
+/* WEAPONS 的 key 集合（与 index.html 的 WEAPONS 对应，这里是判据不是数据源） */
+const WEAPON_KEYS = ["short", "dagger", "sword", "axe", "hammer", "spear", "bow", "rock", "blade", "jar", "bell"];
+/* bell 复用 jar 的出招姿态（上层兜底），不要求自己的 atk 图 */
+const ATK_KEYS = WEAPON_KEYS.filter((k) => k !== "bell");
+const HIT_MATS = ["jade", "bronze", "blunt", "airy"];
+
+console.log("=== 1. 数据块覆盖 ===");
+console.log(
+  "ANIM_HOLD %d 键 / WEAPON_ATTACK %d 键 / WEAPON_FX %d 键 / HIT_MATERIAL %d 键",
+  Object.keys(HOLD).length, Object.keys(ATK).length,
+  Object.keys(WFX).length, Object.keys(HITM).length
+);
+
+const missHold = WEAPON_KEYS.filter((k) => !HOLD[k]);
+const missAtk = ATK_KEYS.filter((k) => !ATK[k]);
+const missFxc = WEAPON_KEYS.filter((k) => !WFX[k]);
+const missHit = HIT_MATS.filter((k) => !HITM[k]);
+
+ok(!missHold.length, "每把武器都有站立帧（缺：" + missHold.join(",") + "）");
+ok(!missAtk.length, "每把武器都有出招姿态（缺：" + missAtk.join(",") + "）");
+ok(!missFxc.length, "每把武器都有专属特效（缺：" + missFxc.join(",") + "）");
+ok(!missHit.length, "四种打击材质都有图（缺：" + missHit.join(",") + "）");
+
+console.log("=== 2. 素材文件落盘 ===");
+console.log(row("key", "hold", "atk") + pad("fx", 26));
+for (const k of WEAPON_KEYS) {
+  const h = HOLD[k] && HOLD[k].file;
+  const a = ATK[k] && ATK[k].file;
+  const f = WFX[k] && WFX[k].file;
+  const hOk = h ? onDisk(h) : false;
+  const aOk = a ? onDisk(a) : false;
+  const fOk = f ? onDisk(f) : false;
+  console.log(row(
+    k,
+    h ? (hOk ? "ok" : "MISSING " + h) : "(复用 idle)",
+    a ? (aOk ? "ok" : "MISSING " + a) : "(复用 attack 族)"
+  ) + pad(f ? (fOk ? "ok" : "MISSING " + f) : "-", 26));
+  if (h && !hOk) ok(false, k + " 站立帧文件不存在：" + h);
+  if (a && !aOk) ok(false, k + " 出招帧文件不存在：" + a);
+  if (f && !fOk) ok(false, k + " 专属特效文件不存在：" + f);
+}
+for (const m of HIT_MATS) {
+  const file = HITM[m];
+  if (file && !onDisk(file)) ok(false, "打击材质 " + m + " 的文件不存在：" + file);
+}
+
+console.log("=== 3. 角色绘制分流 ===");
+function player(over) {
+  const base = {
+    x: 640, y: 600, vx: 0, vy: 0, onGround: true, facing: 1,
+    inv: 0, dead: false, hurtT: 0, whirlT: 0, throwT: 0, pickupT: 0,
+    swingT: 0, swingDur: 0, swingIdx: 0, walk: 0,
+    weapon: { key: "sword", type: "melee", dmg: 4, dur: 22, reach: 205, swing: 0.24 },
+    padTag: "p1", bag: [], bagIdx: 0, __alphaMul: 1
+  };
+  return Object.assign(base, over || {});
+}
+
+/* 站定：应画 hold-<key> */
+for (const k of ["short", "sword", "axe", "bow"]) {
+  clear();
+  const wp = { key: k, type: k === "bow" ? "bow" : "melee" };
+  let err = null;
+  try { CharArt.draw(makeCtx(), player({ weapon: wp }), 1.0); } catch (e) { err = e; }
+  ok(!err, k + " 站定不抛异常 (" + (err && err.message) + ")");
+  const hit = drawnPng("hold-" + k);
+  ok(!!hit, k + " 站定应画 hold-" + k);
+  rows.push(["stand", k, hit ? "hold-" + k : "-"]);
+}
+
+/* 挥砍：应画 atk-<key>，且不再画 hold-<key> */
+for (const k of ATK_KEYS) {
+  if (!ATK[k]) continue;
+  clear();
+  const wp = { key: k, type: "melee", swing: 0.3 };
+  let err = null;
+  try {
+    CharArt.draw(makeCtx(), player({ weapon: wp, swingT: 0.22, swingDur: 0.3, swingIdx: 0 }), 2.0);
+  } catch (e) { err = e; }
+  ok(!err, k + " 挥砍不抛异常 (" + (err && err.message) + ")");
+  const hit = drawnPng("atk-" + k + ".webp");
+  ok(!!hit, k + " 挥砍应画 atk-" + k);
+  ok(!drawnPng("hold-" + k + ".webp"), k + " 挥砍不该再画站立帧");
+  rows.push(["swing", k, hit ? "atk-" + k : "-"]);
+}
+
+/* 走路：不该画 hold-*（那会变成滑步） */
+clear();
+CharArt.draw(makeCtx(), player({ vx: 200, weapon: { key: "axe", type: "melee" } }), 3.0);
+ok(!drawnPng("hold-axe.webp"), "走路不该画持械站立帧（滑步）");
+ok(!!drawnPng("walk-"), "走路应画 walk 帧");
+rows.push(["walk", "axe", drawnPng("walk-") ? "walk-*" : "-"]);
+
+/* 旋风斩：不该画 atk-*（旋风有自己的 clip） */
+clear();
+CharArt.draw(makeCtx(), player({
+  whirlT: 1.0, swingT: 0.2, swingDur: 0.3,
+  weapon: { key: "hammer", type: "melee" }
+}), 4.0);
+ok(!drawnPng("atk-hammer.webp"), "旋风斩不该画武器出招姿态");
+
+/* 受击：不该画 atk-* */
+clear();
+CharArt.draw(makeCtx(), player({
+  hurtT: 0.2, swingT: 0.2, swingDur: 0.3,
+  weapon: { key: "spear", type: "melee" }
+}), 5.0);
+ok(!drawnPng("atk-spear.webp"), "受击不该画武器出招姿态");
+
+console.log(row("状态", "武器", "实际画出"));
+for (const r of rows) console.log(row(r[0], r[1], r[2]));
+
+/* ---------------------------------------------------------------- 4. 缺键降级 */
+console.log("=== 4. 缺键逐级落回 ===");
+
+/* 4a. 删掉某把武器的出招姿态 → 回到 attack 族 clip，不抛异常 */
+{
+  const saved = ATK.dagger;
+  delete ATK.dagger;
+  clear();
+  let err = null;
+  try {
+    CharArt.draw(makeCtx(), player({
+      weapon: { key: "dagger", type: "melee" },
+      swingT: 0.2, swingDur: 0.3, __forceClip: "attack-thrust"
+    }), 6.0);
+  } catch (e) { err = e; }
+  ok(!err, "缺出招姿态时不抛异常 (" + (err && err.message) + ")");
+  const fb = drawnPng("attack-thrust-") || drawnPng("attack-");
+  ok(!!fb, "缺出招姿态应回落攻击 clip");
+  console.log("  dagger 无 WEAPON_ATTACK → 画 " + (fb ? "attack 族" : "无"));
+  if (saved) ATK.dagger = saved;
+}
+
+/* 4b. 武器 key 完全未知 → 不抛异常，走动画 */
+{
+  clear();
+  let err = null;
+  try {
+    CharArt.draw(makeCtx(), player({ weapon: { key: "__nope", type: "melee" }, swingT: 0.2, swingDur: 0.3 }), 7.0);
+  } catch (e) { err = e; }
+  ok(!err, "未知武器 key 不抛异常 (" + (err && err.message) + ")");
+  console.log("  未知 key → 未抛异常");
+}
+
+/* 4c. 空手 → 走动画，不画 hold/atk */
+{
+  clear();
+  let err = null;
+  try { CharArt.draw(makeCtx(), player({ weapon: { key: "fist", type: "fist" } }), 8.0); } catch (e) { err = e; }
+  ok(!err, "空手不抛异常 (" + (err && err.message) + ")");
+  ok(!drawnPng("hold-fist"), "空手没有站立帧（应为空）");
+  console.log("  空手 → 未抛异常，无 hold-fist");
+}
+
+/* ---------------------------------------------------------------- 5. 特效分流 */
+console.log("=== 5. 刀光 / 火花 / 弹道分流 ===");
+
+/* fxImg 第一帧建图返回 null，第二帧才可用 —— 所以每种都跑两次 */
+function slashTwice(s) {
+  const c = makeCtx();
+  FX.drawSlash(c, s);
+  clear();
+  FX.drawSlash(makeCtx(), s);
+  return drawCalls.slice();
+}
+
+for (const k of ["short", "sword", "axe", "spear"]) {
+  if (!WFX[k]) continue;
+  clear();
+  FX.drawSlash(makeCtx(), { x: 0, y: 0, facing: 1, life: 0.1, max: 0.19, seg: 1, wkey: k });
+  clear();
+  FX.drawSlash(makeCtx(), { x: 0, y: 0, facing: 1, life: 0.1, max: 0.19, seg: 1, wkey: k });
+  const hit = drawnPng("wp-slash-" + k);
+  ok(!!hit, k + " 专属刀光应被画出来");
+  console.log("  " + pad(k, 8) + " 专属刀光 " + (hit ? "ok" : "未画"));
+}
+
+/* 弓与投掷物不出手上弧光 */
+for (const k of ["bow", "rock", "jar", "bell", "blade"]) {
+  clear();
+  FX.drawSlash(makeCtx(), { x: 0, y: 0, facing: 1, life: 0.1, max: 0.19, seg: 1, wkey: k });
+  ok(drawCalls.length === 0, k + " 不该出手上弧光（NO_ARC）");
+}
+
+/* 不给 wkey → 回到通用 slash-1 档 */
+clear();
+FX.drawSlash(makeCtx(), { x: 0, y: 0, facing: 1, life: 0.1, max: 0.19, seg: 1 });
+{
+  const generic = drawnPng(GENERIC_SLASH);
+  ok(!!generic, "无 wkey 时回落通用刀光");
+  console.log("  无 wkey → " + (generic ? "通用 slash-*" : "未画"));
+}
+
+/* 打击火花：材质图 + 材质芯色 */
+clear();
+FX.drawHit(makeCtx(), { x: 0, y: 0, life: 0.1, max: 0.24, big: false, mid: false, mat: "bronze" });
+clear();
+FX.drawHit(makeCtx(), { x: 0, y: 0, life: 0.1, max: 0.24, big: false, mid: false, mat: "bronze" });
+{
+  const hit = drawnPng("hit-bronze");
+  ok(!!hit, "青铜材质打击火花应被画出来");
+  console.log("  mat=bronze → " + (hit ? "hit-bronze" : "未画"));
+}
+
+/* 弹道痕：箭与投掷物各走各的 */
+for (const k of ["bow", "rock", "jar"]) {
+  clear();
+  FX.drawProjFx(makeCtx(), { x: 0, y: 0, vx: 900, vy: -200, kind: k, spin: 0.3, alpha: 1 });
+  clear();
+  const drew = FX.drawProjFx(makeCtx(), { x: 0, y: 0, vx: 900, vy: -200, kind: k, spin: 0.3, alpha: 1 });
+  const hit = drawnPng("wp-slash-");
+  ok(!!drew, k + " 弹道痕应返回 true");
+  ok(!!hit, k + " 弹道痕应画专属特效图");
+  console.log("  " + pad(k, 5) + " 弹道痕 " + (hit ? "ok" : "未画"));
+}
+
+/* 未知 kind 的弹道：安全返回 false */
+{
+  const r = FX.drawProjFx(makeCtx(), { x: 0, y: 0, vx: 1, vy: 0, kind: "__nope", spin: 0, alpha: 1 });
+  ok(r === false, "未知弹道 kind 应返回 false");
+}
+
+/* ---------------------------------------------------------------- 汇总 */
+
+console.log("");
+if (fails) {
+  console.error("selftest_weapons: " + fails + " 项失败");
+  process.exit(1);
+}
+console.log("selftest_weapons: 0 失败");
