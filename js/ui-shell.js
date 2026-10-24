@@ -530,7 +530,11 @@
     };
   }
 
-  /* 全局键盘：只读监听，不 preventDefault / 不 stopPropagation / 不抢焦点 */
+  /* 全局键盘：只读监听，不 preventDefault / 不 stopPropagation / 不抢焦点。
+     唯一例外是「抽屉开着时按 Esc」：那一下必须由本模块吃掉，
+     否则游戏那边的暂停监听也会收到同一个 Esc，变成「收抽屉 + 暂停」两层一起动。
+     用捕获阶段注册 —— 不依赖两个模块的加载顺序，比在游戏那边写前置判断可靠。
+     平时（抽屉没开）Esc 原样放行，交给游戏去暂停。 */
   function onKeyDown(e) {
     if (!e || e.repeat) return;
 
@@ -547,16 +551,24 @@
       return;   // 选择页开着时，其它键原样交给游戏
     }
 
-    /* 按键说明：H / Esc 开关 */
+    /* 按键说明：H 开合；Esc 只负责关。
+       Esc 的「开」交给游戏的暂停逻辑 —— 一个键两件事会互相打架。
+       分工：H = 看键位，Esc = 暂停；抽屉开着时 Esc 先收抽屉（这里吃掉事件）。 */
     if (S.helpBuilt) {
       if (k === "h" || k === "H" || code === "KeyH") { toggleKeyHelp(); return; }
-      if (k === "Escape" || k === "Esc" || code === "Escape") { toggleKeyHelp(); return; }
+      if ((k === "Escape" || k === "Esc" || code === "Escape") && S.helpOpen) {
+        if (e.preventDefault) e.preventDefault();
+        if (e.stopPropagation) e.stopPropagation();
+        toggleKeyHelp();
+        return;
+      }
     }
   }
 
   function installKeyHook() {
     if (S.hookInstalled) return;
-    global.addEventListener("keydown", onKeyDown, false);
+    /* 捕获阶段：抽屉开着时的 Esc 要在游戏之前拿到 */
+    global.addEventListener("keydown", onKeyDown, true);
     installPadHook();
     /* 输入设备一变，抽屉里的图跟着换 —— 手柄和键盘永不同时出现 */
     if (global.Guide && global.Guide.onChange) {

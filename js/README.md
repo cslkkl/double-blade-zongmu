@@ -105,6 +105,7 @@
 - 关键约束：设备按「谁在动」判定，不是「谁插着」。键盘一敲切键盘图，手柄一按切手柄图，`body` 挂 `dev-kbd` / `dev-pad` 互斥；**两套永不同时出现**。
 - 关键约束：轮询（`tick`）是独立 rAF 循环，不占用游戏主循环 —— 暂停时手柄仍要能操作菜单。轮询只读 `getGamepads()`，不消费输入。
 - 关键约束：`renderInto` 会把自己登记进 `mounted`，用于「按下哪个键、图上哪个键亮」；重绘时先摘旧实例再登记，避免重复。
+- 关键约束：暂停页与说明抽屉都调 `renderInto`，同一时刻最多两处挂载；`onChange` 会挨个重绘，所以设备切换时两处同步换图。
 - 关键约束：任何 DOM 缺失都不抛异常；`Guide` 缺席时 `ui-shell` 的说明抽屉退化为只有玩法要点，`index.html` 的 `scanPads()` 退化为空列表。
 - 改后必测：切设备后抽屉里只剩一套图（不能两套并存）；`#keys` 文案跟着换；`body` class 只有 `dev-kbd` 或 `dev-pad` 之一；手柄按下时对应 `data-pin` 亮起。
 
@@ -117,7 +118,9 @@
 - 关键约束：键盘监听只读，不 `preventDefault`、不抢焦点；自己处理 `1 / 2 / H / Esc`；`solo` 模式 HUD 靠 `body.solo` 隐藏玩家二血条。
 - 关键约束：**本模块不再持有键位表**。原来那两张 `KEY_ROWS` / `PAD_ROWS` 已删除，改由 `guide.js` 的 `Guide.renderInto()` 渲染；这里只留一个 `.uis-help-body` 容器和 `TIPS`（玩法要点，与键位无关）。
 - 关键约束：`Guide.onChange` 只注册在 `installKeyHook()` 里，设备一变就重绘抽屉，避免抽屉开着时图不跟着换。
-- 改后必测：模式选择回调是否把 `solo / duo` 传进 `startGame`；气泡坐标是否夹在画面内；`H` `Esc` 开关不吞游戏按键；`Guide` 缺席时抽屉仍能打开（不白屏）。
+- 关键约束：`guide.js` 的 `PAD_LEGEND` / `KBD_LEGEND` 里都登记了「暂停」一行，值分别是 `Start` 与 `Esc`。改暂停键位要同时改三处：`index.html` 的 `togglePause` 入口、`guide.js` 的两张表、本模块的 Esc 归属判断。
+- 关键约束：**Esc 的归属权在捕获阶段解决**。本模块的 `keydown` 监听用 `true` 注册，抽屉开着时按 Esc 会 `preventDefault` + `stopPropagation` 并只关抽屉；抽屉没开时原样放行，交给游戏的 `togglePause`。不这样做的话两个监听都会收到同一个 Esc，变成「收抽屉 + 暂停」两层一起动（这个 bug 真的出现过）。
+- 改后必测：模式选择回调是否把 `solo / duo` 传进 `startGame`；气泡坐标是否夹在画面内；`H` 开关不吞游戏按键；抽屉开着按 Esc 只收抽屉不解冻；抽屉关着按 Esc 只暂停。
 
 ## audio.js
 
