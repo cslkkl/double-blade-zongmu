@@ -459,29 +459,34 @@ function readPad(p, tag){
 }
 
 /* ---------------- 武器 ----------------
-   类型：fist 空手 / melee 近战 / bow 弓箭（直线） / throw 投掷（抛物线） */
+   类型：fist 空手 / melee 近战 / bow 弓箭（直线） / throw 投掷（抛物线）
+
+   平衡口径：敌人血量按「用本阵能拿到的武器要砍几下」定，不按绝对数值定。
+   dur 与 dmg 同向放大，血量涨了多少、耐久就涨多少，武器不会因为血厚而提前碎。
+   参照：第一阵只有 short，锈蚀俑 5 血 → 玉璋刃 2 伤 × 3 刀；第三阵起有 hammer，一刀一只。 */
 var WEAPONS = {
-  fist:   { name:"空手",   type:"fist",  dmg:0.5, dur:999, reach:96,  swing:0.26, col:"#c9b78c", w:0,  len:0  },
-  short:  { name:"玉璋刃", type:"melee", dmg:1,   dur:40,  reach:175, swing:0.20, col:"#e8e4d0", w:7,  len:62 },
-  dagger: { name:"骨牙匕", type:"melee", dmg:1,   dur:16,  reach:145, swing:0.13, col:"#d4dce4", w:6,  len:48 },
-  sword:  { name:"青铜剑", type:"melee", dmg:2,   dur:14,  reach:205, swing:0.24, col:"#eef1f7", w:8,  len:80 },
-  axe:    { name:"青铜钺", type:"melee", dmg:3,   dur:11,  reach:185, swing:0.30, col:"#c8b89a", w:12, len:56 },
-  hammer: { name:"神树锤", type:"melee", dmg:4,   dur:8,   reach:220, swing:0.40, col:"#b0a088", w:15, len:66 },
-  spear:  { name:"三枝叉", type:"melee", dmg:3,   dur:16,  reach:238, swing:0.18, col:"#dfe6ee", w:6,  len:96 },
-  bow:    { name:"神鸟弓", type:"bow",   dmg:2,   dur:12,  reach:0,   swing:0.34, col:"#b08a4a", w:6,  len:52 },
+  fist:   { name:"空手",   type:"fist",  dmg:1,   dur:999, reach:96,  swing:0.26, col:"#c9b78c", w:0,  len:0  },
+  short:  { name:"玉璋刃", type:"melee", dmg:2,   dur:55,  reach:175, swing:0.20, col:"#e8e4d0", w:7,  len:62 },
+  dagger: { name:"骨牙匕", type:"melee", dmg:2.5, dur:26,  reach:145, swing:0.13, col:"#d4dce4", w:6,  len:48 },
+  sword:  { name:"青铜剑", type:"melee", dmg:4,   dur:22,  reach:205, swing:0.24, col:"#eef1f7", w:8,  len:80 },
+  axe:    { name:"青铜钺", type:"melee", dmg:6,   dur:18,  reach:185, swing:0.30, col:"#c8b89a", w:12, len:56 },
+  hammer: { name:"神树锤", type:"melee", dmg:8,   dur:14,  reach:220, swing:0.40, col:"#b0a088", w:15, len:66 },
+  spear:  { name:"三枝叉", type:"melee", dmg:5,   dur:24,  reach:238, swing:0.18, col:"#dfe6ee", w:6,  len:96 },
+  bow:    { name:"神鸟弓", type:"bow",   dmg:4,   dur:18,  reach:0,   swing:0.34, col:"#b08a4a", w:6,  len:52 },
 
   /* ---- 投掷物：全部 type:"throw"，靠 t* 参数分出四种手感 ----
      共用：dmg 直击伤害 / ammo 初始弹数 / radius 爆炸半径 /
            tvx 出手水平速度 / tvy 出手抬升 / tg 重力
      专属：pierce 可穿透敌人个数 / fuse 落地引信秒数 / bounce 落地反弹次数
-     定位：眼形石=稳准、玉璋镖=快而穿、陶罐雷=慢炸大、青铜铃=弹一下再爆 */
-  rock:   { name:"眼形石", type:"throw", dmg:3, dur:3, reach:0, swing:0.32, col:"#8e8474", w:13, len:40,
+     定位：眼形石=稳准、玉璋镖=快而穿、陶罐雷=慢炸大、青铜铃=弹一下再爆
+     伤害高于同档近战：弹药有限、要跑位去捡，值这个数 */
+  rock:   { name:"眼形石", type:"throw", dmg:7,  dur:3, reach:0, swing:0.32, col:"#8e8474", w:13, len:40,
             ammo:3, radius:58,  tvx:700,  tvy:-300, tg:1500 },
-  blade:  { name:"玉璋镖", type:"throw", dmg:2, dur:3, reach:0, swing:0.26, col:"#cde9d6", w:7,  len:52,
+  blade:  { name:"玉璋镖", type:"throw", dmg:5,  dur:3, reach:0, swing:0.26, col:"#cde9d6", w:7,  len:52,
             ammo:3, radius:38,  tvx:1250, tvy:-70,  tg:200,  pierce:2 },
-  jar:    { name:"陶罐雷", type:"throw", dmg:5, dur:3, reach:0, swing:0.40, col:"#b4764a", w:14, len:44,
+  jar:    { name:"陶罐雷", type:"throw", dmg:12, dur:3, reach:0, swing:0.40, col:"#b4764a", w:14, len:44,
             ammo:3, radius:130, tvx:560,  tvy:-330, tg:1600, fuse:0.45 },
-  bell:   { name:"青铜铃", type:"throw", dmg:4, dur:3, reach:0, swing:0.34, col:"#8fae8a", w:12, len:40,
+  bell:   { name:"青铜铃", type:"throw", dmg:9,  dur:3, reach:0, swing:0.34, col:"#8fae8a", w:12, len:40,
             ammo:3, radius:76,  tvx:620,  tvy:-260, tg:1500, bounce:1 }
 };
 var AMMO_MAX = 5;            /* 投掷物携带上限：残骸回收最多补到这里 */
@@ -596,10 +601,13 @@ function Enemy(kind, x){
   this.walk = rnd(0,6);
   this.hitOnce = false;
   this.deadT = 0;
-  if(kind==="walker"){ this.hp=2; this.maxHp=2; this.spd=110; this.scale=1.0; this.dmg=1; }
-  else if(kind==="fast"){ this.hp=1; this.maxHp=1; this.spd=225; this.scale=0.82; this.dmg=1; }
-  else if(kind==="brute"){ this.hp=5; this.maxHp=5; this.spd=78; this.scale=1.28; this.dmg=2; }
-  else { this.hp=26; this.maxHp=26; this.spd=95; this.scale=2.05; this.dmg=2; } // boss
+  /* 血量按「本阵能拿到的武器要砍几刀」定，四种差异明显、可一眼分辨。
+     参照玉璋刃（2 伤，起手武器）：疾行俑 2 刀 / 锈蚀俑 3 刀 / 厚甲兵 6 刀 / 器心 30 刀。
+     拿到神树锤（8 伤）之后：锈蚀俑 1 刀 / 厚甲兵 2 刀 / 器心 8 刀。 */
+  if(kind==="walker"){ this.hp=5;  this.maxHp=5;  this.spd=110; this.scale=1.0;  this.dmg=1; }
+  else if(kind==="fast"){ this.hp=3;  this.maxHp=3;  this.spd=225; this.scale=0.82; this.dmg=1; }
+  else if(kind==="brute"){ this.hp=12; this.maxHp=12; this.spd=78;  this.scale=1.28; this.dmg=2; }
+  else { this.hp=60; this.maxHp=60; this.spd=95; this.scale=2.05; this.dmg=2; } // boss
   this.w = 70*this.scale; this.h = 160*this.scale;
 }
 Enemy.prototype.rect = function(){
