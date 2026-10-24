@@ -47,9 +47,9 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 
 ## 验证快照
 
-- 2026-10-24：`check-inline` 通过（内联脚本 113987 字符）；`selftest_enemies` 0 失败；`selftest_audio` 0 失败；`node --check` 8/8 通过；链接校验 0 错误。
-- 规模：`index.html` 3727 行 / 141584 字节；`js/` 8 个模块 4785 行；`assets/` 104 个文件 2901046 字节（2.77 MB）。
-- 素材分布：`anim/` 57、`icons/` 16、`interact/` 6、`props/` 8、`char/` 5、`assets/` 根 12。
+- 2026-10-24（暂停 + 指南模块化后）：`check-inline` 通过（内联脚本 119675 字符）；`selftest_enemies` 0 失败；`selftest_audio` 0 失败；`node --check` 9/9 通过。
+- 暂停链路由 CDP 驱动本机 `file://` 页面实测：Esc 暂停 / 解冻、抽屉开着时 Esc 只收抽屉、暂停中切设备换图、R 重开、暂停页点击、非 play 阶段不响应，逐条断言通过。
+- 规模：`index.html` 约 3900 行；`js/` 9 个模块；`assets/` 127 个文件 3.69 MB。
 - 帧数：角色 12 个 clip 共 43 帧；敌人 4 类共 14 帧。
 - 关卡：6 阵共 85 体。
 - 无 CI，以上为本机手工结果；改完代码重跑一遍再写结论。
