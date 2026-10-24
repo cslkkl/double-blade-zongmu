@@ -17,3 +17,9 @@ desktop.ini
 # Python
 __pycache__/
 *.pyc
+
+# 临时脚本（队友调试残留）
+_*.py
+_*.mjs
+_*.ps1
+_*.js
