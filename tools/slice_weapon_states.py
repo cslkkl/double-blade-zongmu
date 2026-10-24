@@ -1,41 +1,40 @@
 # -*- coding: utf-8 -*-
-"""武器「每把一套独立动作」切片：<key>-<state>.png（横向 N 格）-> <state>-<key>-<i>.webp + WEAPON_CLIP。
+"""武器「每把一套独立动作」切片：<key>-<sheet>.png → <state>-<key>-*.webp + WEAPON_CLIP。
 
-为什么要有这个脚本
-------------------
-早先的实现里，走路 / 跳跃 / 受击 / 拾取都复用**公共 clip**（12 个动作全角色共用、
-手上没武器），只有站定和出招有武器专属图。结果是「站着有武器、一走一空手、
-一跳更空手」，连续性断在最常发生的几个动作上。
+核心设计：**同一把武器的所有状态共用一张画布、一个 scaleFix**
+------------------------------------------------------------
+早先的版本按「每个状态各自归一化到 174.6px」来算 scaleFix，这是错的：
+跳跃是蹲姿、拾取是弯腰、受击是后仰，这些姿态的身体本来就短。把它们各自
+拉到 174.6px，等于蹲着的人被放大成和站着一样高 —— 表现就是换状态时人物
+忽大忽小。真出过这个 bug。
 
-这里把「每把武器 × 每个动作」都做成独立素材，写进一个统一的数据块
-`window.WEAPON_CLIP`，渲染层按状态查表，查不到才逐级回落。
+正确做法：同一把武器把**所有状态的格子**放进同一张画布（底边贴齐、水平居中），
+用「站立相」（walk）测出身体像素高，算出一个 scaleFix 给全部状态共用。
+这样：
+  - 站立 → 屏幕 174.6px
+  - 蹲姿 → 屏幕上就是矮的（正确）
+  - 任何状态之间像素比例恒定（不会忽大忽小）
 
-输入
-----
-  <key>-<state>.png   横向 N 格条带，纯洋红底，角色朝右
+数据块：window.WEAPON_CLIP[key][state] = { frames, loop, fps, w, h,
+                                           scaleFix, footY, anchorX[], files[] }
 
-  state 与格数（与 art-a/b/c 三组的交付口径一致）：
-    idle   1    站定（缺省直接用 hold-<key>，一般不用生成）
-    walk   4    行走循环
-    jump   2    起跳 / 滞空
-    attack 4    蓄力 → 挥出 → 收势 → 复位
-    hurt   1    受击后仰
-    pickup 1    弯腰拾取
+输入条带（纯洋红底、朝右、横向均匀 N 格）：
+  <key>-walk.png    4 格   行走循环
+  <key>-jump.png    2 格   屈膝起跳 / 滞空收腿
+  <key>-attack.png  4 格   蓄力 → 挥出 → 收势 → 复位
+  <key>-aux.png     2 格   第0格 受击后仰  第1格 弯腰拾取
 
-输出
-----
-  assets/anim/<state>-<key>-<i>.webp
-  js/anim-data.js 里的 window.WEAPON_CLIP 数据块
+  walk / jump / attack：一张条带的 N 格都属于同一状态 → 文件名带帧号
+  aux：2 格里塞了两个状态（hurt / pickup）→ 每个状态 1 帧，文件名不带帧号
 
 用法
 ----
   python tools/slice_weapon_states.py --src <条带目录>
   python tools/slice_weapon_states.py --src <目录> --only axe,hammer
-  python tools/slice_weapon_states.py --src <目录> --states walk,jump
+  python tools/slice_weapon_states.py --src <目录> --sheets walk,attack
   python tools/slice_weapon_states.py --src <目录> --debug
 """
 import argparse
-import io
 import sys
 from pathlib import Path
 
@@ -50,8 +49,6 @@ import slice_weapon_assets as WA            # noqa: E402
 import slice_weapon_seq as SQ               # noqa: E402
 
 ROOT = HERE.parent
-# 产物路径显式指到仓库内 —— 不复用 slice_anim 的 OUT_IMG（那个是相对硬编码
-# SRC 拼的，换机器就没有该目录）。
 OUT_IMG = ROOT / "assets" / "anim"
 OUT_JS = ROOT / "js" / "anim-data.js"
 DBG = ROOT / "_dbg"
@@ -61,37 +58,27 @@ WA.OUT_JS = OUT_JS
 BLOCK = "WEAPON_CLIP"
 MAX_SIDE = SQ.MAX_SIDE
 TARGET_H = WA.TARGET_H
+PAD = SQ.PAD
 
 WEAPON_KEYS = ["short", "dagger", "sword", "axe", "hammer",
                "spear", "bow", "rock", "blade", "jar", "bell"]
 
-# 条带规格 sheet -> (格数, 这一张切出的产物状态列表, 是否循环, 数据里的参考 fps)
-#
-# 注意 aux 这一条：它不是「一个叫 aux 的状态」，而是**一张 2 格的条带里塞了
-# 两个独立状态** —— 第 0 格受击、第 1 格拾取。渲染层要的是 hurt / pickup 两个
-# 各自的记录，所以这里按格号拆开写进数据块，而不是把 aux 当成一个状态塞进去。
-# （早先版本就把 aux 当状态用了，结果 char-rig 查 hurt 查不到、一路掉回公共 clip。）
+# sheet -> (格数, 产物状态列表, 是否循环, 参考 fps)
 SHEETS = {
-    "idle":   (1, ["idle"],             False, 0),
-    "walk":   (4, ["walk"],             True, 10),
-    "jump":   (2, ["jump"],             False, 0),
-    "attack": (4, ["attack"],           False, 0),
-    "aux":    (2, ["hurt", "pickup"],   False, 0),   # 第 0 格 → hurt，第 1 格 → pickup
+    "walk":   (4, ["walk"],           True,  10),
+    "jump":   (2, ["jump"],           False, 0),
+    "attack": (4, ["attack"],         False, 0),
+    "aux":    (2, ["hurt", "pickup"], False, 0),
 }
-STATE_ORDER = ["idle", "walk", "jump", "attack", "hurt", "pickup"]
+STATE_ORDER = ["walk", "jump", "attack", "hurt", "pickup"]
 
 
 def body_top(a, bbox):
-    """兜底的身高锚：从肩线往上取「躯干正上方」那一条竖带的最上行。
+    """兜底的身高锚：肩线以上、轮廓中心 ±0.30 宽的竖带里最上面那个有内容的行。
 
-    为什么需要它：WA.detect_head 找的是原画那顶**金色**头冠
-    （R>=180 G>=145 B<=160）。图生图新出的素材即使是同一角色，金冠条件也
-    经常不成立（实测 11 把里 8 把失败）。这里不猜颜色，只看轮廓：
-
-      1. 肩线 = 从脚底往上扫，第一个宽度 >= 最大宽 50% 的行
-      2. 头 = 以肩线行的轮廓中心为轴、左右各 0.30 倍宽度的一条竖带，
-         从顶部往下第一个有内容的行
-      3. 举过头顶的武器（锤 / 钺 / 矛）通常偏向一侧，落在竖带之外，不计入身高
+    WA.detect_head 找的是原画那顶**金色**头冠（R>=180 G>=145 B<=160）。
+    图生图的青铜绿面具素材经常不满足该条件（实测 11 把里 8 把失败），
+    所以这里改看轮廓：不猜颜色，举过头顶的武器也落在竖带之外、不计入身高。
     """
     x0, x1, y0, y1 = bbox
     cw = x1 - x0 + 1
@@ -128,94 +115,154 @@ def body_top(a, bbox):
     return None, None
 
 
-def measure_body(im):
-    """一帧的身高锚：先走原画的头冠检测，失败再用 body_top 兜底。"""
-    a = np.array(im)
-    bbox = WA.content_bbox(a)
-    if bbox is None:
-        return None
-    ground = WA.ground_row(a, bbox)
-    head = WA.detect_head(a)
-    top, cx = head["crownTop"], head["crownCx"]
-    src = "crown"
-    if top is None:
-        top, cx = body_top(a, bbox)
-        src = "body"
-    return dict(H=im.height, W=im.width, ground=ground, top=top, cx=cx, src=src)
-
-
-def slice_sheet(path, cells_n, base_ratio, key, sheet, debug):
-    """切一张条带，按状态分组落盘。
-
-    返回 (recs, None) 或 (None, 原因)。recs 是 {state: 数据记录}。
-
-    分组规则（这里踩过一个坑，必须写清楚）：
-      - `walk` / `jump` / `attack`：一张条带的 N 格都属于**同一个**状态，
-        文件名必须带帧号 `<state>-<key>-<i>.webp`，否则 4 格会互相覆盖，
-        最后只剩 1 个文件（真出过这个 bug：44 张被压成 11 张）。
-      - `aux`：2 格里塞了**两个不同状态**（第 0 格 hurt、第 1 格 pickup），
-        每个状态只有 1 帧，文件名不带帧号 `<state>-<key>.webp`。
-    """
-    rgb = np.array(Image.open(path).convert("RGB"))
+def read_cells(png, cells):
+    """读一张条带 → [(rgba裁剪, 内容框宽, 内容框高, 相对格左的x0, y0), ...] + alpha。"""
+    rgb = np.array(Image.open(png).convert("RGB"))
     rgba, a = SA.cut_magenta(rgb)
-    bounds, _nseg = SA.frame_bounds(a, cells_n)
-    boxes = SQ.cell_bboxes(rgba, a, bounds)
-    built = SQ.build_canvas(rgba, boxes)
+    bounds, _n = SA.frame_bounds(a, cells)
+    out = []
+    for x0, x1 in zip(bounds[:-1], bounds[1:]):
+        x0, x1 = int(x0), int(x1)
+        sub_a = a[:, x0:x1]
+        ys = np.where((sub_a > 24).any(axis=1))[0]
+        xs = np.where((sub_a > 24).any(axis=0))[0]
+        if not len(ys) or not len(xs):
+            out.append(None)
+            continue
+        ys0, ys1 = int(ys[0]), int(ys[-1])
+        xs0, xs1 = int(xs[0]), int(xs[-1])
+        crop = rgba[ys0:ys1 + 1, x0 + xs0:x0 + xs1 + 1]
+        # 头冠中线（相对裁剪宽度）：逐帧 anchorX
+        bbox = (0, crop.shape[1] - 1, 0, crop.shape[0] - 1)
+        _top, cx = body_top(crop, bbox)
+        ax = (cx / float(crop.shape[1])) if cx is not None else None
+        out.append(dict(crop=crop, w=crop.shape[1], h=crop.shape[0], anchor=ax))
+    return out
+
+
+def build_shared_canvas(cells_all):
+    """把一把武器所有状态的格子放进同一张画布：底边贴齐 + 水平居中。
+
+    返回 (跨状态统一画布尺寸 (cw, ch), 缩放系数 sc)。
+    """
+    ws = [c["w"] for c in cells_all if c]
+    hs = [c["h"] for c in cells_all if c]
+    if not ws:
+        return None
+    cw = max(ws) + PAD * 2
+    ch = max(hs) + PAD * 2
+    sc = min(MAX_SIDE / float(max(cw, ch)), 1.0)
+    return (cw, ch), sc
+
+
+def place(cell, cw, ch, sc):
+    """一格的裁剪 → 统一画布上的一张图（底边贴齐、水平居中）。"""
+    canvas = np.zeros((ch, cw, 4), np.uint8)
+    ox = (cw - cell["w"]) // 2
+    oy = ch - PAD - cell["h"]
+    canvas[oy:oy + cell["h"], ox:ox + cell["w"]] = cell["crop"]
+    im = Image.fromarray(canvas, "RGBA")
+    if sc < 0.999:
+        tw = max(1, int(round(cw * sc)))
+        th = max(1, int(round(ch * sc)))
+        arr = SA.resize_rgba_premul(np.array(im), (tw, th))
+        im = Image.fromarray(arr, "RGBA")
+    return SA.defringe_rgba(im)
+
+
+def measure_standing(frames):
+    """在站立相上量身体像素高（ground - 头顶）。只用 walk 的几帧。"""
+    vals = []
+    for im in frames:
+        arr = np.array(im)
+        bbox = WA.content_bbox(arr)
+        if bbox is None:
+            continue
+        g = WA.ground_row(arr, bbox)
+        top, _cx = body_top(arr, bbox)
+        if g is None or top is None:
+            continue
+        vals.append(g - top)
+    if not vals:
+        return None
+    return float(np.median(vals))
+
+
+def slice_weapon(src, key, sheets, base_ratio, debug):
+    """切一把武器的全部状态。返回 {state: rec} 或 (None, 原因)。"""
+    per_sheet = {}
+    for sheet in sheets:
+        if sheet not in SHEETS:
+            continue
+        cells_n = SHEETS[sheet][0]
+        png = src / ("%s-%s.png" % (key, sheet))
+        if not png.exists():
+            continue
+        cells = read_cells(png, cells_n)
+        if all(c is None for c in cells):
+            print("    %s 切不出内容，跳过" % png.name)
+            continue
+        per_sheet[sheet] = cells
+
+    if not per_sheet:
+        return None, "没有任何可用条带"
+
+    all_cells = [c for cells in per_sheet.values() for c in cells if c]
+    built = build_shared_canvas(all_cells)
     if not built:
-        return None, "切不出内容"
-    imgs, _sc = built
-    ms = [measure_body(im) for im in imgs]
+        return None, "统一画布建不出来"
+    (cw, ch), sc = built
 
-    tops = [m["top"] if m else None for m in ms]
-    grounds = [m["ground"] if m else None for m in ms]
-    top_med = SQ.median_or_none(tops)
-    ground_med = SQ.median_or_none(grounds)
-    if top_med is None or ground_med is None:
-        return None, "身高锚全部失败"
+    # 先落盘，再在「站立相」上量身高 —— 用同一张画布，所以量出来就是最终像素
+    placed = {}
+    for sheet, cells in per_sheet.items():
+        out_states = SHEETS[sheet][1]
+        split_each = len(out_states) > 1
+        groups = {}
+        for i, cell in enumerate(cells):
+            if cell is None:
+                continue
+            im = place(cell, cw, ch, sc)
+            state = out_states[i] if split_each else out_states[0]
+            groups.setdefault(state, []).append(dict(im=im, anchor=cell["anchor"]))
+        placed[sheet] = groups
 
-    H, W = imgs[0].height, imgs[0].width
-    body_px = float(ground_med - top_med)
+    stand = placed.get("walk") or []
+    stand_frames = [g["im"] for g in stand] if isinstance(stand, list) else []
+    if not stand_frames:
+        # 没有 walk 就用任意第一个状态的帧兜底（比例可能略偏，但不会崩）
+        for gs in placed.values():
+            for st in gs.values():
+                stand_frames.extend([x["im"] for x in st])
+            if stand_frames:
+                break
+    body_px = measure_standing(stand_frames)
+    if not body_px:
+        return None, "站立相量不出身高"
+
+    H, W = stand_frames[0].height, stand_frames[0].width
     fix = round(base_ratio / (body_px / float(H)), 3)
 
-    cx_all = [m["cx"] / m["W"] if m and m["cx"] is not None else None for m in ms]
-    cx_med = SQ.median_or_none(cx_all)
-    anchors = []
-    for cx in cx_all:
-        if cx is None or (cx_med and abs(cx - cx_med) / cx_med > SQ.ANCHOR_SPREAD):
-            anchors.append(round(cx_med, 4))
-        else:
-            anchors.append(round(cx, 4))
-
-    out_states = SHEETS[sheet][1]
-    split_each = len(out_states) > 1          # aux 这种「一格一个状态」
-    groups = {}
-    for i, im in enumerate(imgs):
-        if im is None:
-            return None, "第 %d 格为空" % i
-        state = out_states[i] if split_each else out_states[0]
-        groups.setdefault(state, []).append((i, im, anchors[i]))
-
     recs = {}
-    for state, items in groups.items():
-        loop, fps = (True, 10) if state == "walk" else (False, 0)
-        files = []
-        multi = len(items) > 1
-        for j, (cell_i, im, _anc) in enumerate(items):
-            name = ("%s-%s-%d.webp" % (state, key, j)) if multi else ("%s-%s.webp" % (state, key))
-            im.save(OUT_IMG / name, "WEBP", quality=90, alpha_quality=100, method=6)
-            files.append("assets/anim/" + name)
-            if debug:
-                DBG.mkdir(parents=True, exist_ok=True)
-                im.save(DBG / ("%s_%s_%d.png" % (state, key, j)))
-        recs[state] = dict(frames=len(files), w=W, h=H, scaleFix=fix,
-                           anchorX=[it[2] for it in items], files=files,
-                           loop=loop, fps=fps,
-                           anchor_src=ms[0]["src"], body_px=body_px)
+    for sheet, groups in placed.items():
+        loop, fps = SHEETS[sheet][2], SHEETS[sheet][3]
+        for state, items in groups.items():
+            multi = len(items) > 1
+            files, anchors = [], []
+            for j, it in enumerate(items):
+                name = ("%s-%s-%d.webp" % (state, key, j)) if multi else ("%s-%s.webp" % (state, key))
+                it["im"].save(OUT_IMG / name, "WEBP", quality=90, alpha_quality=100, method=6)
+                files.append("assets/anim/" + name)
+                anchors.append(round(it["anchor"], 4) if it["anchor"] is not None else 0.5)
+                if debug:
+                    DBG.mkdir(parents=True, exist_ok=True)
+                    it["im"].save(DBG / ("%s_%s_%d.png" % (state, key, j)))
+            recs[state] = dict(frames=len(files), w=W, h=H, scaleFix=fix,
+                               anchorX=anchors, files=files, loop=loop, fps=fps)
     return recs, None
 
 
 def fmt_clip(recs):
-    """recs: key -> {state -> rec}"""
     out = []
     for k in WEAPON_KEYS:
         st = recs.get(k)
@@ -236,23 +283,22 @@ def fmt_clip(recs):
                    "true" if e["loop"] else "false", e["fps"],
                    e["w"], e["h"], e["scaleFix"], ax, fl))
         out.append("  %-8s {\n%s\n  }" % (k + ":", ",\n".join(rows)))
-    body = ("/* 每把武器一套独立动作。查不到某个 state 时，渲染层逐级回落到\n"
-            "   公共 clip（见 char-rig.js 的 weaponClipDef / drawWeaponState）。\n"
-            "   - 同一把武器同一 state 的所有帧共用画布 w/h 与一个 scaleFix\n"
-            "   - anchorX 逐帧一个：身体轴线随姿势前后移，逐帧才不漂\n"
-            "   - walk 是循环（帧号跟 p.walk 位移走）；attack 跟 swingT；\n"
-            "     jump / hurt / pickup 是单次播放\n"
-            "   生成方式：图生图，参考 _refs/hold-png/ref-hold-<key>.png，\n"
-            "   保证 11 把武器之间画风一致。 */\n"
+    body = ("/* 每把武器一套独立动作。查不到某个 state 时，渲染层逐级回落到公共 clip。\n"
+            "   ★ 同一把武器所有状态共用**同一张画布 w/h 与同一个 scaleFix**：\n"
+            "     蹲姿 / 弯腰 / 后仰的身体本来就短，若各自归一化到同一屏幕身高，\n"
+            "     换状态时人会忽大忽小（这是踩过的 bug）。共用画布保证像素比例恒定。\n"
+            "   anchorX 逐帧一个：身体轴线随姿势前后移。\n"
+            "   帧号来源：walk 跟 p.walk 位移、attack 跟 swingT 判定、\n"
+            "             jump 看 vy、hurt/pickup 跟各自计时器。 */\n"
             "window.%s = {\n" % BLOCK + ",\n".join(out) + "\n};\n")
     return WA._block(BLOCK, body)
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--src", required=True, help="条带目录（含 <key>-<sheet>.png）")
-    ap.add_argument("--only", default="", help="只切这几把（逗号分隔）")
-    ap.add_argument("--sheets", default="", help="只切这几张条带（walk,jump,attack,aux）")
+    ap.add_argument("--src", required=True)
+    ap.add_argument("--only", default="")
+    ap.add_argument("--sheets", default="")
     ap.add_argument("--debug", action="store_true")
     args = ap.parse_args()
 
@@ -266,38 +312,28 @@ def main():
     sheets = [x.strip() for x in args.sheets.split(",") if x.strip()] or list(SHEETS)
 
     OUT_IMG.mkdir(parents=True, exist_ok=True)
-
     base = WA.idle_baseline()
     if not base.get("ratio_crown"):
         print("!! idle-0.webp 头冠检测失败，无法建立身高基准")
         return 1
-    print("基准 idle-0.webp：头冠→脚底 / 画布高 = %.4f → 屏幕 %.2f px\n"
+    print("基准：头冠→脚底 / 画布高 = %.4f → 屏幕 %.2f px"
           % (base["ratio_crown"], TARGET_H * base["ratio_crown"]))
+    print("口径：同一把武器所有状态共用一张画布 + 一个 scaleFix（站立相量身高）\n")
 
     recs, skipped = {}, []
     for key in keys:
-        for sheet in sheets:
-            if sheet not in SHEETS:
-                continue
-            cells, out_states, loop, fps = SHEETS[sheet]
-            path = src / ("%s-%s.png" % (key, sheet))
-            if not path.exists():
-                continue
-            res = slice_sheet(path, cells, base["ratio_crown"], key, sheet, args.debug)
-            if res[0] is None:
-                print("  %-8s %-7s 跳过：%s" % (key, sheet, res[1]))
-                skipped.append("%s-%s" % (key, sheet))
-                continue
-            got = res[0]
-            for state, rec in got.items():
-                recs.setdefault(key, {})[state] = rec
-            print("  %-8s %-7s %d 格 → %s  %dx%d scaleFix=%.3f 锚=%s 实渲 %.1fpx"
-                  % (key, sheet, cells, "/".join(got.keys()),
-                     got[list(got)[0]]["w"], got[list(got)[0]]["h"],
-                     got[list(got)[0]]["scaleFix"],
-                     got[list(got)[0]]["anchor_src"],
-                     TARGET_H * got[list(got)[0]]["scaleFix"]
-                     * (got[list(got)[0]]["body_px"] / float(got[list(got)[0]]["h"]))))
+        got, why = slice_weapon(src, key, sheets, base["ratio_crown"], args.debug)
+        if got is None:
+            print("  %-8s 跳过：%s" % (key, why))
+            skipped.append(key)
+            continue
+        recs[key] = got
+        st = got[list(got)[0]]
+        # 站立身高按构造恒等于 TARGET_H × 基准比例 —— scaleFix 就是为此外推的，
+        # 直接把构造目标印出来，别再用某个硬编码比例倒算（那样会印出误导性数字）。
+        print("  %-8s %d 状态  画布 %dx%d  scaleFix=%.3f  站立站立 %.1fpx  状态=%s"
+              % (key, len(got), st["w"], st["h"], st["scaleFix"],
+                 TARGET_H * base["ratio_crown"], "/".join(got.keys())))
 
     if not recs:
         print("\n!! 一张都没切出来，anim-data.js 未改动")
@@ -308,8 +344,7 @@ def main():
     s = WA._drop_block(s, BLOCK).rstrip()
     s = s + "\n\n" + fmt_clip(recs)
     OUT_JS.write_text(s, encoding="utf-8")
-    total = sum(len(v) for v in recs.values())
-    print("  %s：%d 把武器 / %d 个状态块" % (BLOCK, len(recs), total))
+    print("  %s：%d 把武器 / %d 个状态块" % (BLOCK, len(recs), sum(len(v) for v in recs.values())))
     if skipped:
         print("  跳过：%s" % ", ".join(skipped))
     print("\n记得：node --check js/anim-data.js && node tools/selftest_weapons.mjs")
