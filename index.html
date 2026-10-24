@@ -392,7 +392,11 @@ function noise(dur, gain, hp){
 }
 
 var recentSwing = "jade";          /* 本次挥砍的材质，空手起步 */
+/* 本次挥砍的武器 key：打击火花与刀光都按它选素材（音效仍走材质）。
+   与 recentSwing 分开记 —— 音效只认六种材质配方，画面要认到具体那把刀。 */
+var recentSwingKey = "short";
 function sfxSwing(key){
+  if(key) recentSwingKey = key;
   if(key && S){ recentSwing = S.setMaterial(key); }
   if(S){ S.swing(); return; }
   _noiseOld(0.11, 0.11, 2200);
@@ -1105,20 +1109,35 @@ function burst(x,y,n,col,spd){
     });
   }
 }
+/* 刀光：wkey 决定用哪张专属弧光（js/fx.js 的 WEAPON_FX）。
+   不给 wkey 就退回通用的 slash-1/2/3 三档。 */
 function addSlash(p, idx){
   G.slashes.push({
     x:p.x+p.facing*70, y:p.y-95,
     facing:p.facing, life:0.19, max:0.19,
-    big: idx===2, seg: idx+1, owner:p
+    big: idx===2, seg: idx+1, owner:p,
+    wkey: (p.weapon && p.weapon.key) || null
   });
 }
+/* 打击火花的材质：决定用哪张火花图与芯色。
+   与 js/audio.js 的 MATERIAL 对齐（玉 / 金属 / 钝击 / 破空），
+   但这里是为画面服务的四档，不是音频那六种配方。 */
+var WPN_HIT_MAT = {
+  fist:   "airy",
+  short:  "jade",   dagger: "jade",   blade:  "jade",
+  sword:  "bronze", axe:    "bronze", spear:  "bronze",
+  hammer: "blunt",  rock:   "blunt",  jar:    "blunt",
+  bow:    "airy",   bell:   "airy"
+};
+function hitMatOf(key){ return WPN_HIT_MAT[key] || "jade"; }
 /* 打击火花 */
 function addHit(x, y, big, mid){
   G.hits.push({
     x:x, y:y, life:0.24, max:0.24,
     big:!!big, mid:!!mid,
     seed: Math.floor(Math.random()*97),
-    flip: Math.random()<0.5
+    flip: Math.random()<0.5,
+    mat: hitMatOf(recentSwingKey || "short")
   });
 }
 
@@ -1424,18 +1443,27 @@ function tryPickup(p){
         }
         return false;
       }
-      /* 背包满 → 不捡 */
-      if(bagFirstEmpty(p) < 0){
+      /* 背包满 → 不捡。空手时不占背包格（下面直接上手），这条不拦。 */
+      var handEmpty = !(p.weapon && p.weapon.type !== "fist" && p.weapon.dur > 0);
+      if(!handEmpty && bagFirstEmpty(p) < 0){
         if(p.pickLock <= 0){
           showHitText(p.x, p.y-190, "背包已满，按 " + keyLabel(p, "drop") + " 丢弃");
           p.pickLock = 0.7;
         }
         return false;
       }
-      stowWeapon(p, d.weapon);
+      if(handEmpty){
+        /* 空手拾取 → 直接上手：否则捡完手里的模型还是空手，玩家会以为没捡到。
+           手上有真武器时仍只进背包（原规则），避免走过掉落物被强行换手。 */
+        p.weapon = d.weapon;
+        p.bagIdx = 0;
+      } else {
+        stowWeapon(p, d.weapon);
+      }
       d.taken = true;
       p.pickLock = 0.26;
       p.pickupT = 0.30;                       /* 播 pickup 动作 */
+      showHitText(p.x, p.y-190, (handEmpty ? "上手 · " : "入包 · ") + d.weapon.name);
       burst(d.x, d.y-40, 10, "#fff0c0", 240);
       tone(660, 0.12, "square", 0.05, 880);
       syncHUD();
@@ -1785,7 +1813,7 @@ function fireProjectile(p, wp){
     G.projectiles.push({
       x: p.x + p.facing*48, y: p.y - 112,
       vx: p.facing * 1180, vy: 0, g: 0,
-      dmg: wp.dmg, kind: "bow", owner: p,
+      dmg: wp.dmg, kind: "bow", wkey: "bow", owner: p,
       life: 1.8, max: 1.8, spin: 0, spinRate: 0, hitSet: []
     });
     tone(720,0.10,"sine",0.05,300); noise(0.06,0.05,3000);
@@ -3134,6 +3162,16 @@ function drawProjectiles(){
     var p = G.projectiles[i];
     ctx.save();
     ctx.translate(p.x, p.y);
+    /* 武器专属弹道痕：箭有风线、石头有拖影、镖有残像、罐/铃有光晕。
+       素材没就绪时返回 false，下面各自的纯代码轮廓照旧兜底。 */
+    if(window.FX && window.FX.drawProjFx){
+      ctx.save();
+      window.FX.drawProjFx(ctx, {
+        x: 0, y: 0, vx: p.vx, vy: p.vy,
+        kind: p.wkey || p.kind, spin: p.spin, alpha: 1
+      });
+      ctx.restore();
+    }
     if(p.kind === "bow"){
       /* 箭：拖尾 + 箭杆 + 尾羽 */
       var dir = p.vx > 0 ? 1 : -1;
