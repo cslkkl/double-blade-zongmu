@@ -510,7 +510,7 @@
      其余（锚点 / 镜像 / 三种 alpha / 受击闪白）与 drawFrames 逐项对齐，
      否则换武器那一刻的站立姿态会跟 idle 差一个像素级的位移或亮度。
      返回 false = 「这张画不出来」，调用方落回 idle 动画。
-     weapon.key 每次现读，不缓存 —— equipBagSlot / stowWeapon 换手后
+     weapon.key 每次现读，不缓存 —— 换手（bagDrop / bagGive / tryPickup）后
      下一帧立刻换成新武器，不需要任何失效通知。 */
   function drawHold(ctx, p, t) {
     var def = holdDef(p.weapon && p.weapon.key);

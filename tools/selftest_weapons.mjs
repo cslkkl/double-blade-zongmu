@@ -264,7 +264,7 @@ function player(over) {
     inv: 0, dead: false, hurtT: 0, whirlT: 0, throwT: 0, pickupT: 0,
     swingT: 0, swingDur: 0, swingIdx: 0, walk: 0,
     weapon: { key: "sword", type: "melee", dmg: 4, dur: 22, reach: 205, swing: 0.24 },
-    padTag: "p1", bag: [], bagIdx: 0, __alphaMul: 1
+    padTag: "p1", __alphaMul: 1
   };
   return Object.assign(base, over || {});
 }

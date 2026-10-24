@@ -51,6 +51,7 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 ## 验证快照
 
 - 2026-10-24（武器视觉 + 出招序列 + 暂停 + 指南模块化 + 攻击/拾取分家后）：`check-inline` 通过；`selftest_enemies` 0 失败；`selftest_audio` 0 失败；`selftest_weapons` 0 失败；`node --check` 9/9 通过。
+- 2026-10-24（背包改单手 + 去遮挡物阴影 + 并入 main 暂停/Guide 模块化）：check-inline 通过（内联脚本 120422 字符）；selftest_enemies / selftest_audio / selftest_weapons 0 失败；node --check 9/9 通过。
 - 暂停链路由 CDP 驱动本机 `file://` 页面实测：Esc 暂停 / 解冻、抽屉开着时 Esc 只收抽屉、暂停中切设备换图、R 重开、暂停页点击、非 play 阶段不响应，逐条断言通过。
 - 规模：`index.html` 约 3900 行；`js/` 9 个模块；`assets/` 约 194 个文件 5.96 MB。
 - 素材分布：`anim/` 118（10 张单帧 `atk-*` + 40 张序列帧 `atk-*-<i>` + 4 张 `hold-*`）、`fx/` 13、`icons/` 16、`icon/` 10、`ui/` 6、`interact/` 6、`props/` 8、`char/` 5、根 12。
@@ -91,6 +92,7 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 - `slice_anim.py` 生成过 `fps: 6, true, loop: true` 这类语法错误，生成后必须 `node --check`。
 - `slice_anim_extra.py` 曾写出缺冒号的 `anim-data.js` 行（`"attack-heavy"{ frames: ...`），整份数据文件当场语法错误；现已在脚本内加 `node --check` 门禁，非 0 直接退出。
 - 敌人走路动画按 `e.walk` 累计位移推进，不跟真实时间；改步频调 `enemies-assets.js` 的 `STRIDE`。
+- 武器只有手上那一把（单手一把语义）：捡到好的直接换手，旧的落回原地；HUD 没有背包格。改拾取/丢弃/递队友时保持这个语义，别把 4 格背包加回来。
 
 ## 文档地图
 
