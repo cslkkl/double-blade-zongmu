@@ -186,12 +186,6 @@
   display:block;font-size:21px;letter-spacing:.13em;text-indent:.13em;
   color:#f0e3c2;text-shadow:0 0 20px rgba(245,217,142,.22);
 }
-.uis-mbtn-desc{
-  display:block;margin-top:10px;font-size:11.5px;letter-spacing:.16em;text-indent:.16em;
-  color:#837969;
-}
-.uis-layer .uis-modebtn:hover .uis-mbtn-desc,
-.uis-layer .uis-modebtn.uis-pick .uis-mbtn-desc{color:#a99b82}
 
 /* 按钮位图：364×144 四态，等比撑满（2.53:1）。
    图自带青铜边框与内腔，所以把 CSS 的 border 与渐变底撤掉；
@@ -226,7 +220,6 @@
   cursor:default;
 }
 .uis-layer.uis-ok-btnOn .uis-modebtn .uis-mbtn-name,
-.uis-layer.uis-ok-btnOn .uis-modebtn .uis-mbtn-desc,
 .uis-layer.uis-ok-btnOn .uis-modebtn .uis-modebtn-key{
   text-shadow:0 1px 3px rgba(0,0,0,.92),0 0 12px rgba(0,0,0,.7);
 }
@@ -724,7 +717,7 @@
     return wrap;
   }
 
-  function modeButton(mode, keyLabel, name, desc) {
+  function modeButton(mode, keyLabel, name) {
     var b = doc.createElement("button");
     b.type = "button";
     b.className = "uis-modebtn";
@@ -738,13 +731,10 @@
     n.className = "uis-mbtn-name";
     n.textContent = name;
 
-    var d = doc.createElement("span");
-    d.className = "uis-mbtn-desc";
-    d.textContent = desc;
-
     b.appendChild(badge);
     b.appendChild(n);
-    b.appendChild(d);
+    /* 按钮里只留主标题。副标题（「一个人守」这类）在青铜牌上挤在
+       内腔下沿、字号又小，读不清还抢视线，直接不生成。 */
 
     b.addEventListener("click", function () {
       if (b.blur) b.blur();      // 不把焦点留在按钮上
@@ -786,8 +776,8 @@
 
     var btns = doc.createElement("div");
     btns.className = "uis-modebtns";
-    btns.appendChild(modeButton("solo", "1", "单人 · 独守", "一个人守"));
-    btns.appendChild(modeButton("duo", "2", "双人 · 同屏", "两人挤一台笔记本"));
+    btns.appendChild(modeButton("solo", "1", "单人 · 独守"));
+    btns.appendChild(modeButton("duo", "2", "双人 · 同屏"));
     card.appendChild(btns);
 
     var foot = doc.createElement("div");
