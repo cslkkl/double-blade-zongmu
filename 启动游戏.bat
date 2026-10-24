@@ -13,13 +13,17 @@ if not exist "%GAME%" (
   exit /b 1
 )
 set "URL=file:///%GAME:\=/%"
+rem Window icon: point at the favicon so the taskbar entry is not a generic page.
+set "ICON=%~dp0assets\icon\favicon.ico"
+set "ICONARG="
+if exist "%ICON%" set "ICONARG=--icon=%ICON%"
 
 rem ---- 1) Chrome ----
 set "CHROME=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
 if not exist "%CHROME%" set "CHROME=%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
 if not exist "%CHROME%" set "CHROME=%LocalAppData%\Google\Chrome\Application\chrome.exe"
 if exist "%CHROME%" (
-  start "" "%CHROME%" --app="%URL%" --window-size=1600,900
+  start "" "%CHROME%" --app="%URL%" --window-size=1600,900 %ICONARG%
   exit /b 0
 )
 
