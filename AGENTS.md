@@ -16,7 +16,7 @@
 | 门面 | `README.md` | 对外介绍、文物依据 | [README.md](README.md) |
 | 设计 | `docs/ARCHITECTURE.md` | 不变的决策与防错清单 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | 游戏本体 | `index.html` | 玩法逻辑、状态机、HUD | 直接读，无子手册 |
-| 渲染层 | `js/` | 素材加载、视差、帧动画、特效、UI | [js/README.md](js/README.md) · [js/AGENTS.md](js/AGENTS.md) |
+| 渲染层 | `js/` | 素材加载、视差、帧动画、特效、UI、声音 | [js/README.md](js/README.md) · [js/AGENTS.md](js/AGENTS.md) |
 | 素材流水线 | `tools/` | 生图后处理、切片、自检 | [tools/README.md](tools/README.md) · [tools/AGENTS.md](tools/AGENTS.md) |
 | 素材产物 | `assets/` | 生成物，只读，不手改 | [tools/README.md](tools/README.md) |
 
@@ -25,6 +25,7 @@
 ```powershell
 node tools/check-inline.mjs          # index.html 内联脚本语法
 node tools/selftest_enemies.mjs      # 敌人绘制自检（mock canvas，不开浏览器）
+node tools/selftest_audio.mjs        # 声音自检（mock Web Audio，不开浏览器）
 Get-ChildItem js -Filter *.js | ForEach-Object { node --check $_.FullName }
 python <maintenance-flow>/check-markdown-links.py . --fragments
 ```
@@ -33,32 +34,50 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 
 | 命令 | 产物 |
 |---|---|
-| `python tools/slice_anim.py` | 角色 9 动作 → `assets/anim/` |
+| `python tools/slice_anim.py` | 角色 9 动作 → `assets/anim/`（重写 `window.ANIM`） |
+| `python tools/slice_anim_extra.py` | 新增 3 动作 → `assets/anim/`（就地替换 / 追加三个 clip） |
 | `python tools/prep_interact.py` | 宝箱 / 机关 / 拾取物 → `assets/interact/` |
+| `python tools/prep_icons.py` | 武器 / 物品 / 界面图标 → `assets/icons/` |
 | `python tools/prep_fx.py` | 刀光 / 火花 / 旋风环 / 石块 |
 | `python tools/prep_assets.py` | 背景 / 道具 / 角色底图 |
 | `python tools/slice_enemy_anim.py` | 敌人 4 类 → `assets/anim/enemy-*` |
 
 `slice_anim.py` 默认只切角色、只删角色帧；敌人用 `--only enemy`。
+`slice_anim.py` 重写整份 `window.ANIM`，会丢掉新增的 3 个动作，跑完必须补 `slice_anim_extra.py`。
 
 ## 验证快照
 
-- 2026-10-24：`check-inline` 通过；`selftest_enemies` 0 失败；`node --check` 7/7 通过；链接校验 41 链接 0 错误。
-- 规模：`index.html` 二千余行；`js/` 七个模块四千余行；`assets/` 七十七文件 2.32 MB。
+- 2026-10-24：`check-inline` 通过（内联脚本 113987 字符）；`selftest_enemies` 0 失败；`selftest_audio` 0 失败；`node --check` 8/8 通过；链接校验 0 错误。
+- 规模：`index.html` 3727 行 / 141584 字节；`js/` 8 个模块 4785 行；`assets/` 104 个文件 2901046 字节（2.77 MB）。
+- 素材分布：`anim/` 57、`icons/` 16、`interact/` 6、`props/` 8、`char/` 5、`assets/` 根 12。
+- 帧数：角色 12 个 clip 共 43 帧；敌人 4 类共 14 帧。
+- 关卡：6 阵共 85 体。
 - 无 CI，以上为本机手工结果；改完代码重跑一遍再写结论。
 
 ## 待办
 
 - [ ] `js/assets.js` 里 `pose1` / `charFront` / `charSide` / `charBack` 四个键无消费方，每次启动白加载约 265 KB。
-- [ ] `FX.drawHudPanel` 无调用方，`FX.drawWhirl` 只作降级。
-- [ ] 宝箱 / 机关 / 投掷物玩法在推进中，落地后回填本节。
+- [ ] `js/assets.js` 里 `itCowrie` / `itEye` 与 `iconEye` / `iconMask` / `iconLeiwen` / `iconTree` 六个图标键无消费方（`assets/icons/` 16 张里 6 张只占体积）。
+- [ ] `js/assets.js` 里 `wpShort` 与 `wpDagger` 指向同一张 `wp-dagger.webp`，`wpRock` 与 `itRock` 指向同一张 `it-rock.webp` —— 48 个键只有 46 条不同路径。
+- [ ] `FX.drawHudPanel` 无调用方（`FX.drawWhirl` 已接进 `drawWhirlAsset`）。
+- [ ] 物品族图标长边占比 0.41~0.65，与 `prep_icons.py` 设定的 0.84 不符，重跑一次可对齐；重跑后要人眼确认六个物品的相对大小。
+- [ ] `slice_anim_extra.py` 写 `scaleFix: 1.0` 只是占位，需按内容高反算后手改（当前三个 clip 已是 0.914 / 0.867 / 0.754）。
 
 ## 活跃坑
 
 - 生图条带的角色身高不一致（walk 比 idle 小 33%），靠 `js/anim-data.js` 的 `scaleFix` 校正。
+- **`scaleFix` 不是「抄 1.0 就行」**：屏幕身高 = `252 × scaleFix × (内容高 ÷ 画布高)`，画布里的空白不吃像素。
+  - 正确算法以 idle 为基准反算：`scaleFix = (idle 内容高 ÷ idle 画布高) ÷ (该 clip 内容高 ÷ 该 clip 画布高)`。
+  - 新增动作只填 `1.0` 会让角色切过去时突然变大：`attack-thrust` 曾渲成 240px、`attack-heavy` 208.6px、`pickup` 198px，而 idle 是 181px。
+  - 新动作切片后必须实测内容高（alpha > 24 的包围盒），不能凭画布高填 1.0。
+  - 验收标准：12 个动作的屏幕身高统一在 178~181px，容差 ±2px。
 - 洋红底必须 despill，否则边缘一圈紫：见 [tools/README.md](tools/README.md)。
 - 多个 agent 共享同一个 Playwright 实例会互相抢浏览器；自检一律走 mock canvas。
+- 声音全在 [js/audio.js](js/audio.js)，实时合成、不读音频文件 —— `file://` 下 `fetch` / `XHR` 取音频会被 CORS 拦，放 `assets/audio/*.mp3` 等于放一堆加载不了的文件。要换音色改配方表，别加素材。
+- 打击音的材质靠 `startSwing(wp.key)` 传入的武器 key。新增武器必须同时在 `audio.js` 的 `MATERIAL` 里给材质，否则一律听成玉器。
+- BGM 的喘息压音只认 `bgm.breathe` 标志（在 `bgmTick` 里统一结算）。直接改 `bus.music` 增益会被下一帧覆盖回满。
 - `slice_anim.py` 生成过 `fps: 6, true, loop: true` 这类语法错误，生成后必须 `node --check`。
+- `slice_anim_extra.py` 曾写出缺冒号的 `anim-data.js` 行（`"attack-heavy"{ frames: ...`），整份数据文件当场语法错误；现已在脚本内加 `node --check` 门禁，非 0 直接退出。
 - 敌人走路动画按 `e.walk` 累计位移推进，不跟真实时间；改步频调 `enemies-assets.js` 的 `STRIDE`。
 
 ## 文档地图
