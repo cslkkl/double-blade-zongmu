@@ -49,6 +49,12 @@
   /* 武器 + 能量 */
   .wpn{display:flex;align-items:center;gap:10px;margin-top:11px}
   .wpn.right{justify-content:flex-end}
+  /* 武器小图标：24px 画布，图没就绪时 display:none，不留空方块 */
+  .wico{display:none;width:24px;height:24px;flex:0 0 auto;order:-1;
+    filter:drop-shadow(0 1px 2px rgba(0,0,0,.9))}
+  /* P2 镜像：名字在前、图标贴名字右侧，两者一起靠右，不挤动能量条 */
+  .wpn.right .wname{order:-1}
+  .wpn.right .wico{order:0}
   .wname{font-size:11.5px;letter-spacing:.13em;color:#f0d99c;
     border:1px solid rgba(217,180,94,.55);border-radius:3px;padding:3px 11px;
     background:rgba(217,180,94,.14);text-shadow:0 1px 3px rgba(0,0,0,.9);
@@ -125,6 +131,19 @@
   #banner .b1{font-size:58px;letter-spacing:.16em;color:#f7e9c4;font-weight:700;
     text-indent:.16em;text-shadow:0 0 60px rgba(220,180,110,.85),0 6px 0 rgba(0,0,0,.5)}
   #banner .b2{font-size:14px;letter-spacing:.42em;color:#c9a765;margin-top:14px}
+
+  /* 剧情条：每阵开场 2.5 秒，古蜀祭祀口吻的器物独白 */
+  #story{position:absolute;left:50%;top:67%;transform:translate(-50%,-50%);
+    width:1040px;padding:0 24px;text-align:center;opacity:0;pointer-events:none;z-index:11}
+  #story .s1{display:block;font-size:16.5px;line-height:2.2;letter-spacing:.14em;
+    color:#dccca6;text-shadow:0 0 26px rgba(0,0,0,.95),0 2px 6px rgba(0,0,0,1)}
+  #story.show{animation:storyIn 2.5s ease both}
+  @keyframes storyIn{
+    0%{opacity:0;transform:translate(-50%,-50%) translateY(16px)}
+    16%{opacity:1;transform:translate(-50%,-50%) translateY(0)}
+    74%{opacity:1;transform:translate(-50%,-50%) translateY(0)}
+    100%{opacity:0;transform:translate(-50%,-50%) translateY(-10px)}
+  }
 </style>
 </head>
 <body>
@@ -135,12 +154,12 @@
     <div class="pbar p1">
       <div class="pname">玩家一 <em>纵目 · 执</em></div>
       <div class="hpwrap" id="hp1"></div>
-      <div class="wpn"><span class="wname" id="wp1">短剑</span><span class="wenergy" id="en1"><i></i></span></div>
+      <div class="wpn"><canvas class="wico" id="wi1" width="24" height="24"></canvas><span class="wname" id="wp1">短剑</span><span class="wenergy" id="en1"><i></i></span></div>
     </div>
     <div class="pbar p2">
       <div class="pname"><em>执 · 纵目</em> 玩家二</div>
       <div class="hpwrap" id="hp2"></div>
-      <div class="wpn right"><span class="wname" id="wp2">短剑</span><span class="wenergy" id="en2"><i></i></span></div>
+      <div class="wpn right"><canvas class="wico" id="wi2" width="24" height="24"></canvas><span class="wname" id="wp2">短剑</span><span class="wenergy" id="en2"><i></i></span></div>
     </div>
     <div id="center">
       <div id="combo"></div>
@@ -154,6 +173,7 @@
   </div>
 
   <div id="banner"><div class="b1" id="b1"></div><div class="b2" id="b2"></div></div>
+  <div id="story"><span class="s1" id="s1"></span></div>
 
   <!-- 标题 -->
   <div class="ov on" id="ovTitle">
@@ -243,6 +263,11 @@
 var W = 1600, H = 900;
 var GROUND = 706;
 var WORLD_W = 3400;
+
+/* 关卡节奏：喘息秒数、同屏敌人上限、交互半径。都是判定数字，与美术无关。 */
+var BREATHER = 3.0;             /* 每阵之间的喘息，玩家可以走动、开箱、回气 */
+var MAX_ALIVE = 7;              /* 同屏存活上限：刷怪排队，波次因此被拉长 */
+var INTERACT_R = { x: 80, y: 150 };   /* 宝箱 / 机关的开箱判定半径 */
 
 var cv = document.getElementById("cv");
 var ctx = cv.getContext("2d");
@@ -362,13 +387,60 @@ var WEAPONS = {
   hammer: { name:"神树锤", type:"melee", dmg:4,   dur:8,   reach:220, swing:0.40, col:"#b0a088", w:15, len:66 },
   spear:  { name:"三枝叉", type:"melee", dmg:3,   dur:16,  reach:238, swing:0.18, col:"#dfe6ee", w:6,  len:96 },
   bow:    { name:"神鸟弓", type:"bow",   dmg:2,   dur:12,  reach:0,   swing:0.34, col:"#b08a4a", w:6,  len:52 },
-  rock:   { name:"眼形石", type:"throw", dmg:3,   dur:3,   reach:0,   swing:0.32, col:"#8e8474", w:13, len:40 }
+
+  /* ---- 投掷物：全部 type:"throw"，靠 t* 参数分出四种手感 ----
+     共用：dmg 直击伤害 / ammo 初始弹数 / radius 爆炸半径 /
+           tvx 出手水平速度 / tvy 出手抬升 / tg 重力
+     专属：pierce 可穿透敌人个数 / fuse 落地引信秒数 / bounce 落地反弹次数
+     定位：眼形石=稳准、玉璋镖=快而穿、陶罐雷=慢炸大、青铜铃=弹一下再爆 */
+  rock:   { name:"眼形石", type:"throw", dmg:3, dur:3, reach:0, swing:0.32, col:"#8e8474", w:13, len:40,
+            ammo:3, radius:58,  tvx:700,  tvy:-300, tg:1500 },
+  blade:  { name:"玉璋镖", type:"throw", dmg:2, dur:3, reach:0, swing:0.26, col:"#cde9d6", w:7,  len:52,
+            ammo:3, radius:38,  tvx:1250, tvy:-70,  tg:200,  pierce:2 },
+  jar:    { name:"陶罐雷", type:"throw", dmg:5, dur:3, reach:0, swing:0.40, col:"#b4764a", w:14, len:44,
+            ammo:3, radius:130, tvx:560,  tvy:-330, tg:1600, fuse:0.45 },
+  bell:   { name:"青铜铃", type:"throw", dmg:4, dur:3, reach:0, swing:0.34, col:"#8fae8a", w:12, len:40,
+            ammo:3, radius:76,  tvx:620,  tvy:-260, tg:1500, bounce:1 }
 };
+var AMMO_MAX = 5;            /* 投掷物携带上限：残骸回收最多补到这里 */
+
 function newWeapon(key){
-  var d = WEAPONS[key];
-  return { key:key, name:d.name, type:d.type, dmg:d.dmg, dur:d.dur, max:d.dur,
-           reach:d.reach, swing:d.swing, col:d.col, w:d.w, len:d.len };
+  var d = WEAPONS[key] || WEAPONS.fist;
+  var wp = { key:key, name:d.name, type:d.type, dmg:d.dmg, dur:d.dur, max:d.dur,
+             reach:d.reach, swing:d.swing, col:d.col, w:d.w, len:d.len };
+  /* 投掷物的「耐久」是弹数：dur 留给近战，type:"throw" 走 ammo */
+  if(d.type === "throw"){
+    wp.ammo    = Math.min(AMMO_MAX, d.ammo || 3);
+    wp.ammoMax = AMMO_MAX;
+    wp.radius  = d.radius || 52;
+    wp.tvx     = d.tvx || 700;
+    wp.tvy     = (d.tvy === undefined ? -300 : d.tvy);
+    wp.tg      = (d.tg === undefined ? 1500 : d.tg);
+    wp.pierce  = d.pierce || 0;
+    wp.fuse    = d.fuse || 0;
+    wp.bounce  = d.bounce || 0;
+  }
+  return wp;
 }
+
+/* ---------------- 武器图标 / 稀有度 ----------------
+   图标键名集中在 js/assets.js 的 MANIFEST，统一画布（武器 256×256、道具 192×192），
+   所以这里只按「长边定尺寸」等比缩，不按各自原始比例缩放。
+   任何一个键没图都返回 null，调用方继续走纯代码绘制，绝不白屏。 */
+var WP_ICON = {
+  short:  "wpShort",  dagger: "wpDagger", sword:  "wpSword",  axe:    "wpAxe",
+  hammer: "wpHammer", spear:  "wpSpear",  bow:    "wpBow",    rock:   "wpRock",
+  /* 投掷物同族图标：镖→玉器、罐→陶罐、铃→铜铃（残骸走 drawResidue，这里兜住整件掉落） */
+  blade:  "itJade",   jar:    "itJar",    bell:   "itBell"
+};
+function wpIconKey(key){ return WP_ICON[key] || null; }
+
+/* 稀有武器：紫光 + 旋转光环，玩家一眼看出值不值得冒险
+   bow / hammer 是唯二的两把稀有货，别把其它 key 加进来 */
+function isRareWeapon(key){ return key === "bow" || key === "hammer"; }
+
+/* 掉落物图标统一长边尺寸（世界坐标像素） */
+var DROP_ICON_SIZE = 56;
 
 /* ---------------- 键位（支持多个绑定） ---------------- */
 function keyDown(codes){
@@ -434,23 +506,60 @@ var G = {
   phase:"title",
   p1:null, p2:null,
   enemies:[], particles:[], slashes:[], drops:[], texts:[], projectiles:[], hits:[],
+  chests:[], mechanisms:[], pickups:[],
   camX:0, shake:0, hitstop:0, flash:0,
   waveIdx:0, waves:[],
   spawnQueue:[], spawnTimer:0,
   combo:0, comboT:0, maxCombo:0,
   time:0, phaseT:0,
-  banner:0
+  banner:0,
+  breatherT:0, mechSpawned:false, mechSkipBreather:false
 };
 
-/* ---------------- 关卡 ---------------- */
+/* ---------------- 关卡 ----------------
+   六阵：第一阵 6 体，逐阵递增，末阵 BOSS 带随从。
+   list 只是排队顺序，实际出场节奏由 update() 的分批刷新控制（0.8~1.4 秒一体）。
+   mech 决定本阵末尾浮出的青铜机关：heal 回满血 / rush 下一阵提前 / null 不出。
+   chests 是本阵宝箱数量（世界坐标，落点见 startWave）。 */
 function buildWaves(){
   return [
-    { name:"第一阵", sub:"锈蚀试探", list:["walker","walker","walker"] },
-    { name:"第二阵", sub:"它们跑起来了", list:["walker","fast","walker","fast","walker"] },
-    { name:"第三阵", sub:"厚甲压上来", list:["brute","walker","walker","fast","brute"] },
-    { name:"器心 · 纵目之主", sub:"锈蚀的源头", list:["boss"] }
+    { name:"第一阵", sub:"锈蚀试探", mech:"heal", chests:2,
+      list:["walker","walker","walker","walker","fast","fast"] },
+    { name:"第二阵", sub:"它们跑起来了", mech:"rush", chests:2,
+      list:["walker","fast","walker","fast","walker","fast","walker","fast","walker","fast"] },
+    { name:"第三阵", sub:"厚甲压上来", mech:"heal", chests:2,
+      list:["walker","fast","brute","walker","fast","walker","brute","fast","walker","fast","brute","walker","fast"] },
+    { name:"第四阵", sub:"坑壁塌了", mech:"rush", chests:2,
+      list:["walker","fast","brute","walker","fast","brute","walker","fast","walker","brute","fast","walker","brute","fast","walker","brute"] },
+    { name:"第五阵", sub:"它们数着我的名字", mech:"heal", chests:2,
+      list:["walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute"] },
+    { name:"器心 · 纵目之主", sub:"锈蚀的源头", mech:null, chests:2,
+      list:["boss","walker","walker","brute","walker","brute","fast","walker","brute"] }
   ];
 }
+
+/* 每阵开场的叙事：器物视角的独白，三行一段，串成一条线。
+   内容写死在这里，只走 textContent / innerHTML，不解析外部输入。 */
+var STORY = [
+  [ "坑底无光。土压了三千二百年。",
+    "有人在上面喊了一声，我的眼角就睁开了。",
+    "锈从脚底往上来——先爬过我的影子。" ],
+  [ "锈不是颜色，是别的器物在叫我。",
+    "它们原本也站在这里，捧着璋，跪着，不出声。",
+    "现在它们站起来了，手是空的，所以要来拿我的。" ],
+  [ "坑壁塌了一角，外面还是黑。",
+    "重的东西先到——它们走得慢，是因为身上挂着整座祭坛。",
+    "我抬手，刀比在范里铸的那天还沉。" ],
+  [ "我摸到自己的胸口：那里没有心，只有一道范铸的痕。",
+    "痕里有火。火是那一夜浇铸时留下的，一直没熄。",
+    "从这一刻起，我不只是被挖出来的东西。" ],
+  [ "大耳听见了：坑外有人在数我的名字。",
+    "他们数错了一个字，我便少留一分力。",
+    "剩下的，全给这里。" ],
+  [ "锈蚀的源头终于露了脸——它戴着和我一样的面具。",
+    "原来它是我从范里剥下来的那一层壳。",
+    "它要回去，我不回。" ]
+];
 
 function startGame(mode){
   G.mode = mode || G.mode || "duo";
@@ -460,6 +569,8 @@ function startGame(mode){
        : new Player(700, -1,
            {l:["ArrowLeft"], r:["ArrowRight"], j:["ArrowUp","ShiftRight"], a:["Slash","Numpad0","KeyK"]}, "p2");
   G.enemies = []; G.particles = []; G.slashes = []; G.drops = []; G.texts = []; G.projectiles = []; G.hits = [];
+  G.chests = []; G.mechanisms = []; G.pickups = [];
+  G.breatherT = 0; G.mechSpawned = false; G.mechSkipBreather = false;
   G.waves = buildWaves();
   G.waveIdx = 0;
   G.combo = 0; G.comboT = 0; G.maxCombo = 0;
@@ -476,10 +587,40 @@ function startGame(mode){
 function startWave(i){
   var w = G.waves[i];
   G.spawnQueue = w.list.slice();
-  G.spawnTimer = 0.5;
+  G.spawnTimer = 1.0;
+  G.breatherT = 0;
+  G.mechSpawned = false;
+  G.mechSkipBreather = false;
+  G.chests = [];                       /* 宝箱只属于本阵，换阵清空 */
+
+  /* 宝箱落点：以玩家当前所在为基准，左右错开，避开出生点正下方 */
+  var base = G.p1 ? G.p1.x : 560;
+  var n = w.chests || 1;
+  for(var c=0;c<n;c++){
+    var ox = (c === 0) ? 360 : -480;
+    addChest(base + ox, i);
+  }
+
   document.getElementById("wave").textContent = w.name;
   showBanner(w.name, w.sub);
+  showStory(i);
   sfxWave();
+}
+/* 剧情条：每阵开场 2.5 秒（与 CSS 的 storyIn 时长对齐） */
+function showStory(i){
+  var el = document.getElementById("story");
+  var s1 = document.getElementById("s1");
+  if(!el || !s1) return;
+  var lines = STORY[i];
+  if(!lines || !lines.length){
+    el.classList.remove("show");
+    s1.textContent = "";
+    return;
+  }
+  s1.innerHTML = lines.join("<br>");
+  el.classList.remove("show");
+  void el.offsetWidth;
+  el.classList.add("show");
 }
 function showBanner(a,b){
   var el = document.getElementById("banner");
@@ -490,15 +631,20 @@ function showBanner(a,b){
   el.classList.add("show");
 }
 function waveCleared(){
-  G.phase = "clear";
-  G.phaseT = 0;
+  /* 喘息期间同一帧会反复命中清场判定，这里靠 breatherT 吸收重复调用 */
+  if(G.breatherT > 0) return;
   if(G.waveIdx >= G.waves.length-1){ goWin(); return; }
-  document.getElementById("clearT").textContent = "第 "+(G.waveIdx+1)+" 阵守住";
-  document.getElementById("clearS").textContent =
-    G.waveIdx < 2 ? "锈蚀退了。下一阵，来得更凶。" : "只剩器心了。";
-  showOv("ovClear");
+
+  /* 不再弹过关页：留 3 秒喘息，玩家还能走动、拾取、开箱。
+     机关「rush」把这段压到 0.5 秒，就是「下一波提前到来」。 */
+  G.breatherT = G.mechSkipBreather ? 0.5 : BREATHER;
+  G.phaseT = 0;
+  document.getElementById("wave").textContent = "第 " + (G.waveIdx+1) + " 阵守住 · 喘息";
+  showBanner("这一阵守住了",
+    G.breatherT > 1 ? "喘息 · 下一阵将至" : "机关咬合 · 下一阵提前");
 }
 function nextWave(){
+  if(G.waveIdx >= G.waves.length-1){ goWin(); return; }
   G.waveIdx++;
   G.phase = "play";
   hideOv();
@@ -554,7 +700,7 @@ function buildHearts(){
 }
 function syncHUD(){
   if(!G.p1) return;
-  [["hp1",G.p1,"wp1","en1"],["hp2",G.p2,"wp2","en2"]].forEach(function(pr){
+  [["hp1",G.p1,"wp1","en1","wi1"],["hp2",G.p2,"wp2","en2","wi2"]].forEach(function(pr){
     if(!pr[1]) return;
     var box = document.getElementById(pr[0]);
     var bar = box.firstChild;
@@ -564,7 +710,14 @@ function syncHUD(){
       bar.className = "hpbar" + (pct <= 25 ? " low" : "");
     }
     var wn = document.getElementById(pr[2]);
-    if(wn) wn.textContent = (pr[1].weapon ? pr[1].weapon.name : "空手");
+    if(wn){
+      var wpn = pr[1].weapon;
+      var wlabel = wpn ? wpn.name : "空手";
+      if(wpn && wpn.type === "throw") wlabel += " ×" + (wpn.ammo | 0);   /* 投掷物带弹数 */
+      wn.textContent = wlabel;
+    }
+    /* 武器名左侧 / 右侧的小图标：没图就整块 display:none，不留空方块 */
+    drawHudWeaponIcon(document.getElementById(pr[4]), wpIconKey(pr[1].weapon ? pr[1].weapon.key : null));
     var en = document.getElementById(pr[3]);
     if(en){
       en.firstChild.style.width = clamp(pr[1].energy,0,100)+"%";
@@ -577,6 +730,42 @@ function syncHUD(){
     c.style.opacity = clamp(G.comboT/0.7,0,1);
   } else {
     c.textContent = "";
+  }
+}
+
+/* HUD 武器小图标：24px 画布，长边贴满；
+   成功画完才把 key 记进缓存，下次同款直接复用，不重复 drawImage。
+   图没就绪 / 画失败 → 缓存清空 + display:none，等图到了下一帧自动补上。 */
+var hudIconState = {};
+function drawHudWeaponIcon(cv, iconKey){
+  if(!cv) return;
+  var st = hudIconState[cv.id];
+  if(!st){ st = hudIconState[cv.id] = { key:null, shown:false }; }
+
+  if(!iconKey || !imgReady(iconKey)){
+    if(st.shown){ st.shown = false; st.key = null; cv.style.display = "none"; }
+    return;
+  }
+  if(!st.shown){ st.shown = true; cv.style.display = "block"; }
+  if(st.key === iconKey) return;
+
+  var im = window.IMG[iconKey];
+  var nw = im.naturalWidth || im.width || 0;
+  var nh = im.naturalHeight || im.height || 0;
+  if(!(nw > 0) || !(nh > 0)) return;
+  var g2 = cv.getContext ? cv.getContext("2d") : null;
+  if(!g2) return;
+  var s = 24 / Math.max(nw, nh);
+  var dw = nw*s, dh = nh*s;
+  g2.clearRect(0, 0, 24, 24);
+  try{
+    g2.drawImage(im, (24-dw)/2, (24-dh)/2, dw, dh);
+    st.key = iconKey;
+  }catch(e){
+    g2.clearRect(0, 0, 24, 24);
+    st.key = null;
+    st.shown = false;
+    cv.style.display = "none";
   }
 }
 
@@ -669,6 +858,15 @@ function updatePlayer(p, dt, inp, other){
     return;
   }
 
+  /* ---- 宝箱 / 机关：攻击键优先开箱，开箱就吃掉这次挥砍 ---- */
+  if(inp.atk && p.pickLock<=0 && canAct){
+    if(tryOpenInteract(p)){
+      p.pickLock = 0.22;
+      hidePickupHint();
+      return;
+    }
+  }
+
   /* ---- 拾取武器（攻击键优先拾取）---- */
   if(inp.atk && p.pickLock<=0 && canAct){
     var got = tryPickup(p);
@@ -713,6 +911,8 @@ function tryPickup(p){
     var d = G.drops[i];
     if(d.taken) continue;
     if(Math.abs(d.x - p.x) < 80 && Math.abs(d.y - p.y) < 140){
+      /* 投掷物残骸：同款补一发，不同款当成 1 发的同名武器换手 */
+      if(d.residue) return pickResidue(p, d);
       /* 手上已是同一种 → 不捡，提示走开 */
       if(p.weapon && p.weapon.key === d.weapon.key && p.weapon.type !== "fist"){
         if(p.pickLock <= 0){
@@ -741,6 +941,176 @@ function dropWeapon(x, y, wp){
   G.drops.push({ x:x, y:GROUND, vy:-420, weapon:wp, taken:false, life:22, bob:rnd(0,6) });
 }
 
+/* 投掷物残骸回收（走上去按攻击键）
+   手里就是同款投掷武器 → 弹数 +1（上限 AMMO_MAX）；
+   否则拼回 1 发的同名武器换手 —— 扔光之后靠这条路径把玩法续上。 */
+function pickResidue(p, d){
+  var held = p.weapon;
+  if(held && held.type === "throw" && held.key === d.wkey){
+    if(held.ammo >= held.ammoMax){
+      if(p.pickLock <= 0){
+        showHitText(p.x, p.y-190, "投掷物已满 ×"+held.ammoMax);
+        p.pickLock = 0.6;
+      }
+      return false;
+    }
+    held.ammo = Math.min(held.ammoMax, held.ammo + 1);
+    d.taken = true;
+    p.pickLock = 0.18;
+    burst(d.x, d.y-30, 9, held.col, 210);
+    tone(780, 0.10, "square", 0.05, 1040);
+    showHitText(p.x, p.y-190, "残骸 +1 · ×"+held.ammo);
+    syncHUD();
+    hidePickupHint();
+    return true;
+  }
+  var wp = newWeapon(d.wkey);
+  wp.ammo = 1;
+  if(p.weapon && p.weapon.type !== "fist" && p.weapon.dur > 0) dropWeapon(p.x, p.y, p.weapon);
+  p.weapon = wp;
+  d.taken = true;
+  p.pickLock = 0.26;
+  burst(d.x, d.y-30, 10, "#fff0c0", 240);
+  tone(660, 0.12, "square", 0.05, 880);
+  showHitText(p.x, p.y-190, wp.name+" ×1");
+  syncHUD();
+  hidePickupHint();
+  return true;
+}
+
+/* =====================================================================
+   青铜宝箱 / 青铜机关 / 器心碎片
+   三层降级：chestClosed|chestOpen 图 → 代码画的青铜箱；
+             pickupCowrie|pickupJade 图 → 代码画的珠粒。
+   判定只用 INTERACT_R 这一组数字，换美术不影响手感。
+   ===================================================================== */
+function addChest(x, waveIdx){
+  G.chests.push({
+    x: clamp(x, 140, WORLD_W-140), y: GROUND,
+    opened:false, wave:waveIdx, bob: rnd(0,6), t:0
+  });
+}
+function addMechanism(x, mode){
+  G.mechanisms.push({
+    x: clamp(x, 140, WORLD_W-140), y: GROUND,
+    on:false, mode: mode || "heal", bob: rnd(0,6), t:0
+  });
+}
+
+/* 攻击键优先开箱：命中返回 true，调用方据此吃掉这一帧的挥砍 */
+function tryOpenInteract(p){
+  var i, o;
+  for(i=0;i<G.chests.length;i++){
+    o = G.chests[i];
+    if(o.opened) continue;
+    if(Math.abs(o.x - p.x) < INTERACT_R.x && Math.abs(o.y - p.y) < INTERACT_R.y){
+      openChest(o, p);
+      return true;
+    }
+  }
+  for(i=0;i<G.mechanisms.length;i++){
+    o = G.mechanisms[i];
+    if(o.on) continue;
+    if(Math.abs(o.x - p.x) < INTERACT_R.x && Math.abs(o.y - p.y) < INTERACT_R.y){
+      activateMechanism(o, p);
+      return true;
+    }
+  }
+  return false;
+}
+
+function openChest(c, p){
+  c.opened = true;
+  c.t = 0;
+  G.shake = Math.max(G.shake, 9);
+  burst(c.x, c.y-64, 30, "#f5d98e", 420);
+  burst(c.x, c.y-64, 14, "#9fe0c0", 260);
+  sfxCrit();
+  /* 一张宝箱爆 1~2 件：武器 / 海贝 / 玉器 */
+  var n = (Math.random() < 0.55) ? 2 : 1;
+  for(var i=0;i<n;i++) chestReward(c, p, i);
+  showHitText(c.x, c.y-210, "宝箱开启");
+}
+
+function chestReward(c, p, i){
+  var ox = (i === 0 ? -52 : 52) + rnd(-10,10);
+  var r = Math.random();
+  if(r < 0.42){
+    var wp = newWeapon(pickDropKey(G.waveIdx));
+    dropWeapon(c.x + ox, c.y, wp);
+    showHitText(c.x + ox, c.y - 170, "得 " + wp.name);
+    return;
+  }
+  var kind = (r < 0.74) ? "cowrie" : "jade";
+  G.pickups.push({
+    kind: kind, x: c.x + ox, y: c.y - 80,
+    vx: ox*2.4, vy: -470, g: 1700,
+    life: 20, bob: rnd(0,6)
+  });
+}
+
+function applyPickup(k, p){
+  if(!p || p.dead) return;
+  if(k.kind === "cowrie"){
+    p.hp = Math.min(p.maxHp, p.hp + 2);
+    showHitText(p.x, p.y-200, "海贝 · 气血 +2");
+    tone(680, 0.14, "sine", 0.06, 980);
+    burst(p.x, p.y-110, 14, "#f7e6c0", 300);
+  } else {
+    p.energy = Math.min(100, p.energy + 50);
+    showHitText(p.x, p.y-200, "玉器 · 器心 +50");
+    tone(880, 0.16, "triangle", 0.055, 1320);
+    burst(p.x, p.y-110, 14, "#a8e6c6", 300);
+  }
+  syncHUD();
+}
+
+/* 机关：heal 回满两人气血 / rush 让下一阵提前到来（把喘息压到 0.5 秒） */
+function activateMechanism(m, p){
+  m.on = true;
+  m.t = 0;
+  G.shake = Math.max(G.shake, 14);
+  burst(m.x, m.y-96, 36, "#ffe9a8", 480);
+  burst(m.x, m.y-96, 16, "#9fe0c0", 300);
+  sfxCrit();
+  if(m.mode === "rush"){
+    G.mechSkipBreather = true;
+    showHitText(m.x, m.y-220, "机关咬合 · 下一阵提前");
+    tone(300, 0.34, "sawtooth", 0.07, 170);
+  } else {
+    [G.p1, G.p2].forEach(function(pl){ if(pl && !pl.dead) pl.hp = pl.maxHp; });
+    showHitText(m.x, m.y-220, "机关回响 · 气血回满");
+    tone(520, 0.42, "sine", 0.06, 900);
+    syncHUD();
+  }
+}
+
+/* 谁离宝箱 / 机关最近（同时给提示与判定做候选） */
+function nearestInteract(){
+  var best = null, bd = 1e9, bestP = null, bestKind = "";
+  [G.p1, G.p2].forEach(function(pl){
+    if(!pl || pl.dead) return;
+    var i, o, dx, dy;
+    for(i=0;i<G.chests.length;i++){
+      o = G.chests[i];
+      if(o.opened) continue;
+      dx = Math.abs(o.x - pl.x); dy = Math.abs(o.y - pl.y);
+      if(dx < INTERACT_R.x && dy < INTERACT_R.y && dx < bd){
+        bd = dx; best = o; bestP = pl; bestKind = "chest";
+      }
+    }
+    for(i=0;i<G.mechanisms.length;i++){
+      o = G.mechanisms[i];
+      if(o.on) continue;
+      dx = Math.abs(o.x - pl.x); dy = Math.abs(o.y - pl.y);
+      if(dx < INTERACT_R.x && dy < INTERACT_R.y && dx < bd){
+        bd = dx; best = o; bestP = pl; bestKind = "mech";
+      }
+    }
+  });
+  return best ? { o:best, p:bestP, kind:bestKind } : null;
+}
+
 /* ---------------- 掉落池 ----------------
    权重按波次递增解锁：第一阵只有基础四件，第二阵起青铜钺 / 三枝叉进场，
    第三阵起才轮得到神鸟弓。同列数字越大越常见，0 表示这一阵还不发放。
@@ -750,6 +1120,9 @@ var DROP_TABLE = {
   dagger: [28, 25, 26],
   sword:  [18, 17, 16],
   rock:   [16, 14, 12],
+  blade:  [10, 11, 10],
+  jar:    [ 0,  9, 10],
+  bell:   [ 0,  7,  9],
   axe:    [ 0, 12, 12],
   spear:  [ 0, 11, 11],
   hammer: [ 0,  6,  7],
@@ -787,6 +1160,10 @@ function nearestDrop(p, blocked){
     if(d.taken) continue;
     var dx = Math.abs(d.x - p.x), dy = Math.abs(d.y - p.y);
     if(!(dx < HINT_RANGE.x && dy < HINT_RANGE.y)) continue;
+    if(d.residue){                            /* 残骸随时可捡：同款补弹，异款换手 */
+      if(dx < bd){ bd = dx; best = d; }
+      continue;
+    }
     if(p.weapon && p.weapon.key === d.weapon.key && p.weapon.type !== "fist"){
       if(dx < sd){ sd = dx; same = d; }      /* 同款 → 记下来，仍可提示「先扔掉」 */
       continue;
@@ -818,13 +1195,34 @@ function updatePickupHint(dt){
   var target = pick || blocked;
   var p = pick ? pickP : blockedP;
 
-  /* 谁都不靠近 → 每帧一次 clear（clearPickupHint 幂等，重复调用不闪） */
-  if(!target){ hidePickupHint(); return; }
+  /* 顺序与按键行为一致：tryOpenInteract 先吃攻击键，提示也就先报宝箱 / 机关；
+     开完了或走远了才轮到地面武器的拾取气泡。 */
+  var it = nearestInteract();
+  if(it){
+    target = it.o;
+    p = it.p;
+  }
 
   /* P2 的攻击键是 / ，提示里用它自己的键名 */
   var keyName = (p === G.p1) ? "F" : "/";
-  var text = pick ? ("按 " + keyName + " 拾取 · " + pick.weapon.name)
-                  : "同款武器，先扔掉";
+  var text, hintY;
+
+  if(it){
+    text = (it.kind === "chest") ? ("按 " + keyName + " 开启 · 青铜宝箱")
+                                 : ("按 " + keyName + " 转动 · 青铜机关");
+    hintY = target.y - 200;
+  } else if(!target){
+    /* 谁都不靠近 → 每帧一次 clear（clearPickupHint 幂等，重复调用不闪） */
+    hidePickupHint();
+    return;
+  } else {
+    var pickLabel = pick ? (pick.residue ? pick.name : pick.weapon.name) : "";
+    text = pick ? ("按 " + keyName + " 拾取 · " + pickLabel)
+                : "同款武器，先扔掉";
+
+    hintY = target.y - 150;
+  }
+
   var sig = Math.round(target.x) + "|" + Math.round(target.y) + "|" + keyName + "|" + text;
   if(sig !== pickHintSig){ pickHintSig = sig; pickHintClock = 0; }
 
@@ -832,8 +1230,8 @@ function updatePickupHint(dt){
   if(pickHintClock > 0) return;
   pickHintClock = 0.6;
 
-  /* 屏幕坐标 = 世界坐标 - 相机；气泡挂在掉落物上方 */
-  UIShell.showPickupHint(text, target.x - G.camX, target.y - 150);
+  /* 屏幕坐标 = 世界坐标 - 相机；气泡挂在掉落物 / 宝箱上方 */
+  UIShell.showPickupHint(text, target.x - G.camX, hintY);
 }
 
 /* 武器损坏 → 空手（伤害极低，必须去捡） */
@@ -844,29 +1242,65 @@ function breakWeapon(p, wp){
   syncHUD();
 }
 
-/* 投掷 / 射箭 */
+/* 投掷 / 射箭
+   箭走 "bow"；投掷物的 kind 直接用武器 key（rock / blade / jar / bell），
+   出手速度、重力、穿透、引信、反弹都从 wp 上取，四种手感共用一条管线。 */
 function fireProjectile(p, wp){
-  var isBow = (wp.type === "bow");
-  p.throwT = 0.24;
-  p.swingCd = isBow ? 0.38 : 0.50;
+  if(wp.type === "bow"){
+    p.throwT = 0.24;
+    p.swingCd = 0.38;
+    G.projectiles.push({
+      x: p.x + p.facing*48, y: p.y - 112,
+      vx: p.facing * 1180, vy: 0, g: 0,
+      dmg: wp.dmg, kind: "bow", owner: p,
+      life: 1.8, max: 1.8, spin: 0, spinRate: 0, hitSet: []
+    });
+    tone(720,0.10,"sine",0.05,300); noise(0.06,0.05,3000);
+    wp.dur--;
+    if(wp.dur <= 0) breakWeapon(p, wp);
+    return;
+  }
+
+  /* ---- 投掷：四种手感都从这里出发 ---- */
+  var isJar   = (wp.key === "jar");
+  var isBlade = (wp.key === "blade");
+  p.throwT  = 0.26;
+  p.swingCd = isJar ? 0.62 : (isBlade ? 0.34 : 0.46);
   G.projectiles.push({
     x: p.x + p.facing*48,
     y: p.y - 112,
-    vx: p.facing * (isBow ? 1180 : 700),
-    vy: isBow ? 0 : -300,
-    g:  isBow ? 0 : 1500,
+    vx: p.facing * wp.tvx,
+    vy: wp.tvy,
+    g:  wp.tg,
     dmg: wp.dmg,
-    kind: wp.type,
+    kind: wp.key,
+    wkey: wp.key,
+    radius: wp.radius || 52,
+    pierce: wp.pierce || 0,
+    fuseDef: wp.fuse || 0,
+    fuseT: 0,
+    lit: false,
+    bounces: wp.bounce || 0,
     owner: p,
-    life: isBow ? 1.8 : 2.6,
-    max:  isBow ? 1.8 : 2.6,
+    life: isJar ? 3.0 : (isBlade ? 1.6 : 2.6),
+    max:  isJar ? 3.0 : (isBlade ? 1.6 : 2.6),
     spin: 0,
+    spinRate: isBlade ? 26 : (isJar ? 7 : 12),
+    hits: 0,
     hitSet: []
   });
-  if(isBow){ tone(720,0.10,"sine",0.05,300); noise(0.06,0.05,3000); }
-  else { noise(0.10,0.07,900); }
-  wp.dur--;
-  if(wp.dur <= 0) breakWeapon(p, wp);
+  noise(0.10,0.07,900);
+  if(wp.key === "bell") tone(980,0.12,"triangle",0.045,1320);   /* 铃：出手先响一声 */
+  if(isJar)             tone(150,0.16,"triangle",0.05,90);
+
+  /* 弹数：投掷物用 ammo 而不是 dur；扔空脱手，地上的残骸还能捡回来补 */
+  wp.ammo--;
+  if(wp.ammo <= 0){
+    breakWeapon(p, wp);
+    showHitText(p.x, p.y-190, "投掷物用完 · 捡残骸");
+  } else {
+    syncHUD();
+  }
 }
 
 /* 挥砍 */
@@ -1113,8 +1547,15 @@ function update(dt){
     /* 清理尸体 */
     G.enemies = G.enemies.filter(function(e){ return !(e.state==="dead" && e.deadT > 0.9); });
 
-    /* 刷怪 */
-    if(G.spawnQueue.length > 0){
+    /* 存活计数（尸体不算） */
+    var alive = 0;
+    for(var ai=0; ai<G.enemies.length; ai++){
+      if(G.enemies[ai].state !== "dead") alive++;
+    }
+
+    /* 刷怪：排队 + 同屏上限。上限压住了「一次涌上来被打死」的爆量，
+       也把单阵时长拉到 30 秒以上，靠的是节奏而不是血条。 */
+    if(G.spawnQueue.length > 0 && alive < MAX_ALIVE && G.breatherT <= 0){
       G.spawnTimer -= dt;
       if(G.spawnTimer <= 0){
         var kind = G.spawnQueue.shift();
@@ -1124,8 +1565,22 @@ function update(dt){
         var en = new Enemy(kind, sx);
         en.facing = side < 0 ? 1 : -1;
         G.enemies.push(en);
-        G.spawnTimer = rnd(0.5, 1.15);
+        G.spawnTimer = rnd(0.8, 1.4);      /* 分批刷新：0.8~1.4 秒一体 */
       }
+    }
+
+    /* 机关在波次末尾浮出：队列排空、场上只剩零星时，才在身侧立起来 */
+    if(!G.mechSpawned && G.spawnQueue.length === 0 && alive <= 2 && G.waves[G.waveIdx]
+       && G.waves[G.waveIdx].mech){
+      G.mechSpawned = true;
+      var mx = clamp(G.p1.x + 480, 160, WORLD_W-160);
+      /* 避开上一阵残留、没被激活的那台：两台叠在一起会看成一个 */
+      for(var mc=0; mc<G.mechanisms.length; mc++){
+        if(Math.abs(G.mechanisms[mc].x - mx) < 180) mx = clamp(mx + 320, 160, WORLD_W-160);
+      }
+      addMechanism(mx, G.waves[G.waveIdx].mech);
+      burst(mx, GROUND-96, 18, "#c9a765", 260);
+      showHitText(mx, GROUND-240, "青铜机关 · 就在近处");
     }
 
     /* 相机 */
@@ -1138,8 +1593,18 @@ function update(dt){
       if(p) p.x = clamp(p.x, G.camX+54, G.camX+W-54);
     });
 
-    /* 波次判定 */
-    if(G.spawnQueue.length === 0 && G.enemies.length === 0 && G.phase === "play"){
+    /* 喘息倒计时：清场后留 3 秒，不立刻接下一阵 */
+    if(G.breatherT > 0){
+      G.breatherT -= dt;
+      if(G.breatherT <= 0){
+        G.breatherT = 0;
+        nextWave();
+      }
+    }
+
+    /* 波次判定（喘息期间不要再触发一次） */
+    if(G.spawnQueue.length === 0 && G.enemies.length === 0
+       && G.phase === "play" && G.breatherT <= 0){
       waveCleared();
     }
 
@@ -1207,22 +1672,63 @@ function updateParticles(dt){
     t.y -= 46*dt;
     if(t.life<=0) G.texts.splice(m,1);
   }
-  /* 投掷物 / 箭 */
-  for(var n=G.projectiles.length-1;n>=0;n--){
+  /* 器心碎片（海贝 / 玉器）：先落地弹一下，靠近就飞向玩家 */
+  for(var pu=G.pickups.length-1; pu>=0; pu--){
+    var pk = G.pickups[pu];
+    pk.life -= dt;
+    if(pk.life <= 0){ G.pickups.splice(pu,1); continue; }
+    pk.bob += dt*5;
+    var owner = null, bd = 1e9;
+    for(var pi=0; pi<2; pi++){
+      var pl = pi===0 ? G.p1 : G.p2;
+      if(!pl || pl.dead) continue;
+      var dd = Math.abs(pl.x - pk.x);
+      if(dd < bd){ bd = dd; owner = pl; }
+    }
+    if(owner && bd < 170){
+      var ax = owner.x - pk.x, ay = (owner.y - 112) - pk.y;
+      var ad = Math.sqrt(ax*ax + ay*ay) || 1;
+      pk.x += ax/ad * 640 * dt;
+      pk.y += ay/ad * 640 * dt;
+      if(ad < 50){ applyPickup(pk, owner); G.pickups.splice(pu,1); continue; }
+    } else {
+      pk.vy += pk.g * dt;
+      pk.x += pk.vx * dt;
+      pk.y += pk.vy * dt;
+      pk.vx *= (1 - 1.6*dt);
+      if(pk.y > GROUND-18){
+        pk.y = GROUND-18;
+        pk.vy *= -0.4;
+        if(Math.abs(pk.vy) < 40) pk.vy = 0;
+      }
+    }
+  }
+  /* 投掷物 / 箭：按 kind 分流，四种投掷物共用一条管线 */
+  var projGone = false;
+  for(var n=0;n<G.projectiles.length;n++){
     var pr = G.projectiles[n];
+    if(pr.dead) continue;
+
     pr.life -= dt;
-    if(pr.life <= 0){ G.projectiles.splice(n,1); continue; }
+    if(pr.life <= 0){ resolveProjectile(pr); projGone = true; continue; }
+
+    /* 引信已点（陶罐雷）：原地倒计时，到点才炸 */
+    if(pr.lit){
+      pr.fuseT -= dt;
+      pr.vx *= (1 - 9*dt);
+      pr.x += pr.vx*dt;
+      pr.y = GROUND - 20;
+      pr.spin += dt*2.2;
+      if(pr.fuseT <= 0){ resolveProjectile(pr); projGone = true; }
+      continue;
+    }
+
     pr.vy += pr.g*dt;
     pr.x += pr.vx*dt;
     pr.y += pr.vy*dt;
-    pr.spin += dt*12;
-    /* 落地 */
-    if(pr.y > GROUND-6){
-      burst(pr.x, GROUND-8, 8, "#8e8474", 200);
-      G.projectiles.splice(n,1);
-      continue;
-    }
-    /* 命中 */
+    pr.spin += dt*pr.spinRate;
+
+    /* ---- 命中敌人 ---- */
     var hitOne = false;
     for(var e2=0;e2<G.enemies.length;e2++){
       var en = G.enemies[e2];
@@ -1232,6 +1738,8 @@ function updateParticles(dt){
       if(pr.x > er.x && pr.x < er.x+er.w && pr.y > er.y && pr.y < er.y+er.h){
         var mult2 = (en.kind==="boss" && en.state==="recover") ? 2 : 1;
         hitEnemy(en, pr.dmg*mult2, pr.vx>0?1:-1, true, mult2>1);
+        pr.hitSet.push(en);
+        pr.hits = (pr.hits || 0) + 1;
         G.combo++; G.comboT = 0.9;
         if(G.combo > G.maxCombo) G.maxCombo = G.combo;
         if(pr.owner) pr.owner.energy = Math.min(100, pr.owner.energy + 7);
@@ -1239,10 +1747,99 @@ function updateParticles(dt){
         break;
       }
     }
-    if(hitOne){ G.projectiles.splice(n,1); continue; }
-    /* 出界 */
-    if(pr.x < G.camX-200 || pr.x > G.camX+W+200) G.projectiles.splice(n,1);
+    if(hitOne){
+      if(pr.kind === "bow"){ pr.dead = true; projGone = true; }
+      else if(pr.pierce > 0 && pr.hits < pr.pierce){
+        burst(pr.x, pr.y, 5, "#cde9d6", 200);        /* 玉璋镖：穿过去继续飞 */
+      } else {
+        resolveProjectile(pr); projGone = true;
+      }
+    }
+    if(pr.dead) continue;
+
+    /* ---- 落地：四种投掷物在这里分道扬镳 ---- */
+    if(pr.y > GROUND-8){
+      pr.y = GROUND-8;
+      if(pr.kind === "bow"){
+        resolveProjectile(pr); projGone = true;
+      } else if(pr.fuseDef > 0){
+        /* 陶罐雷：落地不炸，先点引信 */
+        pr.lit = true; pr.fuseT = pr.fuseDef; pr.vy = 0; pr.vx *= 0.45; pr.y = GROUND-20;
+        burst(pr.x, GROUND-14, 6, "#ffb060", 170);
+        tone(300,0.10,"square",0.05,420);
+      } else if(pr.bounces > 0){
+        /* 青铜铃：落地弹一次，第二次才爆 */
+        pr.bounces--;
+        pr.vy = -Math.abs(pr.vy) * 0.55;
+        pr.vx *= 0.78;
+        burst(pr.x, GROUND-12, 7, "#9fd0a8", 200);
+        tone(1040,0.10,"triangle",0.05,1500);
+      } else {
+        resolveProjectile(pr); projGone = true;
+      }
+      continue;
+    }
+
+    /* 出界：直接消失，不留残骸（离屏的捡不回来） */
+    if(pr.x < G.camX-260 || pr.x > G.camX+W+260){ pr.dead = true; projGone = true; }
   }
+  if(projGone){
+    G.projectiles = G.projectiles.filter(function(q){ return !q.dead; });
+  }
+}
+
+/* ---------------- 投掷物收场 / 爆炸 / 残骸 ----------------
+   收场一律走 resolveProjectile：炸一次（箭不炸）+ 在落点留一枚残骸。
+   残骸是投掷物经济的闭环：扔出去 → 落地 → 走回去捡 → 补回一发。 */
+var TD_COLS = { rock:"#a89e8c", blade:"#cde9d6", jar:"#e0a066", bell:"#9fd0a8" };
+
+function resolveProjectile(pr){
+  pr.dead = true;
+  if(pr.kind === "bow") return;                 /* 箭收场不炸也不留残骸 */
+  explodeProjectile(pr, pr.radius || 52);
+  leaveResidue(pr);
+}
+
+/* 范围爆炸：已经直击过的敌人由 hitSet 挡住，不会「直击 + 爆炸」重复扣血 */
+function explodeProjectile(pr, R){
+  var big = R > 90;
+  var col = TD_COLS[pr.kind] || "#f7d9a0";
+  burst(pr.x, pr.y, big ? 30 : 14, col, big ? 430 : 270);
+  G.shake = Math.max(G.shake, big ? 16 : 7);
+  if(big){ sfxCrit(); G.flash = Math.max(G.flash, 0.10); }
+  else sfxHit();
+
+  for(var i=0;i<G.enemies.length;i++){
+    var e = G.enemies[i];
+    if(e.state === "dead") continue;
+    if(pr.hitSet.indexOf(e) !== -1) continue;
+    var cy = e.y - e.h*0.5;
+    if(Math.abs(e.x - pr.x) < R + e.w*0.45 && Math.abs(cy - pr.y) < R + e.h*0.5){
+      var mult = (e.kind==="boss" && e.state==="recover") ? 2 : 1;
+      hitEnemy(e, pr.dmg*mult, e.x > pr.x ? 1 : -1, true, mult>1);
+      pr.hitSet.push(e);
+      G.combo++; G.comboT = 0.9;
+      if(G.combo > G.maxCombo) G.maxCombo = G.combo;
+      if(pr.owner) pr.owner.energy = Math.min(100, pr.owner.energy + 6);
+    }
+  }
+}
+
+/* 残骸：贴在落点地上，18 秒后消失；同一处不叠第二枚，免得堆成一片 */
+function leaveResidue(pr){
+  if(!pr.wkey) return;
+  var rx = clamp(pr.x, 40, WORLD_W-40);
+  for(var i=0;i<G.drops.length;i++){
+    var d = G.drops[i];
+    if(d.taken || !d.residue) continue;
+    if(Math.abs(d.x - rx) < 46) return;
+  }
+  var def = WEAPONS[pr.wkey];
+  G.drops.push({
+    x: rx, y: GROUND, vy: -280, taken: false, life: 18, bob: rnd(0,6),
+    residue: true, wkey: pr.wkey, weapon: null,
+    name: (def ? def.name : "投掷物") + "残片"
+  });
 }
 
 /* =====================================================================
@@ -1979,7 +2576,10 @@ function drawHits(){
   }
 }
 
-/* 投掷物 / 箭 */
+/* 投掷物 / 箭
+   箭：杆 + 尾羽；
+   投掷物四种各画各的轮廓（石=多边形 / 镖=细长菱形 / 罐=圆肚带颈 / 铃=梯形钟形），
+   统一带一段速度方向拖尾。眼形石优先贴 projRock，其余全走纯代码，缺图不白屏。 */
 function drawProjectiles(){
   for(var i=0;i<G.projectiles.length;i++){
     var p = G.projectiles[i];
@@ -2000,26 +2600,137 @@ function drawProjectiles(){
       ctx.beginPath(); ctx.moveTo(-26,0); ctx.lineTo(-34,-6); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(-26,0); ctx.lineTo(-34,6); ctx.stroke();
     } else {
-      /* 石块：有素材就贴图，没就退回代码画的旋转多边形 */
-      if(imgReady("projRock")){
-        var side = p.vx >= 0 ? 1 : -1;
-        ctx.scale(side, 1);
-        ctx.rotate(p.spin);
-        try { ctx.drawImage(window.IMG.projRock, -23, -23, 46, 46); } catch (err) { /* 图坏了就当没图 */ }
-      } else {
-        ctx.rotate(p.spin);
-        var g = ctx.createRadialGradient(-5,-6,2,0,0,16);
-        g.addColorStop(0,"#b8b0a0"); g.addColorStop(1,"#5c554a");
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.moveTo(-14,-6); ctx.lineTo(-4,-14); ctx.lineTo(9,-11);
-        ctx.lineTo(15,2); ctx.lineTo(6,13); ctx.lineTo(-8,11); ctx.lineTo(-15,3);
-        ctx.closePath(); ctx.fill();
-        ctx.strokeStyle = "rgba(30,26,20,.6)"; ctx.lineWidth = 1.4; ctx.stroke();
-      }
+      drawProjTrail(p, TD_COLS[p.kind] || "#c9bfa8", 11);
+      if(p.kind === "blade")      drawProjBlade(p);
+      else if(p.kind === "jar")   drawProjJar(p);
+      else if(p.kind === "bell")  drawProjBell(p);
+      else                        drawProjRock(p);
     }
     ctx.restore();
   }
+}
+
+/* 拖尾：沿速度反方向叠三段，越远越淡。不做历史采样，零分配，四种投掷物共用 */
+function drawProjTrail(p, col, w0){
+  var sp = Math.sqrt(p.vx*p.vx + p.vy*p.vy) || 1;
+  var ux = p.vx/sp, uy = p.vy/sp;
+  var L = clamp(sp*0.030, 20, 64);
+  ctx.lineCap = "round";
+  for(var i=0;i<3;i++){
+    var t0 = i/3, t1 = (i+1)/3;
+    ctx.globalAlpha = 0.30 - i*0.085;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = w0 * (1 - t0*0.62);
+    ctx.beginPath();
+    ctx.moveTo(-ux*L*t0, -uy*L*t0);
+    ctx.lineTo(-ux*L*t1, -uy*L*t1);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* 眼形石：多边形石块，带一道「眼」刻痕，和普通石头区分 */
+function drawProjRock(p){
+  if(imgReady("projRock")){
+    var side = p.vx >= 0 ? 1 : -1;
+    ctx.scale(side, 1);
+    ctx.rotate(p.spin);
+    try { ctx.drawImage(window.IMG.projRock, -23, -23, 46, 46); } catch (err) { /* 图坏了就当没图 */ }
+    return;
+  }
+  ctx.rotate(p.spin);
+  var g = ctx.createRadialGradient(-5,-6,2,0,0,16);
+  g.addColorStop(0,"#b8b0a0"); g.addColorStop(1,"#5c554a");
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.moveTo(-14,-6); ctx.lineTo(-4,-14); ctx.lineTo(9,-11);
+  ctx.lineTo(15,2); ctx.lineTo(6,13); ctx.lineTo(-8,11); ctx.lineTo(-15,3);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "rgba(30,26,20,.6)"; ctx.lineWidth = 1.4; ctx.stroke();
+  ctx.strokeStyle = "rgba(24,20,16,.55)"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-8,-1); ctx.lineTo(8,-1); ctx.stroke();
+  ctx.fillStyle = "rgba(24,20,16,.6)";
+  ctx.beginPath(); ctx.arc(0,3,2.1,0,Math.PI*2); ctx.fill();
+}
+
+/* 玉璋镖：细长菱形，轴永远顺着速度方向 —— 一眼看出是「镖」不是「石」 */
+function drawProjBlade(p){
+  ctx.rotate(Math.atan2(p.vy, p.vx));
+  var g = ctx.createLinearGradient(-26,0,26,0);
+  g.addColorStop(0,"#6f9c86"); g.addColorStop(0.42,"#d8f2e4");
+  g.addColorStop(0.62,"#ffffff"); g.addColorStop(1,"#6f9c86");
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.moveTo(26,0); ctx.lineTo(2,-7); ctx.lineTo(-24,0); ctx.lineTo(2,7);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "rgba(24,42,34,.55)"; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.strokeStyle = "rgba(255,255,250,.85)"; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(-19,0); ctx.lineTo(22,0); ctx.stroke();
+  ctx.fillStyle = "#3d6b58";
+  ctx.beginPath(); ctx.arc(-15,0,2.4,0,Math.PI*2); ctx.fill();
+}
+
+/* 陶罐雷：圆肚 + 颈 + 口沿；引信点了以后原地泛红、冒火星 */
+function drawProjJar(p){
+  var lit = !!p.lit;
+  if(!lit) ctx.rotate(Math.sin(p.spin*0.6)*0.5);
+  if(lit){
+    var pulse = 0.5 + 0.5*Math.sin(G.time*26);
+    var gl = ctx.createRadialGradient(0,0,4,0,0,48);
+    gl.addColorStop(0,"rgba(255,170,90,"+(0.26+0.26*pulse)+")");
+    gl.addColorStop(1,"rgba(255,120,60,0)");
+    ctx.fillStyle = gl;
+    ctx.beginPath(); ctx.arc(0,0,48,0,Math.PI*2); ctx.fill();
+  }
+  var g = ctx.createRadialGradient(-5,-6,3,0,0,19);
+  g.addColorStop(0,"#d79a68"); g.addColorStop(0.6,"#b4764a"); g.addColorStop(1,"#6d4126");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(0,3,15,16,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle = "rgba(48,26,14,.75)"; ctx.lineWidth = 1.6; ctx.stroke();
+  ctx.fillStyle = "#8e5530";
+  ctx.beginPath();
+  ctx.moveTo(-5,-10); ctx.lineTo(5,-10); ctx.lineTo(6,-16); ctx.lineTo(-6,-16);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "rgba(48,26,14,.7)"; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.fillStyle = "#c98a55";
+  ctx.fillRect(-8,-19,16,3.6);
+  ctx.strokeStyle = "rgba(60,32,16,.45)"; ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.moveTo(-11,-1); ctx.lineTo(11,-1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-9,7); ctx.lineTo(9,7); ctx.stroke();
+  if(lit){
+    ctx.strokeStyle = "#4a3418"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0,-19); ctx.quadraticCurveTo(7,-26,3,-31); ctx.stroke();
+    var spark = 0.6 + 0.4*Math.sin(G.time*40);
+    ctx.fillStyle = "rgba(255,214,120,"+spark+")";
+    ctx.beginPath(); ctx.arc(3,-32,3.4,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,235,.9)";
+    ctx.beginPath(); ctx.arc(3,-32,1.6,0,Math.PI*2); ctx.fill();
+  }
+}
+
+/* 青铜铃：上窄下宽的钟形 + 外翻口沿 + 顶钮 + 铃舌 */
+function drawProjBell(p){
+  ctx.rotate(Math.sin(p.spin)*0.32);
+  var g = ctx.createLinearGradient(-14,-14,14,16);
+  g.addColorStop(0,"#c6dcc0"); g.addColorStop(0.45,"#8fae8a"); g.addColorStop(1,"#4e6b52");
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.moveTo(-8,-14); ctx.lineTo(8,-14); ctx.lineTo(14,10); ctx.lineTo(-14,10);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "rgba(26,44,30,.7)"; ctx.lineWidth = 1.6; ctx.stroke();
+  ctx.fillStyle = "#6f8f72";
+  ctx.beginPath(); ctx.ellipse(0,12,15,4.6,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle = "rgba(26,44,30,.65)"; ctx.lineWidth = 1.3; ctx.stroke();
+  ctx.strokeStyle = "#a9c4a2"; ctx.lineWidth = 2.6;
+  ctx.beginPath(); ctx.arc(0,-17,4.6,Math.PI*1.15,Math.PI*1.85); ctx.stroke();
+  ctx.fillStyle = "#3c5540";
+  ctx.beginPath(); ctx.arc(0,-16.5,2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = "rgba(230,242,225,.55)";
+  ctx.beginPath(); ctx.arc(-5,-2,1.7,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc( 5,-2,1.7,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc( 0, 4,1.7,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = "#2c3f30";
+  ctx.beginPath(); ctx.arc(0,14,2.6,0,Math.PI*2); ctx.fill();
 }
 
 function drawParticles(){
@@ -2032,49 +2743,390 @@ function drawParticles(){
   ctx.globalAlpha = 1;
 }
 
-/* 地上的武器 */
+/* =====================================================================
+   宝箱 / 机关 / 碎片绘制
+   素材就绪就贴图（按 naturalWidth/naturalHeight 自动算高，不预设比例），
+   否则走纯代码：青铜箱 = 梯形箱体 + 掀盖 + 纵目纹；机关 = 五辐太阳轮。
+   热路径不建 Image、不建 canvas，只读 window.IMG。
+   ===================================================================== */
+var INTERACT_W = 180;      /* 宝箱 / 机关的显示宽：约玩家身高的 1/3，站在旁边不抢戏 */
+var PICKUP_W   = 52;       /* 海贝 / 玉器的显示宽 */
+
+/* 取素材高宽比算显示高；没图时用 fallback */
+function spriteH(key, dispW, fallback){
+  if(!imgReady(key)) return fallback;
+  var im = window.IMG[key];
+  if(!(im.naturalWidth > 0) || !(im.naturalHeight > 0)) return fallback;
+  return dispW * (im.naturalHeight / im.naturalWidth);
+}
+
+function drawChests(){
+  for(var i=0;i<G.chests.length;i++){
+    var c = G.chests[i];
+    var bob = c.opened ? 0 : Math.sin(c.bob + G.time*2)*3;
+    var yb = c.y + 2 + bob;
+    var key = c.opened ? "chestOpen" : "chestClosed";
+    var drew = false;
+
+    if(imgReady(key)){
+      var h = spriteH(key, INTERACT_W, INTERACT_W*0.78);
+      try{
+        ctx.drawImage(window.IMG[key], c.x - INTERACT_W/2, yb - h, INTERACT_W, h);
+        drew = true;
+      }catch(e){ drew = false; }
+    }
+    if(!drew) drawChestFallback(c, yb, INTERACT_W);
+
+    /* 未开启：脚下一圈呼吸金光，隔着屏幕也能看见 */
+    if(!c.opened){
+      var pulse = 0.30 + 0.18*Math.sin(G.time*3.2 + c.bob);
+      var gr = ctx.createRadialGradient(c.x, c.y-34, 6, c.x, c.y-34, 120);
+      gr.addColorStop(0, "rgba(255,232,164," + pulse.toFixed(3) + ")");
+      gr.addColorStop(1, "rgba(255,232,164,0)");
+      ctx.save();
+      ctx.fillStyle = gr;
+      ctx.beginPath(); ctx.arc(c.x, c.y-34, 120, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+  }
+}
+
+/* 降级宝箱：比例对齐素材（260×125，约 0.48 高宽比），青铜底 + 掀盖 + 门环 */
+function drawChestFallback(c, yb, w){
+  var bw = w*0.86;            /* 箱体略窄于素材框，留出盖檐 */
+  var bh = bw*0.50;           /* 箱体高 */
+  var lid = c.opened ? bh*0.78 : bh*0.30;   /* 掀开的盖更高 */
+  ctx.save();
+  ctx.translate(c.x, yb);
+
+  /* 影 */
+  ctx.save();
+  ctx.globalAlpha = 0.36;
+  ctx.fillStyle = "#000";
+  ctx.beginPath(); ctx.ellipse(0, 0, bw*0.46, 7, 0, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  /* 箱体：整体压深一档，浅色会和背后的石墙糊成一片 */
+  var g = ctx.createLinearGradient(0, -bh, 0, 0);
+  if(c.opened){
+    g.addColorStop(0, "#3f5c4b"); g.addColorStop(0.55, "#25382d"); g.addColorStop(1, "#131e18");
+  } else {
+    g.addColorStop(0, "#4d6f5a"); g.addColorStop(0.5, "#2c4436"); g.addColorStop(1, "#152018");
+  }
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.moveTo(-bw*0.5, 0);
+  ctx.lineTo( bw*0.5, 0);
+  ctx.lineTo( bw*0.47, -bh);
+  ctx.lineTo(-bw*0.47, -bh);
+  ctx.closePath(); ctx.fill();
+  /* 外沿压深、内沿提亮：一圈铜锈轮廓 */
+  ctx.strokeStyle = "rgba(10,16,12,.85)"; ctx.lineWidth = 3.2; ctx.stroke();
+  ctx.strokeStyle = "rgba(214,196,150,.55)"; ctx.lineWidth = 1.2; ctx.stroke();
+
+  /* 竖箍两道 */
+  ctx.strokeStyle = "rgba(226,198,120," + (c.opened ? ".26" : ".48") + ")";
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-bw*0.30, -bh*0.98); ctx.lineTo(-bw*0.34, -bh*0.02); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo( bw*0.30, -bh*0.98); ctx.lineTo( bw*0.34, -bh*0.02); ctx.stroke();
+
+  /* 门环（纵目两枚 + 横梁），开箱后暗下去 */
+  var ink = c.opened ? "rgba(226,198,120,.34)" : "rgba(245,214,138,.92)";
+  ctx.strokeStyle = ink; ctx.lineWidth = 2.2;
+  ctx.beginPath(); ctx.moveTo(-bw*0.26, -bh*0.34); ctx.lineTo(bw*0.26, -bh*0.34); ctx.stroke();
+  ctx.fillStyle = ink;
+  ctx.beginPath(); ctx.ellipse(-bw*0.12, -bh*0.58, bw*0.042, bw*0.036, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse( bw*0.12, -bh*0.58, bw*0.042, bw*0.036, 0, 0, Math.PI*2); ctx.fill();
+
+  /* 盖 */
+  var lg = ctx.createLinearGradient(0, -bh - lid, 0, -bh);
+  if(c.opened){ lg.addColorStop(0, "#22332a"); lg.addColorStop(1, "#101a14"); }
+  else { lg.addColorStop(0, "#5f876f"); lg.addColorStop(1, "#2b4136"); }
+  ctx.fillStyle = lg;
+  ctx.beginPath();
+  if(c.opened){
+    /* 掀开的盖：向后翻，比箱体窄，露出内腔 */
+    ctx.moveTo(-bw*0.47, -bh);
+    ctx.lineTo( bw*0.47, -bh);
+    ctx.lineTo( bw*0.40, -bh - lid);
+    ctx.lineTo(-bw*0.44, -bh - lid*0.94);
+  } else {
+    ctx.moveTo(-bw*0.48, -bh);
+    ctx.lineTo( bw*0.48, -bh);
+    ctx.lineTo( bw*0.44, -bh - lid);
+    ctx.lineTo(-bw*0.44, -bh - lid);
+  }
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "rgba(10,16,12,.85)"; ctx.lineWidth = 2.6; ctx.stroke();
+  ctx.strokeStyle = "rgba(214,196,150,.5)"; ctx.lineWidth = 1.1; ctx.stroke();
+
+  /* 开箱：内腔漏光 */
+  if(c.opened){
+    var ig = ctx.createRadialGradient(0, -bh*0.96, 2, 0, -bh*0.96, bw*0.44);
+    ig.addColorStop(0, "rgba(255,238,170,.62)");
+    ig.addColorStop(1, "rgba(255,238,170,0)");
+    ctx.fillStyle = ig;
+    ctx.beginPath(); ctx.arc(0, -bh*0.96, bw*0.44, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawMechanisms(){
+  for(var i=0;i<G.mechanisms.length;i++){
+    var m = G.mechanisms[i];
+    var yy = m.y - 4 + (m.on ? 0 : Math.sin(m.bob + G.time*1.8)*2);
+    var key = m.on ? "mechanismOn" : "mechanismOff";
+    var drew = false;
+
+    if(imgReady(key)){
+      var h = spriteH(key, INTERACT_W, INTERACT_W*0.86);
+      try{
+        ctx.drawImage(window.IMG[key], m.x - INTERACT_W/2, yy - h, INTERACT_W, h);
+        drew = true;
+      }catch(e){ drew = false; }
+    }
+    if(!drew) drawMechanismFallback(m, yy, INTERACT_W);
+  }
+}
+
+function drawMechanismFallback(m, yb, w){
+  var r = w*0.40;
+  ctx.save();
+  ctx.translate(m.x, yb - r);
+
+  /* 支脚 */
+  ctx.fillStyle = "#4a5a4c";
+  ctx.fillRect(-r*0.55, r*0.72, r*0.30, r*0.42);
+  ctx.fillRect( r*0.25, r*0.72, r*0.30, r*0.42);
+
+  /* 轮盘 */
+  var g = ctx.createRadialGradient(-r*0.3, -r*0.3, r*0.1, 0, 0, r);
+  if(m.on){ g.addColorStop(0, "#fff3c4"); g.addColorStop(0.55, "#d8b268"); g.addColorStop(1, "#7a5c28"); }
+  else { g.addColorStop(0, "#93a894"); g.addColorStop(0.6, "#5d7566"); g.addColorStop(1, "#2f4038"); }
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = m.on ? "rgba(255,244,200,.95)" : "rgba(200,220,200,.55)";
+  ctx.lineWidth = 2.6; ctx.stroke();
+
+  /* 五辐：太阳轮 */
+  ctx.strokeStyle = m.on ? "rgba(255,248,210,.95)" : "rgba(190,210,196,.5)";
+  ctx.lineWidth = r*0.16;
+  for(var s=0;s<5;s++){
+    var a = s*(Math.PI*2/5) - Math.PI/2 + (m.on ? G.time*1.6 : 0);
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a)*r*0.30, Math.sin(a)*r*0.30);
+    ctx.lineTo(Math.cos(a)*r*0.92, Math.sin(a)*r*0.92);
+    ctx.stroke();
+  }
+  ctx.fillStyle = m.on ? "#fff6d4" : "#42574a";
+  ctx.beginPath(); ctx.arc(0, 0, r*0.24, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  if(m.on){
+    var gr = ctx.createRadialGradient(m.x, yb - r, 4, m.x, yb - r, r*2.2);
+    gr.addColorStop(0, "rgba(255,240,180,.34)");
+    gr.addColorStop(1, "rgba(255,240,180,0)");
+    ctx.save();
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.arc(m.x, yb - r, r*2.2, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawPickups(){
+  for(var i=0;i<G.pickups.length;i++){
+    var k = G.pickups[i];
+    var key = (k.kind === "cowrie") ? "pickupCowrie" : "pickupJade";
+    var bob = Math.sin(k.bob)*4;
+    var x = k.x, y = k.y + bob;
+    var blink = k.life < 3 ? (Math.floor(k.life*8)%2===0 ? 0.35 : 1) : 1;
+    var drew = false;
+
+    ctx.save();
+    ctx.globalAlpha = blink;
+    /* 光晕 */
+    var gr = ctx.createRadialGradient(x, y-10, 2, x, y-10, 40);
+    gr.addColorStop(0, k.kind === "cowrie" ? "rgba(255,240,200,.4)" : "rgba(180,240,204,.42)");
+    gr.addColorStop(1, "rgba(255,240,200,0)");
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.arc(x, y-10, 40, 0, Math.PI*2); ctx.fill();
+
+    if(imgReady(key)){
+      var h = spriteH(key, PICKUP_W, PICKUP_W);
+      try{ ctx.drawImage(window.IMG[key], x - PICKUP_W/2, y - h, PICKUP_W, h); drew = true; }
+      catch(e){ drew = false; }
+    }
+    if(!drew){
+      /* 降级：海贝 = 螺旋贝，玉器 = 玉璋 */
+      if(k.kind === "cowrie"){
+        ctx.fillStyle = "#f2e2bc";
+        ctx.beginPath(); ctx.ellipse(x, y-12, 13, 16, 0, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = "#b99a62"; ctx.lineWidth = 1.6;
+        for(var c=1;c<=3;c++){
+          ctx.beginPath();
+          ctx.ellipse(x, y-12, 13-c*3, 16-c*4, 0, 0, Math.PI*2);
+          ctx.stroke();
+        }
+      } else {
+        ctx.fillStyle = "#9fe0c0";
+        ctx.beginPath();
+        ctx.moveTo(x-7, y); ctx.lineTo(x+7, y);
+        ctx.lineTo(x+5, y-26); ctx.lineTo(x-5, y-26);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = "rgba(240,255,246,.85)"; ctx.lineWidth = 1.6; ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+}
+
+/* 地上的武器
+   图标（wp* / it* 键）→ 统一长边 DROP_ICON_SIZE 等比绘制，正视图不倾斜；
+   没图 → 回落纯代码三角刃，任何一张图缺失都不许白屏。
+   稀有（bow / hammer）：紫色光晕 + 缓慢旋转的细光环，普通武器是金光晕。 */
 function drawDrops(){
   for(var i=0;i<G.drops.length;i++){
     var d = G.drops[i];
     var bob = Math.sin(d.bob)*5;
     var blink = d.life < 4 ? (Math.floor(d.life*8)%2===0 ? 0.3 : 1) : 1;
+    if(d.residue){ drawResidue(d, blink); continue; }
+    var wp = d.weapon || WEAPONS.fist;
+    var rare = isRareWeapon(wp.key);
+    var iconKey = wpIconKey(wp.key);
+
     ctx.save();
     ctx.globalAlpha = blink;
     ctx.translate(d.x, d.y - 26 + bob);
-    /* 光晕 */
+
+    /* 光晕：普通金色 / 稀有紫色 */
     var gr = ctx.createRadialGradient(0,0,2,0,0,44);
-    gr.addColorStop(0,"rgba(255,240,190,.34)");
-    gr.addColorStop(1,"rgba(255,240,190,0)");
+    if(rare){
+      gr.addColorStop(0,"rgba(196,146,255,.46)");
+      gr.addColorStop(0.55,"rgba(150,98,236,.17)");
+      gr.addColorStop(1,"rgba(150,98,236,0)");
+    } else {
+      gr.addColorStop(0,"rgba(255,240,190,.34)");
+      gr.addColorStop(1,"rgba(255,240,190,0)");
+    }
     ctx.fillStyle = gr;
     ctx.beginPath(); ctx.arc(0,0,44,0,Math.PI*2); ctx.fill();
-    /* 武器图标 */
-    ctx.rotate(-0.5);
-    var wp = d.weapon;
-    var g2 = ctx.createLinearGradient(0,0,0,-wp.len*0.8);
-    g2.addColorStop(0,"rgba(110,106,96,1)");
-    g2.addColorStop(0.4,wp.col);
-    g2.addColorStop(1,"rgba(255,252,238,1)");
-    ctx.fillStyle = g2;
-    var L = wp.len*0.62, Wd = wp.w;
-    ctx.beginPath();
-    ctx.moveTo(-Wd,0); ctx.lineTo(Wd,0);
-    ctx.lineTo(Wd*0.7,-L*0.86); ctx.lineTo(0,-L);
-    ctx.lineTo(-Wd*0.7,-L*0.86); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle="rgba(255,255,245,.9)"; ctx.lineWidth=1.1; ctx.stroke();
-    ctx.fillStyle="#8a6a34";
-    ctx.fillRect(-Wd*1.5, -2, Wd*3, 5);
+
+    /* 稀有：一道分段细光环，缓慢自转（只转光环，图标本身保持正视图） */
+    if(rare) drawRareHalo();
+
+    /* 图标 → 降级三角刃 */
+    if(iconKey){
+      var drew = false;
+      if(imgReady(iconKey)){
+        var im = window.IMG[iconKey];
+        var nw = im.naturalWidth || im.width || 0;
+        var nh = im.naturalHeight || im.height || 0;
+        if(nw > 0 && nh > 0){
+          var sc = DROP_ICON_SIZE / Math.max(nw, nh);
+          var dw = nw*sc, dh = nh*sc;
+          try{ ctx.drawImage(im, -dw/2, -dh/2, dw, dh); drew = true; }
+          catch(e){ drew = false; }
+        }
+      }
+      if(!drew) drawDropFallback(wp);
+    } else {
+      drawDropFallback(wp);
+    }
     ctx.restore();
 
-    /* 名字 */
+    /* 名字：稀有货用淡紫，普通用金铜色 */
     ctx.save();
     ctx.globalAlpha = blink*0.85;
     ctx.font = "600 15px 'Microsoft YaHei',sans-serif";
     ctx.textAlign = "center";
-    ctx.fillStyle = "#e8d9b4";
+    ctx.fillStyle = rare ? "#d6c0ff" : "#e8d9b4";
     ctx.fillText(wp.name, d.x, d.y - 62);
     ctx.restore();
   }
 }
+
+/* 稀有武器光环：两段圆弧拼成一圈细环，跟着 G.time 缓慢自转 */
+function drawRareHalo(){
+  var spin = G.time * 0.55;
+  ctx.save();
+  ctx.rotate(spin);
+  ctx.strokeStyle = "rgba(206,160,255,.72)";
+  ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.arc(0, 0, 38, 0, Math.PI*1.16); ctx.stroke();
+  ctx.strokeStyle = "rgba(168,112,240,.55)";
+  ctx.beginPath(); ctx.arc(0, 0, 38, Math.PI, Math.PI*1.96); ctx.stroke();
+  /* 四个小芒点，转起来才有「缓慢旋转」的读感 */
+  ctx.fillStyle = "rgba(226,196,255,.9)";
+  for(var k=0;k<4;k++){
+    var a = k * Math.PI/2;
+    ctx.beginPath(); ctx.arc(Math.cos(a)*38, Math.sin(a)*38, 1.9, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* 纯代码降级：原来的三角刃 + 护手，也用在图标缺失时 */
+function drawDropFallback(wp){
+  ctx.save();
+  ctx.rotate(-0.5);
+  var g2 = ctx.createLinearGradient(0,0,0,-wp.len*0.8);
+  g2.addColorStop(0,"rgba(110,106,96,1)");
+  g2.addColorStop(0.4,wp.col);
+  g2.addColorStop(1,"rgba(255,252,238,1)");
+  ctx.fillStyle = g2;
+  var L = wp.len*0.62, Wd = wp.w;
+  ctx.beginPath();
+  ctx.moveTo(-Wd,0); ctx.lineTo(Wd,0);
+  ctx.lineTo(Wd*0.7,-L*0.86); ctx.lineTo(0,-L);
+  ctx.lineTo(-Wd*0.7,-L*0.86); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle="rgba(255,255,245,.9)"; ctx.lineWidth=1.1; ctx.stroke();
+  ctx.fillStyle="#8a6a34";
+  ctx.fillRect(-Wd*1.5, -2, Wd*3, 5);
+  ctx.restore();
+}
+
+/* 投掷物残骸：一把小碎屑，比武器掉落更小更淡，一眼看出「能捡」但不抢戏 */
+function drawResidue(d, blink){
+  var col = TD_COLS[d.wkey] || "#b9b0a0";
+  ctx.save();
+  ctx.globalAlpha = blink * 0.95;
+  ctx.translate(d.x, d.y - 13 + Math.sin(d.bob*0.8)*2);
+  var gl = ctx.createRadialGradient(0,0,2,0,0,34);
+  gl.addColorStop(0,"rgba(255,240,190,.26)");
+  gl.addColorStop(1,"rgba(255,240,190,0)");
+  ctx.fillStyle = gl;
+  ctx.beginPath(); ctx.arc(0,0,34,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle = "rgba(20,18,14,.55)"; ctx.lineWidth = 1.2;
+  if(d.wkey === "jar"){
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.moveTo(-16,4); ctx.lineTo(-6,-4); ctx.lineTo(2,2); ctx.lineTo(-4,8); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(4,6); ctx.lineTo(13,-1); ctx.lineTo(17,6); ctx.lineTo(9,10); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#8e5530";
+    ctx.beginPath(); ctx.moveTo(-2,-8); ctx.lineTo(6,-11); ctx.lineTo(8,-6); ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else if(d.wkey === "blade"){
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.moveTo(-18,6); ctx.lineTo(-4,-2); ctx.lineTo(6,1); ctx.lineTo(-6,9); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(6,-6); ctx.lineTo(18,-2); ctx.lineTo(12,3); ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else if(d.wkey === "bell"){
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.moveTo(-12,-6); ctx.lineTo(10,-8); ctx.lineTo(14,4); ctx.lineTo(-8,6); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#c6dcc0";
+    ctx.beginPath(); ctx.arc(4,8,2.6,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  } else {
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.moveTo(-14,-4); ctx.lineTo(-4,-9); ctx.lineTo(6,-3); ctx.lineTo(2,6); ctx.lineTo(-9,5); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(9,2); ctx.lineTo(16,-2); ctx.lineTo(17,5); ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = blink*0.7;
+  ctx.font = "600 12px 'Microsoft YaHei',sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#c9bd9c";
+  ctx.fillText(d.name, d.x, d.y - 40);
+  ctx.restore();
+}
+
 
 /* 飘字 */
 function drawTexts(){
@@ -2107,8 +3159,11 @@ function render(){
   ctx.save();
   ctx.translate(-G.camX, 0);
 
-  /* 掉落物（最底层） */
+  /* 宝箱 / 机关在最底层，掉落物压在上面 */
+  drawChests();
+  drawMechanisms();
   drawDrops();
+  drawPickups();
   /* 敌人 */
   for(var i=0;i<G.enemies.length;i++){
     if(window.EnemyArt && window.EnemyArt.ready()){
@@ -2250,11 +3305,9 @@ document.addEventListener("click", function(){ ac(); }, { once:true });
 /* UI 覆盖层：按键说明只挂载，用 H / Esc 开关（由 ui-shell 自己监听） */
 if(window.UIShell && window.UIShell.mountKeyHelp) UIShell.mountKeyHelp();
 
-/* 预加载素材（失败也不阻塞，自动回退到矢量绘制） */
+/* 预加载素材（失败也不阻塞，自动回退到矢量绘制；缺哪张由 imgReady 逐项判定） */
 if(window.Assets){
-  Assets.load().then(function(r){
-    console.log("[素材] 载入 " + r.loaded + " 张" + (r.failed.length ? "，失败 " + r.failed.length : ""));
-  });
+  Assets.load();
 }
 </script>
 </body>
