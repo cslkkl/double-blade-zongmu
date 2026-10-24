@@ -23,7 +23,10 @@
 
   /* --- 玩家血条 --- */
   .pbar{position:absolute;top:22px;width:352px;padding:12px 16px 13px;
-    background:linear-gradient(180deg,rgba(18,14,8,.86),rgba(18,14,8,.62));
+    /* 生成图打底，渐变垫底：图挂了 CSS 自动退回纯渐变（天然降级，不白框） */
+    background-image:url(assets/ui/hud-card.webp),
+      linear-gradient(180deg,rgba(18,14,8,.86),rgba(18,14,8,.62));
+    background-size:cover,auto;background-position:center,0 0;
     border:1px solid rgba(217,180,94,.42);border-radius:4px;
     box-shadow:0 3px 18px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,232,170,.10)}
   .pbar.p1{left:28px}
@@ -32,7 +35,17 @@
   .solo .pbar.p2{display:none}
   .pbar::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;
     background:linear-gradient(90deg,transparent,rgba(217,180,94,.85),transparent)}
-  .pname{font-size:11.5px;letter-spacing:.30em;color:#a89873;margin-bottom:9px;
+  /* 名字行：头像 + 玩家名，一行排开；P2 镜像时头像靠右 */
+  .phead{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+  .pbar.p2 .phead{flex-direction:row-reverse}
+  /* 角色头像：56px 方块，图挂了就是透明方块（纯 CSS 降级，不白框不占屏眼） */
+  .pface{width:56px;height:56px;flex:0 0 auto;border-radius:4px;
+    border:1px solid rgba(217,180,94,.34);
+    background-image:url(assets/ui/portrait-p1.webp);
+    background-size:cover;background-position:center top;
+    box-shadow:inset 0 0 10px rgba(0,0,0,.55);
+    filter:drop-shadow(0 1px 3px rgba(0,0,0,.7))}
+  .pname{font-size:11.5px;letter-spacing:.30em;color:#a89873;flex:1;min-width:0;
     text-shadow:0 1px 3px rgba(0,0,0,.9)}
   .pname em{font-style:normal;color:#f5d98e;font-size:15px;letter-spacing:.12em;
     text-shadow:0 0 14px rgba(245,217,142,.55),0 1px 3px rgba(0,0,0,.95)}
@@ -111,12 +124,6 @@
     background:rgba(14,11,7,.66);border:1px solid rgba(217,180,94,.22);
     text-shadow:0 1px 3px rgba(0,0,0,.95)}
   #pad b{color:#9ede84;font-weight:600}
-  /* 标题页三列键位：接手柄时只留手柄那列，键盘两列收起。
-     判定来源是 body 上的 dev-pad / dev-kbd —— 由 js/guide.js 按「谁在动」切换，
-     和底部提示条、说明抽屉同一套开关，不再各自维护一份「插没插手柄」。 */
-  .cl-pad{display:none}
-  body.dev-pad .cl-kbd{display:none}
-  body.dev-pad .cl-pad{display:block}
 
   /* 暂停时收起底部两行提示：它们本来就该在暂停页里看 */
   body.is-paused #keys,body.is-paused #pad{display:none}
@@ -169,12 +176,29 @@
   .iskip.holding{opacity:1;border-color:rgba(245,217,142,.86);
     box-shadow:0 0 22px rgba(245,217,142,.36),0 2px 14px rgba(0,0,0,.6)}
   .eb{font-size:11.5px;letter-spacing:.5em;color:#8a7a5c;margin-bottom:24px}
-  .tt{font-size:66px;letter-spacing:.13em;color:#f0e4c6;font-weight:700;text-indent:.13em;
-    line-height:1.18;text-shadow:0 0 80px rgba(201,167,101,.32)}
+  /* 主办方署名：不是一行小字，是一块「机构铭牌」。
+     机构名单独一行放大提亮（16px 暖金 + 外发光），副标题压到 10.5px 退后，
+     一眼能读出「谁主办」而不是当成正文。 */
+  /* 主办方署名：页面顶端一行，无卡片无边框。
+     锁排：机构名 52px 独占视觉，计划名 24px 同行退后 —— 仍是单行，
+     但「东莞市博物馆」比整行同字号大得多（同字号时 36px 已吃掉 1467/1600，
+     再大就溢出，只能靠拆权重把机构名做大）。 */
+  .ov-host{position:absolute;top:22px;left:0;right:0;text-align:center;
+    white-space:nowrap;line-height:1.1}
+  .ov-host b{font-size:80px;font-weight:600;letter-spacing:.05em;
+    color:#fbeec4;
+    text-shadow:0 0 52px rgba(201,167,101,.6),0 4px 16px rgba(0,0,0,.95)}
+  .ov-host span{font-size:34px;font-weight:400;letter-spacing:.14em;margin-left:.45em;
+    color:#cbb98e;text-shadow:0 2px 9px rgba(0,0,0,.9)}
+  .tt{font-size:66px;letter-spacing:.13em;color:#f7edd4;font-weight:700;text-indent:.13em;
+    line-height:1.18;
+    text-shadow:0 2px 10px rgba(0,0,0,.95),0 0 34px rgba(0,0,0,.85),0 0 90px rgba(201,167,101,.30)}
   .tt.sm{font-size:46px}
   .rl{width:92px;height:1px;margin:30px 0;
     background:linear-gradient(90deg,transparent,#c9a765,transparent)}
-  .sb{font-size:15.5px;letter-spacing:.11em;color:#968a76;line-height:2.05}
+  /* 正文压在全屏图上：颜色比原来亮一档，靠实阴影托住，不靠压暗背景 */
+  .sb{font-size:15.5px;letter-spacing:.11em;color:#cbbd9e;line-height:2.05;
+    text-shadow:0 2px 8px rgba(0,0,0,.95),0 0 24px rgba(0,0,0,.8)}
   .go{margin-top:42px;font-size:15px;letter-spacing:.3em;color:#c9a765;
     border:1px solid rgba(201,167,101,.45);border-radius:999px;padding:16px 46px;
     cursor:pointer;transition:.2s}
@@ -182,13 +206,29 @@
   .blink{animation:blink 1.6s infinite}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
 
-  .ctrls{display:flex;gap:60px;margin-top:38px}
-  .cl{text-align:left}
-  .cl h4{font-size:11.5px;letter-spacing:.32em;color:#8a7a5c;margin-bottom:14px;font-weight:400}
-  .cl .row{font-size:12.5px;color:#a0937c;line-height:2.3;letter-spacing:.05em}
-  .cl .row span{display:inline-block;min-width:86px;color:#d8c9a6;
-    border:1px solid rgba(180,150,96,.3);border-radius:4px;padding:1px 8px;margin-right:10px;
-    font-size:11px}
+  /* --- 场景化覆盖层：全屏背景图 + scrim 压暗，故事在中央可读 ---
+     图挂了 scrim 渐变仍在，页面不白屏（纯 CSS 降级）。 */
+  /* scrim 只做「收边 + 保文字可读」，不做压黑：
+     中央留 0.34 让画面看得清，边缘收到 0.86 把视线兜回中间。
+     曾经的 0.72→0.94 把整张图盖死了（实测图本身亮度只有 25，叠上去等于全黑）。
+     文字可读性交给 .tt / .sb 自己的 text-shadow，不靠压暗画面。 */
+  .ov-title{
+    background-image:
+      radial-gradient(ellipse 76% 74% at 50% 46%,rgba(5,6,10,.34),rgba(5,6,10,.86) 100%),
+      url(assets/ui/title-scene.webp);
+    background-size:cover,cover;background-position:center,center}
+  .ov-win{
+    background-image:
+      radial-gradient(ellipse 78% 76% at 50% 58%,rgba(5,6,10,.30),rgba(5,6,10,.82) 100%),
+      url(assets/ui/win-scene.webp);
+    background-size:cover,cover;background-position:center,center}
+  /* 覆盖层底部极小提示：替代原键位表，只留入口不看内容 */
+  .ov-foot{position:absolute;left:0;right:0;bottom:26px;
+    font-size:10px;letter-spacing:.18em;color:#4e4638;line-height:2;text-align:center}
+  .ov-foot b{color:#6b6150;font-weight:600}
+  /* 故事文案里的强调与附注 */
+  .warn{color:#c9a765}
+  .note{color:#332e24}
 
   /* 波次横幅 */
   #banner{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
@@ -224,12 +264,12 @@
 
   <div id="hud">
     <div class="pbar p1">
-      <div class="pname">玩家一 <em>纵目 · 执</em></div>
+      <div class="phead"><div class="pface"></div><div class="pname">玩家一 <em>纵目 · 执</em></div></div>
       <div class="hpwrap" id="hp1"></div>
       <div class="wpn"><canvas class="wico" id="wi1" width="56" height="56"></canvas><span class="wmeta"><span class="wname" id="wp1">短剑</span><span class="wdura" id="wd1"></span></span><span class="wenergy" id="en1"><i></i></span></div>
     </div>
     <div class="pbar p2">
-      <div class="pname"><em>执 · 纵目</em> 玩家二</div>
+      <div class="phead"><div class="pface"></div><div class="pname"><em>执 · 纵目</em> 玩家二</div></div>
       <div class="hpwrap" id="hp2"></div>
       <div class="wpn right"><canvas class="wico" id="wi2" width="56" height="56"></canvas><span class="wmeta"><span class="wname" id="wp2">短剑</span><span class="wdura" id="wd2"></span></span><span class="wenergy" id="en2"><i></i></span></div>
     </div>
@@ -245,45 +285,17 @@
   <div id="story"><span class="s1" id="s1"></span></div>
 
   <!-- 标题 -->
-  <div class="ov on" id="ovTitle">
-    <div class="eb">东莞市博物馆 · AI 创作者进馆计划</div>
+  <div class="ov ov-title on" id="ovTitle">
+    <div class="ov-host"><b>东莞市博物馆</b><span>· AI 创作者进馆计划</span></div>
     <div class="tt">双刃战士 · 纵目</div>
     <div class="rl"></div>
     <div class="sb">
-      殷商，古蜀。三星堆八号祭祀坑里，一张青铜的脸被挖出来——<br>
-      长脸宽颐，宽眉大眼，眼角上挑，大耳外张，耳垂穿孔。<br>
-      现在这张脸站起来了，手里握着两把刀。<br>
-      <span style="color:#c9a765">锈蚀从祭祀坑的两侧爬上来，守住它。</span>
-    </div>
-    <div class="ctrls">
-      <div class="cl cl-kbd">
-        <h4>玩家一</h4>
-        <div class="row"><span>A D</span>左右移动</div>
-        <div class="row"><span>W / 空格</span>跳起</div>
-        <div class="row"><span>F / J</span>挥刀 · 连按三连</div>
-        <div class="row"><span>G</span>拾取 / 换手</div>
-        <div class="row"><span>E / R</span>丢弃 / 递队友</div>
-      </div>
-      <div class="cl cl-kbd">
-        <h4>玩家二</h4>
-        <div class="row"><span>← →</span>左右移动</div>
-        <div class="row"><span>↑ / 右Shift</span>跳起</div>
-        <div class="row"><span>/ 或小键盘0</span>挥刀 · 连按三连</div>
-        <div class="row"><span>;</span>拾取 / 换手</div>
-        <div class="row"><span>. / '</span>丢弃 / 递队友</div>
-      </div>
-      <div class="cl cl-pad">
-        <h4>手柄</h4>
-        <div class="row"><span>左摇杆</span>左右移动</div>
-        <div class="row"><span>A</span>挥刀 · 连按三连</div>
-        <div class="row"><span>X</span>跳起</div>
-        <div class="row"><span>B</span>旋风斩（能量满）</div>
-        <div class="row"><span>Y</span>拾取 / 换手</div>
-        <div class="row"><span>十字 ↑ ↓</span>递给队友 / 丢弃</div>
-        <div class="row"><span>A / Start</span>结算页继续</div>
-      </div>
+      殷商末年，古蜀王蚕丛「其目纵」——<br>
+      他把自己的脸铸成青铜，沉进祭祀坑，压住坑底的东西。<br>
+      <span class="warn">三千年后，锈从坑壁爬了上来。</span>
     </div>
     <div class="go" id="btnStart"><span class="blink">●</span> 选择模式 · 开打</div>
+    <div class="ov-foot"><b>H</b> 键位说明 · 手柄 <b>Back</b></div>
   </div>
 
   <!-- 过关 -->
@@ -305,20 +317,19 @@
   </div>
 
   <!-- 通关 -->
-  <div class="ov" id="ovWin">
+  <div class="ov ov-win" id="ovWin">
     <div class="eb">器心守住了</div>
-    <div class="tt">纵目，大耳，阔口紧闭</div>
+    <div class="tt">锈退了，器物重新睡下去</div>
     <div class="rl"></div>
     <div class="sb">
-      圆顶笄发，长脸宽颐，宽眉大眼，眼角上挑，蒜头鼻，阔口紧闭，神情肃穆。<br>
-      大耳外张，耳垂各有一穿孔。
+      神树还在，九只鸟还在。<br>
+      你放下刀，听见坑底传来一声很轻的回响——<br>
+      像是三千年前，有人应了一声。
     </div>
     <div class="go" id="btnAgain">↺ 再打一遍</div>
-    <div style="margin-top:38px;font-size:10.5px;letter-spacing:.15em;color:#403a2e;line-height:2">
-      青铜人头像 · 商代（距今 3200—3000 年）<br>
-      2022 年四川广汉三星堆遗址八号祭祀坑出土 · 三星堆博物馆藏<br>
-      文化依据：《吉金万里 重点文物说明（20260929）》<br>
-      <span style="color:#332e24">锈蚀怪物、双刃武器与神树场景为游戏化艺术处理，非考古复原</span>
+    <div class="ov-foot">
+      青铜人头像 · 商代（距今 3200—3000 年）· 2022 年三星堆八号祭祀坑出土 · 三星堆博物馆藏<br>
+      <span class="note">锈蚀、双刃与神树场景为游戏化艺术处理，非考古复原</span>
     </div>
   </div>
 
