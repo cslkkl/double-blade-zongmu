@@ -31,8 +31,8 @@
 
 | 文件 | 内容 |
 |---|---|
-| `js/background.js` | 删 `shadowSprite()` 整套离屏阴影；`drawProps()` 与 `drawOccluder()` 不再画落地阴影；`drawOccluder()` 去掉底部压暗渐变 |
-| `js/background.js` | `OCCLUDERS` 由 5 座降到 3 座（`maskRelief` / `brazier` / `sacredTree`），祭旗 `banner` 与编钟 `bellCluster` 只留中景 `PROPS` |
+| `js/background.js` | 删 `shadowSprite()` 整套离屏阴影；`drawProps()` 不再画落地阴影 |
+| `js/background.js` | 前景遮挡层整层删除（2026-10-25）：`OCCLUDERS` 数组、`drawOccluder()`、`drawStonePillar()`、`drawFront()`、`occluders()`、`P_OCCLUDER` 全部移除；`index.html` 同步删 `playerOccluded()` / `OCC_FADE_ALPHA` / `OCC_FADE_RATIO` / `drawFront()` 调用，`drawPlayer()` 不再设 `p.__alphaMul`。原因：角色走到 3 座遮挡物附近会被压到 52% alpha，硬切换无过渡、判定只看 x 不看高度，走过道具旁边就闪一下半透明。遮挡物素材仍在 `PROPS` 中景层 |
 | `启动游戏.bat` | 重写为双击走系统默认浏览器；存 GBK，第二行 `chcp 936` |
 
 `js/fx.js` 的刀光弧心改动**已回滚到 HEAD**，工作区无该文件改动；该线单独记在 [移交-半月斩朝向.md](移交-半月斩朝向.md)。
@@ -78,7 +78,7 @@
 
 - **`slice_anim.py` 会清空 `assets/anim/` 全部 `.webp`** —— 本次未动帧数据，但下次跑切片脚本前必须先提交，否则丢帧。
 - **`启动游戏.bat` 必须存 GBK** —— 任何编辑器重存成 UTF-8 会让 `if` 块崩掉（曾表现为 `'宽到' is not recognized`）。改完必须按 936 解码验一遍。
-- **`drawFront()` 调用位置不可动** —— 必须在角色、刀光、粒子全部落屏之后，否则遮挡变成垫背。
+- **前景遮挡层已删除，别再往回加** —— 2026-10-25 删掉了 `drawFront()` / `occluders()` 与 52% 硬淡出。要加「角色被挡住」的效果，先解决两个旧毛病：淡出必须有过渡（不能瞬间跳变）、判定必须同时看 x 与高度（不能站旁边就淡）。
 - **改 `enemies-assets.js` 必跑 `selftest_enemies`**；改任何 `js/` 必跑 `check-inline`。
 - **不要用非方形 `size` 生图** —— 会被硬拉变形；横竖版只用 `ratio`。
 - **换手落点与拾取半径的关系不能随手调** —— 96 > 80 是刻意错开的；改成 ≤ 80 会导致刚放下的旧武器被同一帧抢回。

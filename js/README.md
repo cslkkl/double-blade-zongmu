@@ -18,7 +18,7 @@
 - 依赖谁：只用浏览器 `Image`，不依赖任何本地模块。
 - 被谁依赖：`background.js`、`fx.js`、`enemies-assets.js` 读 `window.IMG`；`char-rig.js` 降级读 `IMG.pose0`；`index.html` 读图标键、宝箱 / 机关 / 拾取物键，启动时调 `load()` 并只打印结果。
 - 关键约束：`MANIFEST` 只收静态图；逐帧动画的帧图由 `anim-data.js` 自己列，不在这里。
-- 关键约束：`bgFg`（`assets/bg-fg.webp`，16:9 整图前景）已从清单移除，前景遮挡改由 `background.js` 的 `drawFront()` 用道具素材在世界坐标排布；该 webp 文件保留在 `assets/` 里备回滚，不参与加载。
+- 关键约束：`bgFg`（`assets/bg-fg.webp`，16:9 整图前景）已从清单移除，该 webp 文件保留在 `assets/` 里备回滚，不参与加载。
 - 键名规则（新增键必须照此归族，否则查不到也删不干净）：
   - `wp*` — 武器图标，`assets/icons/wp-*.webp`，画布 256。
   - `it*` — 物品图标，`assets/icons/it-*.webp`，画布 192。
@@ -57,13 +57,14 @@
 
 ## background.js
 
-- 职责：多层视差背景（远景 / 天光 / 雾 / 中景 / 道具 / 地面 / 地面线 / 前景 / 暗角）。
-- 关键导出：`window.Background = { draw(ctx, camX, W, H, groundY, worldW) → bool, drawFront(...) → bool, occluders() → [{x,w,top}], ready() → bool }`。
-  `draw()` / `drawFront()` 返回 `false` = 一像素都没画，调用方必须补 `drawBG()`；`ready()` 对 `CORE_KEYS`（远景 / 中景 / 地面）判 `complete && naturalWidth > 0`，加载失败与加载中都为假。
-- 依赖谁：`window.IMG` 的 3 张核心背景 + 7 个道具键 + 前景遮挡素材。
+- 职责：多层视差背景（远景 / 天光 / 雾 / 中景 / 道具 / 地面 / 地面线 / 暗角）。
+- 关键导出：`window.Background = { draw(ctx, camX, W, H, groundY, worldW) → bool, ready() → bool }`。
+  `draw()` 返回 `false` = 一像素都没画，调用方必须补 `drawBG()`；`ready()` 对 `CORE_KEYS`（远景 / 中景 / 地面）判 `complete && naturalWidth > 0`，加载失败与加载中都为假。
+- 依赖谁：`window.IMG` 的 3 张核心背景 + 7 个道具键。
 - 被谁依赖：`index.html` 的 `render()`；`ready()` 为假或 `draw()` 返回 `false` 时回落到内联 `drawBG()`。
-- 关键约束：只在屏幕坐标系算偏移，不做世界坐标平移；道具世界坐标写在模块内 `PROPS`；`save/restore` 必须成对；道具与前景遮挡物加载失败不阻塞背景整体，各自逐张回落纯代码。
-- 改后必测：四档视差系数、道具底部是否贴 `GROUND`、`ready()` 对新键的判定、核心图任一失败时是否整层让位给 `drawBG()`。
+- 关键约束：只在屏幕坐标系算偏移，不做世界坐标平移；道具世界坐标写在模块内 `PROPS`；`save/restore` 必须成对；道具加载失败不阻塞背景整体，逐张回落纯代码。
+- **没有前景遮挡层**：`drawFront()` / `occluders()` 已于 2026-10-25 删除。原来那 3 座高大遮挡物画在角色之上，人走过去被完全盖住，只好给角色加一条 52% 硬淡出；那条淡出进出无过渡、判定只看 x 不看高度，走过道具旁边就闪一下半透明，读起来像 bug，整套删掉。遮挡物素材仍留在中景 `PROPS`（`maskRelief` / `brazier` / `sacredTree`）。
+- 改后必测：三档视差系数、道具底部是否贴 `GROUND`、`ready()` 对新键的判定、核心图任一失败时是否整层让位给 `drawBG()`。
 
 ## char-rig.js
 
@@ -166,8 +167,8 @@
 |---|---|
 | `anim-data.js` | `char-rig` 的 `CLIPS` / `ANIM_HOLD` / `WEAPON_WALK_CLIP` / `WEAPON_ATTACK` / `WEAPON_ATTACK_CLIP` 键集合、`enemies-assets` 的 `KINDS`、`fx` 的 `WEAPON_FX` / `HIT_MATERIAL`、`scaleFix` 是否仍按内容高反算、各 clip 屏幕身高是否仍在 178~181px |
 | `assets.js` | `background` 的 `PROPS`/`CORE_KEYS`/`PROP_KEYS`、`fx` 的 `ready()` 名单、`char-rig` 的 `pose0` 降级、`index.html` 的 `WP_ICON` 与宝箱 / 机关 / 拾取物键名 |
-| `background.js` | `index.html` 的 `Background.ready()` 守卫、`drawFront()` 的调用位置（必须在角色之后）、内联 `drawBG()` 兜底常量、`OCCLUDERS` 的 `w/h` 是否仍与素材比例配准 |
-| `char-rig.js` | `index.html` 的 `drawPlayer()` 守卫、`__alphaMul` 是否仍被乘进 `alpha`、`__forceClip` 是否仍在收招时清空、`Player` 字段（`swingT / swingDur / throwT / whirlT / hurtT / pickupT / onGround`）是否改名 |
+| `background.js` | `index.html` 的 `Background.ready()` 守卫、内联 `drawBG()` 兜底常量、`PROPS` 的世界坐标与 `PROP_KEYS` 名单是否与 `assets.js` 对得上（`drawFront()` / `occluders()` 已删除，别再往回调） |
+| `char-rig.js` | `index.html` 的 `drawPlayer()` 守卫、`__alphaMul` 是否仍被乘进 `alpha`（通用钩子，当前无调用方）、`__forceClip` 是否仍在收招时清空、`Player` 字段（`swingT / swingDur / throwT / whirlT / hurtT / pickupT / onGround`）是否改名 |
 | `enemies-assets.js` | 跑 `selftest_enemies.mjs`；`Enemy` 的 `kind / scale / w / h / maxHp / state` 字段是否改名 |
 | `fx.js` | `index.html` 四处 `FX.*` 调用与 `FX.ready()` 守卫；`drawSlash` 的 `wkey`、`drawHit` 的 `mat`、`drawProjFx` 的 `kind` 是否都有人传；新增武器要在 `WEAPON_FX` 与 `HIT_MATERIAL` 的表里都有落点 |
 | `guide.js` | `index.html` 的 `scanPads()` 与 `#keys`/`#pad`、`ui-shell` 的 `.uis-help-body` 与 `Guide.onChange`；改键位只改这里的四张表，别再往 `ui-shell` 抄文案 |
