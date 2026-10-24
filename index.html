@@ -1046,6 +1046,9 @@ function togglePause(force){
     showPauseGuide();
     showOv("ovPause");
     stopPadEdge();            /* 清掉手柄边沿，避免暂停那一帧的按键漏进去 */
+    /* 同时把暂停页的启用闸关上：清空 padPrev 只是「忘掉历史」，
+       并不等于「设闸」—— 还按在手上的 A 会被当成一次上升沿。 */
+    pzSeenUp = false;
   } else {
     hideOv();
     /* 解冻后 0.18 秒不吃攻击输入：Esc 与挥刀常在同一只手上，
@@ -1076,20 +1079,30 @@ function stopPadEdge(){
   padPrev = {};
 }
 
-/* 暂停菜单的输入。键盘的 Esc 走 keydown（唯一入口，避免双触发），
+/* 暂停页的输入。键盘的 Esc 走 keydown（唯一入口，避免双触发），
    这里只管手柄与 R / H 这两条键盘快捷键。 */
+var pzSeenUp = false;    /* 暂停页起来后是否见过一次「手柄全部松开」 */
 function updatePaused(dt){
   var pads = scanPads();
-  var gp = pads[0] || null;
+  /* 任意一把手柄都能操作暂停页 —— 玩家二插着自己的手柄时，
+     只认 PADS[0] 会让他按什么都没用（他的键在 1 号槽）。 */
+  var gp = pads[0] || pads[1] || null;
 
   if(gp){
     var b = gp.buttons;
     function btn(i){ return !!(b[i] && (b[i].pressed || b[i].value > 0.5)); }
-    /* Start / A 继续，Y 重开、B 也留给「继续」（手柄玩家的肌肉记忆多在 A / B） */
-    if(padEdge("pz_start", btn(9)) || padEdge("pz_a", btn(0)) || padEdge("pz_b", btn(1))){
-      togglePause(false); return;
+    /* 启用闸：暂停页起来后必须先见到「全部松开」的一帧。
+       没有这道闸时，进暂停那一刻还按着的 A 会被 padEdge 当成一次上升沿
+       （stopPadEdge() 把 padPrev 清空，等于把「本来就按着」变成假上升沿），
+       暂停页刚出现就自己消失。与 padConfirmEdge 的 uiPadSeenUp 同构。 */
+    if(!(btn(9) || btn(0) || btn(1) || btn(3))) pzSeenUp = true;
+    if(pzSeenUp){
+      /* Start / A 继续，Y 重开、B 也留给「继续」（手柄玩家的肌肉记忆多在 A / B） */
+      if(padEdge("pz_start", btn(9)) || padEdge("pz_a", btn(0)) || padEdge("pz_b", btn(1))){
+        togglePause(false); return;
+      }
+      if(padEdge("pz_y", btn(3))){ startGame(); return; }
     }
-    if(padEdge("pz_y", btn(3))){ startGame(); return; }
   }
 
   if(keyPressed(["KeyR"])){ startGame(); return; }
@@ -1599,6 +1612,13 @@ function updatePlayer(p, dt, inp, other){
       startSwing(p, 0);
     }
   } else if(inp.atk && p.swingT>0){
+    p.swingQueued = true;
+  } else if(inp.atk && p.swingT<=0 && p.swingCd>0){
+    /* 收招窗口（swingCd = 0.16s，60fps 下 9~10 帧）里按下的攻击以前会被**彻底吃掉**：
+       第一个分支要求 swingCd<=0、第二个要求 swingT>0，两个都不成立时
+       这次边沿（keyPressed / padEdge 取走即清）就永远没了。
+       玩家「稍快一点」连按第三下就会掉进这个洞 —— 读到的是「连击不跟手」。
+       这里把它记进队列，由上面的 swingQueued 消费逻辑接着出招。 */
     p.swingQueued = true;
   }
 
