@@ -110,18 +110,18 @@
     background:rgba(14,11,7,.66);border:1px solid rgba(217,180,94,.22);
     text-shadow:0 1px 3px rgba(0,0,0,.95)}
   #keys b{color:#f0d99c;font-weight:600}
-  /* 底部提示按当前输入设备切换：接上手柄看手柄键位，纯键盘看键盘键位。
-     两套都写在 DOM 里，靠 body 上的类互斥显示，不重建节点。 */
-  #keysPad{display:none}
-  body.pad-mode #keysKbd{display:none}
-  body.pad-mode #keysPad{display:block}
-  body.pad-mode #keys{background:rgba(11,16,10,.72);border-color:rgba(158,222,132,.24)}
-  body.pad-mode #keys b{color:#9ede84}
+  /* 底部提示只显示当前输入设备那一套：键盘图 / 手柄图互斥。
+     body 上的 dev-pad / dev-kbd 由 js/guide.js 按「谁在动」切换，
+     文案本身也由它注入 —— 按键叫什么只有一份数据。 */
+  body.dev-pad #keys{background:rgba(11,16,10,.72);border-color:rgba(158,222,132,.24)}
+  body.dev-pad #keys b{color:#9ede84}
   #pad{position:absolute;right:28px;bottom:22px;font-size:11px;letter-spacing:.06em;
     color:#b6a883;text-align:right;line-height:1.9;padding:9px 14px;border-radius:3px;
     background:rgba(14,11,7,.66);border:1px solid rgba(217,180,94,.22);
     text-shadow:0 1px 3px rgba(0,0,0,.95)}
   #pad b{color:#9ede84;font-weight:600}
+  /* 暂停时收起底部两行提示：它们本来就该在暂停页里看 */
+  body.is-paused #keys,body.is-paused #pad{display:none}
 
   /* --- 覆盖层 --- */
   .ov{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
@@ -200,17 +200,8 @@
       <div id="combo"></div>
       <div id="wave">第 1 阵</div>
     </div>
-    <div id="keys">
-      <div id="keysKbd">
-        <b>玩家一</b> A D 走 · W/空格 跳 · F/J 挥刀兼拾取 · <b>Q</b> 换格 · <b>Tab</b> 反向 · <b>E</b> 丢弃 · <b>R</b> 递队友<br>
-        <b>玩家二</b> ← → 走 · ↑/右Shift 跳 · / 或小键盘0 挥刀兼拾取 · <b>,</b> 换格 · <b>\</b> 反向 · <b>.</b> 丢弃 · <b>'</b> 递队友
-      </div>
-      <div id="keysPad">
-        <b>玩家一</b> 左摇杆走 · <b>A</b> 挥刀 · <b>X</b> 跳 · <b>B</b> 旋风斩 · <b>Y</b> 拾取/开箱 · <b>LB/RB</b> 换格 · <b>十字上下</b> 递队友/丢弃<br>
-        <b>玩家二</b> 第二个手柄同上；只插一个手柄时两位共用移动
-      </div>
-    </div>
-    <div id="pad">手柄：左摇杆走 · A 挥刀 · X 跳 · B 旋风斩 · Y 拾取/开箱 · <b>H 看完整键位</b></div>
+    <div id="keys"></div>
+    <div id="pad"></div>
   </div>
 
   <div id="banner"><div class="b1" id="b1"></div><div class="b2" id="b2"></div></div>
@@ -295,6 +286,7 @@
 <script src="js/char-rig.js"></script>
 <script src="js/enemies-assets.js"></script>
 <script src="js/fx.js"></script>
+<script src="js/guide.js"></script>
 <script src="js/ui-shell.js"></script>
 <script src="js/audio.js"></script>
 <script>
@@ -448,29 +440,13 @@ window.addEventListener("keydown", function(e){
 window.addEventListener("keyup", function(e){ KEYS[e.code] = false; });
 
 var PADS = [null,null];
-var PAD_MODE = false;        /* 底部提示当前是否按手柄版显示 */
+/* 手柄列表与「底部提示按哪个设备显示」都归 js/guide.js 管：
+   它自己轮询、自己判断谁在动、自己改文案。这里只取结果，
+   不再维护第二份「连接数 / pad-mode」状态。 */
 function scanPads(){
-  var gp = navigator.getGamepads ? navigator.getGamepads() : [];
-  var list = [];
-  for(var i=0;i<gp.length;i++){ if(gp[i] && gp[i].connected) list.push(gp[i]); }
-  PADS[0] = list[0]||null;
-  PADS[1] = list[1]||null;
-  var el = document.getElementById("pad");
-  var n = list.length;
-  if(n){
-    el.innerHTML = '手柄已连接 ×'+n+' · 左摇杆走 · A 挥刀 · X 跳 · B 旋风斩 · Y 拾取/开箱 · LB/RB 换格 · 十字上下 递/弃';
-    el.style.color = "#7fa86f";
-  } else {
-    el.innerHTML = '手柄：左摇杆走 · A 挥刀 · X 跳 · B 旋风斩 · Y 拾取/开箱 · <b>H 看完整键位</b>';
-    el.style.color = "#4a4336";
-  }
-  /* 底部那块操作提示跟着输入设备走。只在状态真的变了才动 class，
-     避免每次扫描都触发一次样式重算。 */
-  var wantPadMode = n > 0;
-  if(wantPadMode !== PAD_MODE){
-    PAD_MODE = wantPadMode;
-    if(document.body) document.body.classList.toggle("pad-mode", PAD_MODE);
-  }
+  var list = (window.Guide && window.Guide.pads) ? window.Guide.pads() : [];
+  PADS[0] = list[0] || null;
+  PADS[1] = list[1] || null;
   return list;
 }
 var padPrev = {};
@@ -3784,7 +3760,10 @@ requestAnimationFrame(loop);
 window.focus();
 document.addEventListener("click", function(){ ac(); }, { once:true });
 
-/* UI 覆盖层：按键说明只挂载，用 H / Esc 开关（由 ui-shell 自己监听） */
+/* 操作指南：设备感知 + 底部提示文案都由它接管（幂等，重复调用无害） */
+if(window.Guide) Guide.mount();
+
+/* UI 覆盖层：按键说明只挂载，用 H 开关（由 ui-shell 自己监听） */
 if(window.UIShell && window.UIShell.mountKeyHelp) UIShell.mountKeyHelp();
 
 /* 预加载素材（失败也不阻塞，自动回退到矢量绘制；缺哪张由 imgReady 逐项判定） */
