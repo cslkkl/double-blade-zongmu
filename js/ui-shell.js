@@ -200,6 +200,11 @@
   max-width:340px;
   padding:0 76px;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
+  /* box-shadow 必须清掉：基础 hover 规则里有 0 0 0 1px 的金色环，
+     它画在元素矩形边框上，不像 drop-shadow 那样跟随透明轮廓，
+     有图时会露出一圈方框，把青铜牌的圆头压成方角。 */
+  box-shadow:none;
+  outline:none;
   filter:drop-shadow(0 10px 26px rgba(0,0,0,.58));
 }
 .uis-layer.uis-ok-btnOn .uis-modebtn:hover,
@@ -207,15 +212,20 @@
 .uis-layer.uis-ok-btnOn .uis-modebtn.uis-pick{
   background-image:url("assets/ui/btn-hover.webp");
   border:0;
+  box-shadow:none;
+  outline:none;
   filter:drop-shadow(0 14px 34px rgba(0,0,0,.66)) drop-shadow(0 0 22px rgba(245,217,142,.34));
 }
 .uis-layer.uis-ok-btnOn .uis-modebtn:active{
   background-image:url("assets/ui/btn-press.webp");
+  box-shadow:none;
+  outline:none;
   filter:drop-shadow(0 4px 12px rgba(0,0,0,.62));
 }
 .uis-layer.uis-ok-btnOn .uis-modebtn.uis-off,
 .uis-layer.uis-ok-btnOn .uis-modebtn:disabled{
   background-image:url("assets/ui/btn-disabled.webp");
+  box-shadow:none;
   filter:drop-shadow(0 6px 16px rgba(0,0,0,.45));
   cursor:default;
 }
