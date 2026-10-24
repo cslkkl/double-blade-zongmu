@@ -2171,7 +2171,7 @@ function render(){
    前景遮挡物（Background.drawFront）画在角色之上，角色走到它背后时
    会被完全盖住看不见。这里问 Background 要遮挡物的世界里坐标，
    命中就把角色整体压到 0.35 alpha —— 不是 0，轮廓要还看得见。 */
-var OCC_FADE_ALPHA = 0.35;      /* 被挡住时的整体透明度（不是 0，轮廓要看得见） */
+var OCC_FADE_ALPHA = 0.52;      /* 被挡住时的整体透明度（不是 0，轮廓要看得见） */
 var OCC_FADE_RATIO = 0.42;      /* 判定半宽 = 遮挡物宽 × 该系数 */
 
 function playerOccluded(p){
