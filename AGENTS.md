@@ -38,6 +38,7 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 | `python tools/slice_anim.py` | 角色 9 动作 → `assets/anim/`（重写 `window.ANIM`） |
 | `python tools/slice_anim_extra.py` | 新增 3 动作 → `assets/anim/`（就地替换 / 追加三个 clip） |
 | `python tools/slice_weapon_assets.py` | 武器站立帧 / 出招姿态 / 专属特效 → `assets/anim/hold-*`、`atk-*`、`assets/fx/`（就地写 4 个数据块） |
+| `python tools/slice_weapon_seq.py` | 武器出招四帧序列 → `assets/anim/atk-<key>-<0..3>`（写 `WEAPON_ATTACK_CLIP`） |
 | `python tools/prep_interact.py` | 宝箱 / 机关 / 拾取物 → `assets/interact/` |
 | `python tools/prep_icons.py` | 武器 / 物品 / 界面图标 → `assets/icons/` |
 | `python tools/prep_fx.py` | 刀光 / 火花 / 旋风环 / 石块 |
@@ -51,9 +52,9 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 
 - 2026-10-24（武器视觉）：`check-inline` 通过（内联脚本 123915 字符）；`selftest_enemies` 0 失败；`selftest_audio` 0 失败；`selftest_weapons` 0 失败；`node --check` 8/8 通过。
 - 2026-10-24（上一版）：`check-inline` 通过（内联脚本 121802 字符）；`selftest_enemies` 0 失败；`selftest_audio` 0 失败；`node --check` 8/8 通过；链接校验 65 链接 0 错误。
-- 规模：`index.html` 3903 行 / 155186 字节；`js/` 8 个模块；`assets/` 133 个文件（`assets/fx/` 新增 13 张）。
-- 素材分布：`anim/` 71（新增 10 张 `atk-*` + 4 张 `hold-*`）、`fx/` 13、`icons/` 16、`interact/` 6、`props/` 8、`char/` 5、`assets/` 根 12。
-- 帧数：角色 12 个 clip 共 43 帧；敌人 4 类共 14 帧；武器站立帧 11 张、出招姿态 10 张。
+- 规模：`index.html` 3903 行 / 155186 字节；`js/` 8 个模块；`assets/` 173 个文件（`assets/fx/` 新增 13 张、出招序列 40 张）。
+- 素材分布：`anim/` 111（新增 10 张单帧 `atk-*` + 40 张序列帧 `atk-*-<i>` + 4 张 `hold-*`）、`fx/` 13、`icons/` 16、`interact/` 6、`props/` 8、`char/` 5、`assets/` 根 12。
+- 帧数：角色 12 个 clip 共 43 帧；敌人 4 类共 14 帧；武器站立帧 11 张、出招单帧 10 张、出招序列 10 把 × 4 帧。
 - 关卡：6 阵共 85 体。
 - 无 CI，以上为本机手工结果；改完代码重跑一遍再写结论。
 
@@ -65,7 +66,7 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 - [ ] `FX.drawHudPanel` 无调用方（`FX.drawWhirl` 已接进 `drawWhirlAsset`）。
 - [ ] 物品族图标长边占比 0.41~0.65，与 `prep_icons.py` 设定的 0.84 不符，重跑一次可对齐；重跑后要人眼确认六个物品的相对大小。
 - [ ] `slice_anim_extra.py` 写 `scaleFix: 1.0` 只是占位，需按内容高反算后手改（当前三个 clip 已是 0.914 / 0.867 / 0.754）。
-- [ ] 武器出招姿态目前是「一张图 + 由 `swingT` 推导的变换」，不是帧序列。多帧条带（`seq-<key>.png`）已经出图，切帧与 `WEAPON_ATTACK_CLIP` 接线待做 —— 四帧会让挥砍更顺，但要逐帧算 `anchorX`（挥砍时身体前后移）。
+- [ ] 武器出招是多帧序列（`WEAPON_ATTACK_CLIP`，4 帧），但帧号由 `swingT` 推导、不跟 fps：改帧数只改动画密度，不改出手时机。想更顺就重出 `seq-<key>.png` 再跑 `slice_weapon_seq.py`，别在代码里插帧。
 
 ## 活跃坑
 
@@ -75,6 +76,8 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
   - 新增动作只填 `1.0` 会让角色切过去时突然变大：`attack-thrust` 曾渲成 240px、`attack-heavy` 208.6px、`pickup` 198px，而 idle 是 181px。
   - 新动作切片后必须实测内容高（alpha > 24 的包围盒），不能凭画布高填 1.0。
   - 验收标准：12 个动作的屏幕身高统一在 178~181px，容差 ±2px。
+- **武器与武器的姿态不能按「内容包围盒高」反算 `scaleFix`**：举钺、举锤时武器尖端高过头顶，包围盒会把角色算成小人（实测 atk-axe 按包围盒 269px、按头冠 174.6px，idle 基准 177.1px）。用「头冠顶 → 脚底」；腰带锚也不行 —— 新图腿更长，腰底占比 0.496 vs idle 0.411，会整体缩 10%。
+- 出招序列的 `scaleFix` 是**一把武器一个数**（四帧共用同一画布），`anchorX` 是**逐帧数组**。前者写成逐帧会让连击里忽大忽小，后者写成一个数会让挥砍时整个人左右漂。
 - 洋红底必须 despill，否则边缘一圈紫：见 [tools/README.md](tools/README.md)。
 - 多个 agent 共享同一个 Playwright 实例会互相抢浏览器；自检一律走 mock canvas。
 - 声音全在 [js/audio.js](js/audio.js)，实时合成、不读音频文件 —— `file://` 下 `fetch` / `XHR` 取音频会被 CORS 拦，放 `assets/audio/*.mp3` 等于放一堆加载不了的文件。要换音色改配方表，别加素材。
