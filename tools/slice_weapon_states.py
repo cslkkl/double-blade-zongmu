@@ -35,6 +35,7 @@
   python tools/slice_weapon_states.py --src <目录> --debug
 """
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -347,6 +348,23 @@ def main():
     print("  %s：%d 把武器 / %d 个状态块" % (BLOCK, len(recs), sum(len(v) for v in recs.values())))
     if skipped:
         print("  跳过：%s" % ", ".join(skipped))
+
+    # ---- 公共 clip 保护 ----
+    # 本脚本只该新增 <state>-<key>-* 与 <state>-<key>，绝不该碰公共动画帧
+    # （attack-<i> / attack-heavy-<i> / attack-thrust-<i> / walk-<i> / hurt-<i> ...）。
+    # 命名空间撞车过一次：早期把 attack-<key>-<i> 写对之前，误删过 20 张公共帧。
+    # 这里把「数据里还引用着、但磁盘上没有」的帧列出来，交付前必须为空。
+    missing = []
+    for m in re.finditer(r'"(assets/anim/[^"]+)"', OUT_JS.read_text(encoding="utf-8")):
+        rel = m.group(1)
+        if not (ROOT / rel).exists():
+            missing.append(rel)
+    if missing:
+        print("\n!! 数据引用但磁盘缺失 %d 个文件（可能是公共 clip 被误删）：" % len(missing))
+        for rel in missing[:20]:
+            print("   " + rel)
+        return 1
+
     print("\n记得：node --check js/anim-data.js && node tools/selftest_weapons.mjs")
     return 0
 
