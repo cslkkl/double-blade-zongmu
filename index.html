@@ -684,7 +684,12 @@ function scanPads(){
 var padPrev = {};
 function padEdge(k,v){ if(v&&!padPrev[k]){padPrev[k]=true;return true;} if(!v)padPrev[k]=false; return false; }
 function readPad(p, tag){
-  if(!p) return {left:false,right:false,jump:false,atk:false,skill:false,act:false,drop:false,give:false};
+  /* 没插手柄时的空返回。字段必须与下面真正的返回**完全同形** ——
+     少了 pause 会让 `pad1.pause` 变 undefined（falsy，行为上恰好对），
+     但任何遍历字段的代码（自检、调试面板、以后加的手柄配置界面）都会漏掉它。
+     保持同形是这条约定的唯一做法。 */
+  if(!p) return {left:false,right:false,jump:false,atk:false,skill:false,act:false,
+                 drop:false,give:false,pause:false};
   var b = p.buttons, ax = p.axes[0]||0;
   function btn(i){ return !!(b[i] && (b[i].pressed || b[i].value>0.5)); }
   /* 标准布局编号：0=A 1=B 2=X 3=Y 8=Back 14=十字左 15=十字右
