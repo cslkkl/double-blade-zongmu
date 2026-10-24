@@ -1,0 +1,1745 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>双刃战士 · 纵目</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;background:#05060a;
+    font-family:"Microsoft YaHei","PingFang SC","Source Han Sans SC",sans-serif;
+    -webkit-font-smoothing:antialiased;user-select:none}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  #stage{position:relative;width:1600px;height:900px;transform-origin:center center;
+    overflow:hidden;background:#0a0b0e;box-shadow:0 0 140px rgba(0,0,0,.95)}
+  canvas{position:absolute;inset:0;width:1600px;height:900px;display:block}
+  #hud{position:absolute;inset:0;pointer-events:none}
+
+  /* --- 玩家血条 --- */
+  .pbar{position:absolute;top:26px;width:340px}
+  .pbar.p1{left:40px}
+  .pbar.p2{right:40px;text-align:right}
+  .pname{font-size:12px;letter-spacing:.32em;color:#8a7a5c;margin-bottom:8px}
+  .pname em{font-style:normal;color:#e8c87e;font-size:15px;letter-spacing:.14em}
+  .hpwrap{display:flex;gap:7px}
+  .pbar.p2 .hpwrap{justify-content:flex-end}
+  .hp{width:44px;height:16px;border:1px solid rgba(200,168,102,.5);border-radius:2px;
+    background:rgba(0,0,0,.45);transition:.15s;position:relative;overflow:hidden}
+  .hp.on{background:linear-gradient(180deg,#f0d68e,#b0903f);border-color:#f0d68e;
+    box-shadow:0 0 12px rgba(240,214,142,.5)}
+
+  /* 武器 + 能量 */
+  .wpn{display:flex;align-items:center;gap:12px;margin-top:10px}
+  .wpn.right{justify-content:flex-end}
+  .wname{font-size:12px;letter-spacing:.14em;color:#c9b578;
+    border:1px solid rgba(200,168,102,.32);border-radius:3px;padding:2px 10px;background:rgba(200,168,102,.07)}
+  .wenergy{display:block;width:120px;height:6px;border-radius:999px;
+    background:rgba(0,0,0,.55);border:1px solid rgba(200,168,102,.28);overflow:hidden}
+  .wenergy i{display:block;height:100%;width:0%;border-radius:999px;
+    background:linear-gradient(90deg,#8a6a2e,#f0d68e);transition:width .16s}
+  .wenergy.full i{background:linear-gradient(90deg,#ffe9a8,#fff6d8);box-shadow:0 0 12px rgba(255,240,190,.9)}
+  .wenergy.full{animation:epp 0.9s infinite}
+  @keyframes epp{0%,100%{box-shadow:0 0 0 rgba(255,235,170,0)}
+    50%{box-shadow:0 0 16px rgba(255,235,170,.85)}}
+
+  /* --- 中央信息 --- */
+  #center{position:absolute;left:50%;top:24px;transform:translateX(-50%);text-align:center}
+  #combo{font-size:15px;letter-spacing:.2em;color:#f5e0a8;height:22px;
+    text-shadow:0 0 18px rgba(245,224,168,.9);font-weight:700}
+  #wave{font-size:11.5px;letter-spacing:.34em;color:#6a6152;margin-top:4px}
+
+  /* --- 底部提示 --- */
+  #keys{position:absolute;left:40px;bottom:26px;font-size:11px;letter-spacing:.06em;
+    color:#4a4336;line-height:1.9}
+  #keys b{color:#9a8a68;font-weight:500}
+  #pad{position:absolute;right:40px;bottom:26px;font-size:11px;letter-spacing:.08em;
+    color:#4a4336;text-align:right;line-height:1.9}
+  #pad b{color:#8fbf7a;font-weight:500}
+
+  /* --- 覆盖层 --- */
+  .ov{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;z-index:20;
+    background:radial-gradient(ellipse 64% 60% at 50% 46%,rgba(16,18,22,.96),#05060a 100%)}
+  .ov.on{display:flex;animation:fadeIn .32s ease}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  .eb{font-size:11.5px;letter-spacing:.5em;color:#8a7a5c;margin-bottom:24px}
+  .tt{font-size:66px;letter-spacing:.13em;color:#f0e4c6;font-weight:700;text-indent:.13em;
+    line-height:1.18;text-shadow:0 0 80px rgba(201,167,101,.32)}
+  .tt.sm{font-size:46px}
+  .rl{width:92px;height:1px;margin:30px 0;
+    background:linear-gradient(90deg,transparent,#c9a765,transparent)}
+  .sb{font-size:15.5px;letter-spacing:.11em;color:#968a76;line-height:2.05}
+  .go{margin-top:42px;font-size:15px;letter-spacing:.3em;color:#c9a765;
+    border:1px solid rgba(201,167,101,.45);border-radius:999px;padding:16px 46px;
+    cursor:pointer;transition:.2s}
+  .go:hover{background:rgba(201,167,101,.13);border-color:#c9a765;color:#f5e8c8}
+  .blink{animation:blink 1.6s infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+  .ctrls{display:flex;gap:60px;margin-top:38px}
+  .cl{text-align:left}
+  .cl h4{font-size:11.5px;letter-spacing:.32em;color:#8a7a5c;margin-bottom:14px;font-weight:400}
+  .cl .row{font-size:12.5px;color:#a0937c;line-height:2.3;letter-spacing:.05em}
+  .cl .row span{display:inline-block;min-width:86px;color:#d8c9a6;
+    border:1px solid rgba(180,150,96,.3);border-radius:4px;padding:1px 8px;margin-right:10px;
+    font-size:11px}
+
+  /* 波次横幅 */
+  #banner{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
+    text-align:center;opacity:0;pointer-events:none;z-index:10}
+  #banner.show{animation:bann 1.7s ease}
+  @keyframes bann{
+    0%{opacity:0;transform:translateY(-50%) scale(.92)}
+    18%{opacity:1;transform:translateY(-50%) scale(1)}
+    76%{opacity:1}
+    100%{opacity:0}
+  }
+  #banner .b1{font-size:58px;letter-spacing:.16em;color:#f7e9c4;font-weight:700;
+    text-indent:.16em;text-shadow:0 0 60px rgba(220,180,110,.85),0 6px 0 rgba(0,0,0,.5)}
+  #banner .b2{font-size:14px;letter-spacing:.42em;color:#c9a765;margin-top:14px}
+</style>
+</head>
+<body>
+<div id="wrap"><div id="stage">
+  <canvas id="cv" width="1600" height="900"></canvas>
+
+  <div id="hud">
+    <div class="pbar p1">
+      <div class="pname">玩家一 <em>纵目 · 执</em></div>
+      <div class="hpwrap" id="hp1"></div>
+      <div class="wpn"><span class="wname" id="wp1">短剑</span><span class="wenergy" id="en1"><i></i></span></div>
+    </div>
+    <div class="pbar p2">
+      <div class="pname"><em>执 · 纵目</em> 玩家二</div>
+      <div class="hpwrap" id="hp2"></div>
+      <div class="wpn right"><span class="wname" id="wp2">短剑</span><span class="wenergy" id="en2"><i></i></span></div>
+    </div>
+    <div id="center">
+      <div id="combo"></div>
+      <div id="wave">第 1 阵</div>
+    </div>
+    <div id="keys">
+      <b>玩家一</b> A D 走 · W 跳 · J 挥刀（连按三连）<br>
+      <b>玩家二</b> ← → 走 · ↑ 跳 · K 挥刀
+    </div>
+    <div id="pad">手柄：左摇杆走 · A 跳 · X / □ 挥刀</div>
+  </div>
+
+  <div id="banner"><div class="b1" id="b1"></div><div class="b2" id="b2"></div></div>
+
+  <!-- 标题 -->
+  <div class="ov on" id="ovTitle">
+    <div class="eb">东莞市博物馆 · AI 创作者进馆计划</div>
+    <div class="tt">双刃战士 · 纵目</div>
+    <div class="rl"></div>
+    <div class="sb">
+      殷商，古蜀。三星堆八号祭祀坑里，一张青铜的脸被挖出来——<br>
+      长脸宽颐，宽眉大眼，眼角上挑，大耳外张，耳垂穿孔。<br>
+      现在这张脸站起来了，手里握着两把刀。<br>
+      <span style="color:#c9a765">锈蚀从祭祀坑的两侧爬上来，守住它。</span>
+    </div>
+    <div class="ctrls">
+      <div class="cl">
+        <h4>玩家一</h4>
+        <div class="row"><span>A D</span>左右移动</div>
+        <div class="row"><span>W</span>跳起</div>
+        <div class="row"><span>J</span>挥刀 · 连按三连</div>
+      </div>
+      <div class="cl">
+        <h4>玩家二</h4>
+        <div class="row"><span>← →</span>左右移动</div>
+        <div class="row"><span>↑</span>跳起</div>
+        <div class="row"><span>K</span>挥刀 · 连按三连</div>
+      </div>
+      <div class="cl">
+        <h4>手柄</h4>
+        <div class="row"><span>左摇杆</span>左右移动</div>
+        <div class="row"><span>A</span>跳起</div>
+        <div class="row"><span>X / □</span>挥刀</div>
+      </div>
+    </div>
+    <div class="go" id="btnStart"><span class="blink">●</span> 按任意键开打</div>
+  </div>
+
+  <!-- 过关 -->
+  <div class="ov" id="ovClear">
+    <div class="eb">这一阵守住了</div>
+    <div class="tt sm" id="clearT">锈蚀退了一波</div>
+    <div class="rl"></div>
+    <div class="sb" id="clearS">锈蚀退了。下一阵，来得更凶。</div>
+    <div class="go" id="btnNext">继续 →</div>
+  </div>
+
+  <!-- 失败 -->
+  <div class="ov" id="ovLose">
+    <div class="eb">两人都倒下了</div>
+    <div class="tt sm">锈蚀漫过祭祀坑</div>
+    <div class="rl"></div>
+    <div class="sb">再来一次。刀要连，人要靠。</div>
+    <div class="go" id="btnRetry">重来 ↺</div>
+  </div>
+
+  <!-- 通关 -->
+  <div class="ov" id="ovWin">
+    <div class="eb">器心守住了</div>
+    <div class="tt">纵目，大耳，阔口紧闭</div>
+    <div class="rl"></div>
+    <div class="sb">
+      圆顶笄发，长脸宽颐，宽眉大眼，眼角上挑，蒜头鼻，阔口紧闭，神情肃穆。<br>
+      大耳外张，耳垂各有一穿孔。
+    </div>
+    <div class="go" id="btnAgain">↺ 再打一遍</div>
+    <div style="margin-top:38px;font-size:10.5px;letter-spacing:.15em;color:#403a2e;line-height:2">
+      青铜人头像 · 商代（距今 3200—3000 年）<br>
+      2022 年四川广汉三星堆遗址八号祭祀坑出土 · 三星堆博物馆藏<br>
+      文化依据：《吉金万里 重点文物说明（20260929）》<br>
+      <span style="color:#332e24">锈蚀怪物、双刃武器与神树场景为游戏化艺术处理，非考古复原</span>
+    </div>
+  </div>
+</div></div>
+
+<script>
+"use strict";
+/* =====================================================================
+   双刃战士 · 纵目
+   横版双人清版动作 · 单文件 · 零依赖 · 离线可运行 · 支持双人手柄
+   ===================================================================== */
+
+var W = 1600, H = 900;
+var GROUND = 706;
+var WORLD_W = 3400;
+
+var cv = document.getElementById("cv");
+var ctx = cv.getContext("2d");
+var $stage = document.getElementById("stage");
+
+function fit(){
+  var s = Math.min(window.innerWidth/W, window.innerHeight/H);
+  $stage.style.transform = "scale("+s+")";
+}
+window.addEventListener("resize", fit); fit();
+
+/* ---------------- 音效 ---------------- */
+var AC = null;
+function ac(){
+  if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ AC=null; } }
+  if(AC && AC.state==="suspended") AC.resume();
+  return AC;
+}
+function tone(f, dur, type, gain, to){
+  var a = ac(); if(!a) return;
+  var o = a.createOscillator(), g = a.createGain();
+  o.type = type||"sine";
+  o.frequency.setValueAtTime(f, a.currentTime);
+  if(to) o.frequency.exponentialRampToValueAtTime(to, a.currentTime+dur);
+  g.gain.setValueAtTime(0.0001, a.currentTime);
+  g.gain.exponentialRampToValueAtTime(gain||0.08, a.currentTime+0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime+dur);
+  o.connect(g); g.connect(a.destination);
+  o.start(); o.stop(a.currentTime+dur+0.02);
+}
+function noise(dur, gain, hp){
+  var a = ac(); if(!a) return;
+  var n = Math.floor(a.sampleRate*dur), buf = a.createBuffer(1,n,a.sampleRate);
+  var d = buf.getChannelData(0);
+  for(var i=0;i<n;i++){ var t=i/n; d[i] = (Math.random()*2-1)*(1-t)*(1-t); }
+  var s = a.createBufferSource(); s.buffer = buf;
+  var f = a.createBiquadFilter(); f.type="highpass"; f.frequency.value = hp||800;
+  var g = a.createGain(); g.gain.value = gain||0.1;
+  s.connect(f); f.connect(g); g.connect(a.destination); s.start();
+}
+function sfxSwing(){ noise(0.11, 0.11, 2200); }
+function sfxHit(){ tone(190,0.10,"square",0.06,110); noise(0.07,0.09,600); }
+function sfxCrit(){ tone(120,0.22,"sawtooth",0.09,55); noise(0.14,0.12,400); }
+function sfxJump(){ tone(430,0.08,"sine",0.04,640); }
+function sfxHurt(){ tone(150,0.24,"sawtooth",0.08,68); }
+function sfxDie(){ tone(200,0.3,"triangle",0.06,60); noise(0.2,0.07,300); }
+function sfxWave(){ [392,523,659].forEach(function(f,i){ setTimeout(function(){ tone(f,.4,"sine",.05); }, i*110); }); }
+function sfxWin(){ [523,659,784,1047,1319].forEach(function(f,i){ setTimeout(function(){ tone(f,.6,"sine",.055); }, i*150); }); }
+function sfxLose(){ [330,262,208,165].forEach(function(f,i){ setTimeout(function(){ tone(f,.5,"triangle",.06); }, i*180); }); }
+
+/* ---------------- 工具 ---------------- */
+function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function rnd(a,b){ return a+Math.random()*(b-a); }
+function rectHit(a,b){
+  return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+}
+
+/* ---------------- 输入 ---------------- */
+var KEYS = {};
+window.addEventListener("keydown", function(e){
+  if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].indexOf(e.key)>=0) e.preventDefault();
+  if(!KEYS[e.code]) KEYS[e.code+"_p"] = true;
+  KEYS[e.code] = true;
+  ac();
+  if(G.phase==="title") startGame();
+  else if(G.phase==="win") restartAll();
+});
+window.addEventListener("keyup", function(e){ KEYS[e.code] = false; });
+function keyPressed(code){
+  if(KEYS[code+"_p"]){ KEYS[code+"_p"] = false; return true; }
+  return false;
+}
+
+var PADS = [null,null];
+function scanPads(){
+  var gp = navigator.getGamepads ? navigator.getGamepads() : [];
+  var list = [];
+  for(var i=0;i<gp.length;i++){ if(gp[i] && gp[i].connected) list.push(gp[i]); }
+  PADS[0] = list[0]||null;
+  PADS[1] = list[1]||null;
+  var el = document.getElementById("pad");
+  if(list.length){
+    el.innerHTML = '手柄已连接 ×'+list.length+' · 左摇杆走 · A 跳 · X/□ 挥刀';
+    el.style.color = "#7fa86f";
+  } else {
+    el.innerHTML = '手柄：左摇杆走 · A 跳 · X / □ 挥刀';
+    el.style.color = "#4a4336";
+  }
+  return list;
+}
+var padPrev = {};
+function padEdge(k,v){ if(v&&!padPrev[k]){padPrev[k]=true;return true;} if(!v)padPrev[k]=false; return false; }
+function readPad(p, tag){
+  if(!p) return {left:false,right:false,jump:false,atk:false};
+  var b = p.buttons, ax = p.axes[0]||0;
+  function btn(i){ return !!(b[i] && (b[i].pressed || b[i].value>0.5)); }
+  return {
+    left: ax < -0.42 || btn(14),
+    right: ax > 0.42 || btn(15),
+    jump: padEdge(tag+"_a", btn(0)),
+    atk:  padEdge(tag+"_x", btn(2) || btn(1))
+  };
+}
+
+/* ---------------- 武器 ---------------- */
+var WEAPONS = {
+  short:  { name:"短剑", dmg:1, dur:40, reach:170, swing:0.20, col:"#e8e4d0", w:7,  len:62 },
+  dagger: { name:"匕首", dmg:1, dur:14, reach:142, swing:0.13, col:"#d4dce4", w:6,  len:48 },
+  sword:  { name:"长剑", dmg:2, dur:12, reach:200, swing:0.24, col:"#eef1f7", w:8,  len:80 },
+  hammer: { name:"石锤", dmg:3, dur:7,  reach:214, swing:0.40, col:"#b0a088", w:15, len:66 },
+  rock:   { name:"石块", dmg:3, dur:1,  reach:200, swing:0.30, col:"#8e8474", w:13, len:40 }
+};
+function newWeapon(key){
+  var d = WEAPONS[key];
+  return { key:key, name:d.name, dmg:d.dmg, dur:d.dur, max:d.dur,
+           reach:d.reach, swing:d.swing, col:d.col, w:d.w, len:d.len };
+}
+
+/* ---------------- 玩家 ---------------- */
+function Player(x, facing, keys, padTag){
+  this.x = x; this.y = GROUND; this.vx = 0; this.vy = 0;
+  this.onGround = true; this.facing = facing;
+  this.hp = 6; this.maxHp = 6;
+  this.inv = 0; this.hurtT = 0;
+  this.swingT = 0; this.swingDur = 0;
+  this.swingIdx = 0;
+  this.swingQueued = false;
+  this.swingCd = 0;
+  this.hitSet = [];
+  this.keys = keys; this.padTag = padTag;
+  this.walk = 0;
+  this.dead = false;
+  this.energy = 0;          // 旋风斩能量
+  this.whirlT = 0;          // 旋风斩剩余
+  this.whirlTick = 0;
+  this.weapon = newWeapon("short");
+  this.pickLock = 0;
+}
+Player.prototype.rect = function(){
+  return { x:this.x-30, y:this.y-150, w:60, h:150 };
+};
+
+/* ---------------- 敌人 ---------------- */
+function Enemy(kind, x){
+  this.kind = kind;
+  this.x = x; this.y = GROUND; this.vx = 0;
+  this.facing = -1;
+  this.state = "walk";     // walk | windup | strike | recover | hurt | dead
+  this.t = 0;
+  this.cd = rnd(0.4,1.2);
+  this.hurtT = 0;
+  this.walk = rnd(0,6);
+  this.hitOnce = false;
+  this.deadT = 0;
+  if(kind==="walker"){ this.hp=2; this.maxHp=2; this.spd=110; this.scale=1.0; this.dmg=1; }
+  else if(kind==="fast"){ this.hp=1; this.maxHp=1; this.spd=225; this.scale=0.82; this.dmg=1; }
+  else if(kind==="brute"){ this.hp=5; this.maxHp=5; this.spd=78; this.scale=1.28; this.dmg=2; }
+  else { this.hp=26; this.maxHp=26; this.spd=95; this.scale=2.05; this.dmg=2; } // boss
+  this.w = 70*this.scale; this.h = 160*this.scale;
+}
+Enemy.prototype.rect = function(){
+  return { x:this.x-this.w/2, y:this.y-this.h, w:this.w, h:this.h };
+};
+
+/* ---------------- 全局状态 ---------------- */
+var G = {
+  phase:"title",
+  p1:null, p2:null,
+  enemies:[], particles:[], slashes:[], drops:[], texts:[],
+  camX:0, shake:0, hitstop:0, flash:0,
+  waveIdx:0, waves:[],
+  spawnQueue:[], spawnTimer:0,
+  combo:0, comboT:0, maxCombo:0,
+  time:0, phaseT:0,
+  banner:0
+};
+
+/* ---------------- 关卡 ---------------- */
+function buildWaves(){
+  return [
+    { name:"第一阵", sub:"锈蚀试探", list:["walker","walker","walker"] },
+    { name:"第二阵", sub:"它们跑起来了", list:["walker","fast","walker","fast","walker"] },
+    { name:"第三阵", sub:"厚甲压上来", list:["brute","walker","walker","fast","brute"] },
+    { name:"器心 · 纵目之主", sub:"锈蚀的源头", list:["boss"] }
+  ];
+}
+
+function startGame(){
+  G.p1 = new Player(560,  1, {l:"KeyA",r:"KeyD",j:"KeyW",a:"KeyJ"}, "p1");
+  G.p2 = new Player(700, -1, {l:"ArrowLeft",r:"ArrowRight",j:"ArrowUp",a:"KeyK"}, "p2");
+  G.enemies = []; G.particles = []; G.slashes = []; G.drops = []; G.texts = [];
+  G.waves = buildWaves();
+  G.waveIdx = 0;
+  G.combo = 0; G.comboT = 0; G.maxCombo = 0;
+  G.time = 0; G.shake = 0; G.hitstop = 0; G.flash = 0;
+  G.camX = 0;
+  G.phase = "play";
+  hideOv();
+  startWave(0);
+  syncHUD();
+  ac();
+}
+function startWave(i){
+  var w = G.waves[i];
+  G.spawnQueue = w.list.slice();
+  G.spawnTimer = 0.5;
+  document.getElementById("wave").textContent = w.name;
+  showBanner(w.name, w.sub);
+  sfxWave();
+}
+function showBanner(a,b){
+  var el = document.getElementById("banner");
+  document.getElementById("b1").textContent = a;
+  document.getElementById("b2").textContent = b;
+  el.classList.remove("show");
+  void el.offsetWidth;
+  el.classList.add("show");
+}
+function waveCleared(){
+  G.phase = "clear";
+  G.phaseT = 0;
+  if(G.waveIdx >= G.waves.length-1){ goWin(); return; }
+  document.getElementById("clearT").textContent = "第 "+(G.waveIdx+1)+" 阵守住";
+  document.getElementById("clearS").textContent =
+    G.waveIdx < 2 ? "锈蚀退了。下一阵，来得更凶。" : "只剩器心了。";
+  showOv("ovClear");
+}
+function nextWave(){
+  G.waveIdx++;
+  G.phase = "play";
+  hideOv();
+  startWave(G.waveIdx);
+}
+function goWin(){
+  G.phase = "win";
+  document.getElementById("ovWin").querySelector(".eb").textContent = "器心守住了 · 用时 "+
+    Math.floor(G.time/60)+":"+String(Math.floor(G.time)%60).padStart(2,"0");
+  showOv("ovWin");
+  sfxWin();
+}
+function gameOver(){
+  G.phase = "lose";
+  showOv("ovLose");
+  sfxLose();
+}
+function restartAll(){ startGame(); }
+
+/* ---------------- 覆盖层 ---------------- */
+var OVS = ["ovTitle","ovClear","ovLose","ovWin"];
+function hideOv(){ OVS.forEach(function(id){ document.getElementById(id).classList.remove("on"); }); }
+function showOv(id){ hideOv(); document.getElementById(id).classList.add("on"); }
+document.getElementById("btnStart").addEventListener("click", function(e){ e.stopPropagation(); startGame(); });
+document.getElementById("btnNext").addEventListener("click", function(e){ e.stopPropagation(); nextWave(); });
+document.getElementById("btnRetry").addEventListener("click", function(e){ e.stopPropagation(); startGame(); });
+document.getElementById("btnAgain").addEventListener("click", function(e){ e.stopPropagation(); startGame(); });
+
+/* ---------------- HUD ---------------- */
+function buildHearts(){
+  ["hp1","hp2"].forEach(function(id){
+    var box = document.getElementById(id);
+    box.innerHTML = "";
+    for(var i=0;i<6;i++){
+      var d = document.createElement("div"); d.className="hp"; box.appendChild(d);
+    }
+  });
+}
+function syncHUD(){
+  if(!G.p1||!G.p2) return;
+  [["hp1",G.p1,"wp1","en1"],["hp2",G.p2,"wp2","en2"]].forEach(function(pr){
+    var nodes = document.getElementById(pr[0]).children;
+    for(var i=0;i<nodes.length;i++){
+      nodes[i].className = "hp" + (i < pr[1].hp ? " on" : "");
+    }
+    var wn = document.getElementById(pr[2]);
+    if(wn) wn.textContent = (pr[1].weapon ? pr[1].weapon.name : "空手");
+    var en = document.getElementById(pr[3]);
+    if(en){
+      en.firstChild.style.width = clamp(pr[1].energy,0,100)+"%";
+      en.className = "wenergy" + (pr[1].energy >= 100 ? " full" : "");
+    }
+  });
+  var c = document.getElementById("combo");
+  if(G.comboT > 0 && G.combo >= 2){
+    c.textContent = G.combo + " 连";
+    c.style.opacity = clamp(G.comboT/0.7,0,1);
+  } else {
+    c.textContent = "";
+  }
+}
+
+/* ---------------- 粒子 / 刀光 ---------------- */
+function burst(x,y,n,col,spd){
+  for(var i=0;i<n;i++){
+    var a = rnd(0,Math.PI*2), s = rnd(spd*0.25,spd);
+    G.particles.push({
+      x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-spd*0.4,
+      life:rnd(0.3,0.7),max:0.7,col:col||"#f0d68e",sz:rnd(2,6)
+    });
+  }
+}
+function addSlash(p, idx){
+  G.slashes.push({
+    x:p.x+p.facing*70, y:p.y-95,
+    facing:p.facing, life:0.19, max:0.19,
+    big: idx===2, owner:p
+  });
+}
+
+/* ---------------- 玩家更新 ---------------- */
+function updatePlayer(p, dt, inp, other){
+  if(p.dead) return;
+  if(p.inv>0) p.inv -= dt;
+  if(p.hurtT>0) p.hurtT -= dt;
+  if(p.swingCd>0) p.swingCd -= dt;
+  if(p.pickLock>0) p.pickLock -= dt;
+  if(p.energy < 100) p.energy = Math.min(100, p.energy);
+
+  /* ---- 旋风斩进行中 ---- */
+  if(p.whirlT > 0){
+    p.whirlT -= dt;
+    p.vx *= (1-4*dt);
+    p.x += p.vx*dt;
+    p.whirlTick -= dt;
+    if(p.whirlTick <= 0){
+      p.whirlTick = 0.13;
+      whirlHit(p);
+    }
+    p.y = GROUND; p.vy = 0; p.onGround = true;
+    return;
+  }
+
+  var canAct = p.swingT<=0 && p.hurtT<=0;
+
+  /* ---- 移动 ---- */
+  if(canAct){
+    var acc = 4200, maxV = 470;
+    if(inp.left && !inp.right){ p.vx -= acc*dt; p.facing=-1; }
+    else if(inp.right && !inp.left){ p.vx += acc*dt; p.facing=1; }
+    else p.vx *= (1-11*dt);
+    p.vx = clamp(p.vx,-maxV,maxV);
+  } else {
+    p.vx *= (1-7*dt);
+  }
+
+  /* ---- 跳 ---- */
+  if(inp.jump && p.onGround && canAct){
+    p.vy = -980; p.onGround=false; sfxJump();
+    burst(p.x, p.y, 7, "#8a7a5c", 170);
+  }
+
+  /* ---- 重力 ---- */
+  p.vy += 2700*dt;
+  p.y += p.vy*dt;
+  if(p.y >= GROUND){ p.y = GROUND; p.vy = 0; p.onGround = true; }
+
+  p.x += p.vx*dt;
+
+  if(Math.abs(p.vx)>50 && p.onGround) p.walk += Math.abs(p.vx)*dt*0.024;
+  else p.walk *= (1-7*dt);
+
+  /* ---- 旋风斩发动：能量满 + 攻击与跳同按 ---- */
+  if(p.energy >= 100 && inp.atk && inp.jump && p.whirlT<=0){
+    p.whirlT = 1.5; p.whirlTick = 0; p.energy = 0;
+    p.swingT = 0; p.swingIdx = 0;
+    G.shake = Math.max(G.shake, 12);
+    sfxCrit();
+    burst(p.x, p.y-90, 30, "#fff0c0", 480);
+    return;
+  }
+
+  /* ---- 拾取武器（攻击键优先拾取）---- */
+  if(inp.atk && p.pickLock<=0 && canAct){
+    var got = tryPickup(p);
+    if(got) return;
+  }
+
+  /* ---- 普通攻击 ---- */
+  if(inp.atk && canAct && p.swingCd<=0){
+    startSwing(p, 0);
+  } else if(inp.atk && p.swingT>0){
+    p.swingQueued = true;
+  }
+
+  /* ---- 挥砍推进 ---- */
+  if(p.swingT > 0){
+    p.swingT -= dt;
+    var prog = 1 - p.swingT/p.swingDur;
+    if(prog > 0.22 && prog < 0.86){
+      doSwingHit(p, other);
+    }
+    if(p.swingT <= 0){
+      if(p.swingQueued && p.swingIdx < 2){
+        p.swingQueued = false;
+        startSwing(p, p.swingIdx+1);
+      } else {
+        p.swingQueued = false;
+        p.swingIdx = 0;
+        p.swingCd = 0.16;
+      }
+    }
+  }
+}
+
+/* 拾取 */
+function tryPickup(p){
+  for(var i=0;i<G.drops.length;i++){
+    var d = G.drops[i];
+    if(d.taken) continue;
+    if(Math.abs(d.x - p.x) < 78 && Math.abs(d.y - p.y) < 140){
+      /* 旧武器掉回地上 */
+      if(p.weapon && p.weapon.dur > 0 && p.weapon.key !== "short"){
+        dropWeapon(p.x, p.y, p.weapon);
+      }
+      p.weapon = d.weapon;
+      d.taken = true;
+      p.pickLock = 0.25;
+      burst(d.x, d.y-40, 10, "#fff0c0", 240);
+      tone(660, 0.12, "square", 0.05, 880);
+      syncHUD();
+      return true;
+    }
+  }
+  return false;
+}
+function dropWeapon(x, y, wp){
+  G.drops.push({ x:x, y:GROUND, vy:-420, weapon:wp, taken:false, life:22, bob:rnd(0,6) });
+}
+
+/* 挥砍 */
+function startSwing(p, idx){
+  var wp = p.weapon || newWeapon("short");
+  p.swingIdx = idx;
+  p.swingDur = idx===2 ? wp.swing*1.5 : wp.swing;
+  p.swingT = p.swingDur;
+  p.hitSet = [];
+  sfxSwing();
+  addSlash(p, idx);
+  /* 耐久 */
+  wp.dur--;
+  if(wp.dur <= 0){
+    burst(p.x + p.facing*70, p.y-100, 12, wp.col, 300);
+    tone(240,0.16,"square",0.05,120);
+    p.weapon = newWeapon("short");
+    p.weapon.dur = 40;
+    syncHUD();
+  }
+}
+function doSwingHit(p, other){
+  var wp = p.weapon || WEAPONS.short;
+  var dmg = (p.swingIdx===2 ? wp.dmg+1 : wp.dmg);
+  var reach = (p.swingIdx===2 ? wp.reach*1.15 : wp.reach);
+  var box = {
+    x: p.facing>0 ? p.x+10 : p.x-reach,
+    y: p.y-190,
+    w: reach,
+    h: 200
+  };
+  var hitAny = false;
+  for(var i=0;i<G.enemies.length;i++){
+    var e = G.enemies[i];
+    if(e.state==="dead") continue;
+    if(p.hitSet.indexOf(e) !== -1) continue;
+    if(rectHit(box, e.rect())){
+      p.hitSet.push(e);
+      var mult = (e.kind==="boss" && e.state==="recover") ? 2 : 1;
+      hitEnemy(e, dmg*mult, p.facing, p.swingIdx===2, mult>1);
+      G.combo++; G.comboT = 0.9;
+      if(G.combo > G.maxCombo) G.maxCombo = G.combo;
+      p.energy = Math.min(100, p.energy + 7);
+      hitAny = true;
+    }
+  }
+  /* 打队友：震掉武器（不掉血）*/
+  if(other && !other.dead && p.hitSet.indexOf(other) === -1){
+    if(rectHit(box, other.rect())){
+      p.hitSet.push(other);
+      other.vx = p.facing * 520;
+      other.vy = -300; other.onGround = false;
+      other.hurtT = 0.2;
+      if(other.weapon && other.weapon.key !== "short"){
+        dropWeapon(other.x, other.y, other.weapon);
+        other.weapon = newWeapon("short");
+        other.weapon.dur = 40;
+        burst(other.x, other.y-100, 14, "#ffd0a0", 340);
+        tone(520,0.14,"square",0.06,300);
+        showHitText(other.x, other.y-170, "武器脱手！");
+      } else {
+        burst(other.x, other.y-100, 8, "#c9b78c", 240);
+      }
+      G.shake = Math.max(G.shake, 8);
+      syncHUD();
+      hitAny = true;
+    }
+  }
+  if(!hitAny) return;
+}
+/* 旋风斩判定 */
+function whirlHit(p){
+  var R = 200;
+  for(var i=0;i<G.enemies.length;i++){
+    var e = G.enemies[i];
+    if(e.state==="dead") continue;
+    if(Math.abs(e.x - p.x) < R && Math.abs(e.y - p.y) < 260){
+      hitEnemy(e, 2, e.x > p.x ? 1 : -1, true, false);
+      G.combo++; G.comboT = 0.9;
+      if(G.combo > G.maxCombo) G.maxCombo = G.combo;
+    }
+  }
+  sfxHit();
+  G.shake = Math.max(G.shake, 6);
+}
+function showHitText(x,y,txt){
+  G.texts.push({ x:x, y:y, txt:txt, life:0.9, max:0.9 });
+}
+function hitEnemy(e, dmg, dir, big, weak){
+  e.hp -= dmg;
+  e.hurtT = 0.22;
+  e.vx = dir * (big ? 620 : 380);
+  e.state = "hurt";
+  e.t = 0.22;
+  G.hitstop = big ? 0.075 : 0.04;
+  G.shake = Math.max(G.shake, big ? 15 : 7);
+  burst(e.x, e.y - e.h*0.6, big?16:9, weak ? "#ffd0ff" : "#f7e2a8", big?430:300);
+  if(weak){
+    showHitText(e.x, e.y-e.h-40, "弱点 ×2");
+    sfxCrit();
+  } else if(big){ sfxCrit(); G.flash = 0.12; } else sfxHit();
+
+  if(e.hp <= 0){
+    e.state = "dead"; e.deadT = 0;
+    burst(e.x, e.y-e.h*0.5, 26, "#c9a765", 480);
+    sfxDie();
+    G.shake = Math.max(G.shake, 12);
+    /* 掉落武器 */
+    var pool = ["dagger","sword","hammer","dagger","sword","rock"];
+    var chance = e.kind==="boss" ? 1 : 0.34;
+    if(Math.random() < chance){
+      var key = pool[Math.floor(Math.random()*pool.length)];
+      dropWeapon(e.x, e.y, newWeapon(key));
+    }
+    if(e.kind==="boss"){
+      dropWeapon(e.x-90, e.y, newWeapon("sword"));
+      dropWeapon(e.x+90, e.y, newWeapon("hammer"));
+    }
+  }
+}
+
+/* ---------------- 敌人更新 ---------------- */
+function updateEnemy(e, dt){
+  if(e.state==="dead"){
+    e.deadT += dt;
+    e.vx *= (1-6*dt);
+    e.x += e.vx*dt;
+    return;
+  }
+  if(e.hurtT>0) e.hurtT -= dt;
+
+  /* 找最近玩家 */
+  var target = null, best = 1e9;
+  [G.p1,G.p2].forEach(function(p){
+    if(!p||p.dead) return;
+    var d = Math.abs(p.x - e.x);
+    if(d < best){ best = d; target = p; }
+  });
+
+  if(e.state==="hurt"){
+    e.t -= dt;
+    e.vx *= (1-9*dt);
+    e.x += e.vx*dt;
+    if(e.t<=0){ e.state="walk"; e.cd = rnd(0.25,0.7); }
+    return;
+  }
+
+  if(!target){ e.vx *= (1-5*dt); e.x += e.vx*dt; return; }
+
+  e.facing = (target.x > e.x) ? 1 : -1;
+  e.cd -= dt;
+
+  switch(e.state){
+    case "walk":
+      if(best > 92){
+        e.vx = e.facing * e.spd;
+        e.x += e.vx*dt;
+        if(e.kind!=="boss") e.walk += Math.abs(e.vx)*dt*0.026;
+      } else {
+        e.vx *= (1-8*dt);
+        e.x += e.vx*dt;
+        if(e.cd <= 0){ e.state="windup"; e.t = e.kind==="boss"?0.55:0.34; }
+      }
+      break;
+
+    case "windup":
+      e.t -= dt;
+      e.vx *= (1-10*dt);
+      e.x += e.vx*dt;
+      if(e.t<=0){ e.state="strike"; e.t = 0.14; e.hitOnce=false; sfxSwing(); }
+      break;
+
+    case "strike":
+      e.t -= dt;
+      if(!e.hitOnce){
+        var reach = e.kind==="boss" ? 190 : 120;
+        var hb = {
+          x: e.facing>0 ? e.x : e.x-reach,
+          y: e.y - e.h*0.9,
+          w: reach,
+          h: e.h*0.9
+        };
+        [G.p1,G.p2].forEach(function(p){
+          if(!p||p.dead||p.inv>0) return;
+          if(rectHit(hb, p.rect())){
+            e.hitOnce = true;
+            p.hp -= e.dmg; p.inv = 1.1; p.hurtT = 0.28;
+            p.vx = (p.x < e.x ? -1 : 1) * 560;
+            p.vy = -320; p.onGround = false;
+            G.shake = Math.max(G.shake, 14);
+            sfxHurt();
+            burst(p.x, p.y-80, 14, "#e07a6c", 360);
+            if(p.hp <= 0){ p.hp = 0; p.dead = true; }
+          }
+        });
+      }
+      if(e.t<=0){ e.state="recover"; e.t = e.kind==="boss"?0.7:0.45; }
+      break;
+
+    case "recover":
+      e.t -= dt;
+      if(e.t<=0){ e.state="walk"; e.cd = rnd(0.5,1.3); }
+      break;
+  }
+
+  e.x = clamp(e.x, 40, WORLD_W-40);
+}
+
+/* ---------------- 主更新 ---------------- */
+function update(dt){
+  var pads = scanPads();
+
+  if(G.hitstop > 0){ G.hitstop -= dt; dt *= 0.08; }
+  if(G.shake > 0) G.shake = Math.max(0, G.shake - dt*55);
+  if(G.flash > 0) G.flash -= dt;
+  if(G.comboT > 0){ G.comboT -= dt; if(G.comboT<=0) G.combo = 0; }
+
+  if(G.phase === "play"){
+    G.time += dt;
+
+    var pad1 = readPad(PADS[0], "p1");
+    var pad2 = readPad(PADS[1], "p2");
+
+    var in1 = {
+      left:  !!KEYS[G.p1.keys.l] || pad1.left,
+      right: !!KEYS[G.p1.keys.r] || pad1.right,
+      jump:  keyPressed(G.p1.keys.j) || pad1.jump,
+      atk:   keyPressed(G.p1.keys.a) || pad1.atk
+    };
+    var in2 = {
+      left:  !!KEYS[G.p2.keys.l] || pad2.left,
+      right: !!KEYS[G.p2.keys.r] || pad2.right,
+      jump:  keyPressed(G.p2.keys.j) || pad2.jump,
+      atk:   keyPressed(G.p2.keys.a) || pad2.atk
+    };
+    /* 单手柄时两人共用移动 */
+    if(PADS[0] && !PADS[1]){
+      in2.left = in2.left || pad1.left;
+      in2.right = in2.right || pad1.right;
+    }
+
+    updatePlayer(G.p1, dt, in1, G.p2);
+    updatePlayer(G.p2, dt, in2, G.p1);
+
+    /* 敌人 */
+    for(var i=0;i<G.enemies.length;i++) updateEnemy(G.enemies[i], dt);
+    /* 清理尸体 */
+    G.enemies = G.enemies.filter(function(e){ return !(e.state==="dead" && e.deadT > 0.9); });
+
+    /* 刷怪 */
+    if(G.spawnQueue.length > 0){
+      G.spawnTimer -= dt;
+      if(G.spawnTimer <= 0){
+        var kind = G.spawnQueue.shift();
+        var side = (Math.random() < 0.5) ? -1 : 1;
+        var sx = side < 0 ? G.camX - 60 : G.camX + W + 60;
+        sx = clamp(sx, 50, WORLD_W-50);
+        var en = new Enemy(kind, sx);
+        en.facing = side < 0 ? 1 : -1;
+        G.enemies.push(en);
+        G.spawnTimer = rnd(0.5, 1.15);
+      }
+    }
+
+    /* 相机 */
+    var mid = ((G.p1.x + G.p2.x) / 2);
+    var targetCam = clamp(mid - W/2, 0, WORLD_W - W);
+    G.camX = lerp(G.camX, targetCam, 1 - Math.pow(0.0015, dt));
+
+    /* 玩家限制在屏内 */
+    [G.p1,G.p2].forEach(function(p){
+      p.x = clamp(p.x, G.camX+54, G.camX+W-54);
+    });
+
+    /* 波次判定 */
+    if(G.spawnQueue.length === 0 && G.enemies.length === 0 && G.phase === "play"){
+      waveCleared();
+    }
+
+    /* 双人死亡 */
+    if(G.p1.dead && G.p2.dead) gameOver();
+
+    syncHUD();
+  }
+  else if(G.phase === "title"){
+    if(anyPress()) startGame();
+  }
+
+  updateParticles(dt);
+}
+function anyPress(){
+  for(var k in KEYS){ if(k.indexOf("_p")>0 && KEYS[k]) return true; }
+  for(var i=0;i<2;i++){
+    var p = PADS[i]; if(!p) continue;
+    var b = p.buttons;
+    for(var j=0;j<b.length;j++){ if(b[j] && (b[j].pressed||b[j].value>0.5)) return true; }
+  }
+  return false;
+}
+function updateParticles(dt){
+  for(var i=G.particles.length-1;i>=0;i--){
+    var q = G.particles[i];
+    q.life -= dt;
+    if(q.life<=0){ G.particles.splice(i,1); continue; }
+    q.vy += 1500*dt;
+    q.x += q.vx*dt; q.y += q.vy*dt;
+    q.vx *= (1-2.4*dt);
+  }
+  for(var j=G.slashes.length-1;j>=0;j--){
+    G.slashes[j].life -= dt;
+    if(G.slashes[j].life<=0) G.slashes.splice(j,1);
+  }
+  /* 掉落物 */
+  for(var k=G.drops.length-1;k>=0;k--){
+    var d = G.drops[k];
+    if(d.taken){ G.drops.splice(k,1); continue; }
+    d.life -= dt;
+    d.vy += 2200*dt;
+    d.y += d.vy*dt;
+    if(d.y > GROUND){ d.y = GROUND; d.vy *= -0.35; if(Math.abs(d.vy)<40) d.vy = 0; }
+    d.bob += dt*4;
+    if(d.life <= 0) G.drops.splice(k,1);
+  }
+  /* 飘字 */
+  for(var m=G.texts.length-1;m>=0;m--){
+    var t = G.texts[m];
+    t.life -= dt;
+    t.y -= 46*dt;
+    if(t.life<=0) G.texts.splice(m,1);
+  }
+}
+
+/* =====================================================================
+   绘制
+   ===================================================================== */
+
+function drawBG(){
+  var g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,"#0c1014");
+  g.addColorStop(0.42,"#141a20");
+  g.addColorStop(1,"#0a0c0f");
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+
+  /* 天光：从神树方向洒下 */
+  var halo = ctx.createRadialGradient(780, 300, 40, 780, 300, 620);
+  halo.addColorStop(0,"rgba(200,168,102,.09)");
+  halo.addColorStop(1,"rgba(200,168,102,0)");
+  ctx.fillStyle = halo; ctx.fillRect(0,0,W,H);
+
+  /* ===== 远景（视差 0.1）：太阳轮 + 神树剪影 ===== */
+  var p0 = -G.camX * 0.10;
+  ctx.save();
+  ctx.translate(p0, 0);
+  ctx.globalAlpha = 0.5;
+
+  /* 太阳轮（五辐轮形器）—— 悬在远处 */
+  for(var t=0;t<3;t++){
+    var sx = 340 + t*1100;
+    var sy = 300 - (t%2)*60;
+    var sr = 92;
+    ctx.strokeStyle = "rgba(200,168,102,.55)";
+    ctx.lineWidth = 7;
+    ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(sx, sy, sr*0.42, 0, Math.PI*2); ctx.stroke();
+    for(var q=0;q<5;q++){
+      var aa = q*(Math.PI*2/5) - Math.PI/2;
+      ctx.beginPath();
+      ctx.moveTo(sx + Math.cos(aa)*sr*0.42, sy + Math.sin(aa)*sr*0.42);
+      ctx.lineTo(sx + Math.cos(aa)*sr, sy + Math.sin(aa)*sr);
+      ctx.stroke();
+    }
+  }
+
+  /* 青铜神树 —— 三层九枝，枝头垂果与立鸟 */
+  for(var b=0;b<3;b++){
+    var tx = 760 + b*1180;
+    var topY = 168, botY = GROUND;
+    ctx.strokeStyle = "rgba(200,168,102,.62)";
+    ctx.lineCap = "round";
+    /* 树座（三足圆座）*/
+    ctx.lineWidth = 7;
+    ctx.beginPath(); ctx.ellipse(tx, botY, 70, 17, 0, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(tx-40, botY); ctx.lineTo(tx-22, botY-30); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(tx+40, botY); ctx.lineTo(tx+22, botY-30); ctx.stroke();
+    /* 主干 */
+    ctx.lineWidth = 11;
+    ctx.beginPath(); ctx.moveTo(tx, botY-24); ctx.lineTo(tx, topY+26); ctx.stroke();
+    ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.moveTo(tx, botY-24); ctx.lineTo(tx, topY+40); ctx.stroke();
+
+    /* 三层，每层左右各一枝 */
+    for(var L=0;L<3;L++){
+      var ly = topY + 62 + L*156;
+      ctx.lineWidth = 6;
+      for(var side=-1; side<=1; side+=2){
+        var ex = tx + side*132;
+        var ey = ly - 26;
+        /* 先外展、再下垂、末梢上翘 */
+        ctx.beginPath();
+        ctx.moveTo(tx, ly);
+        ctx.bezierCurveTo(tx + side*60, ly-30, tx + side*112, ly-30, ex, ey);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(ex, ey);
+        ctx.quadraticCurveTo(ex + side*26, ey+28, ex + side*16, ey+52);
+        ctx.stroke();
+        /* 枝头果实 */
+        ctx.beginPath(); ctx.arc(ex + side*16, ey+58, 8, 0, Math.PI*2); ctx.stroke();
+        /* 立鸟 */
+        var bx2 = ex + side*4, by2 = ey - 14;
+        ctx.beginPath();
+        ctx.moveTo(bx2, by2); ctx.lineTo(bx2-9, by2-12); ctx.lineTo(bx2, by2-7);
+        ctx.lineTo(bx2+9, by2-12); ctx.closePath(); ctx.stroke();
+      }
+      /* 层间环带 */
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(tx-18, ly+18); ctx.lineTo(tx+18, ly+18); ctx.stroke();
+    }
+    /* 树顶花冠 */
+    ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(tx, topY+16, 18, 0, Math.PI*2); ctx.stroke();
+    for(var f=0;f<5;f++){
+      var fa = f*(Math.PI*2/5) - Math.PI/2;
+      ctx.beginPath();
+      ctx.moveTo(tx + Math.cos(fa)*18, topY+16 + Math.sin(fa)*18);
+      ctx.lineTo(tx + Math.cos(fa)*34, topY+16 + Math.sin(fa)*34);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+
+  /* ===== 中景（视差 0.38）：祭祀坑的夯土台 / 立石 ===== */
+  var p2 = -G.camX * 0.38;
+  ctx.save();
+  ctx.translate(p2, 0);
+  ctx.globalAlpha = 0.55;
+  for(var i=-1;i<9;i++){
+    var bx = i*520;
+    /* 夯土台 */
+    ctx.fillStyle = "rgba(16,18,22,.95)";
+    ctx.fillRect(bx, 330, 150, GROUND-330);
+    ctx.fillStyle = "rgba(200,168,102,.035)";
+    ctx.fillRect(bx+6, 340, 9, GROUND-350);
+    ctx.fillRect(bx, 322, 150, 9);
+    /* 台口刻纹 */
+    ctx.strokeStyle = "rgba(200,168,102,.055)";
+    ctx.lineWidth = 1.5;
+    for(var r=0;r<5;r++){
+      ctx.beginPath();
+      ctx.moveTo(bx+14, 366 + r*58);
+      ctx.lineTo(bx+136, 366 + r*58);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+
+  /* ===== 祭祀坑：地面 ===== */
+  var gr = ctx.createLinearGradient(0,GROUND-8,0,H);
+  gr.addColorStop(0,"#1b1e23");
+  gr.addColorStop(0.4,"#121418");
+  gr.addColorStop(1,"#07080a");
+  ctx.fillStyle = gr; ctx.fillRect(0,GROUND,W,H-GROUND);
+
+  ctx.strokeStyle = "rgba(200,168,102,.32)";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(0,GROUND); ctx.lineTo(W,GROUND); ctx.stroke();
+
+  /* 坑底夯土纹（随相机） */
+  ctx.save();
+  ctx.strokeStyle = "rgba(200,168,102,.075)";
+  ctx.lineWidth = 1.4;
+  var off = -(G.camX % 92);
+  for(var j=0;j<22;j++){
+    var x = off + j*92;
+    ctx.beginPath(); ctx.moveTo(x, GROUND+20); ctx.lineTo(x+36, GROUND+20); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x+10, GROUND+38); ctx.lineTo(x+26, GROUND+38); ctx.stroke();
+    /* 小三角刻符 */
+    ctx.beginPath();
+    ctx.moveTo(x+50, GROUND+30); ctx.lineTo(x+57, GROUND+16); ctx.lineTo(x+64, GROUND+30);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* ---------- 质感工具：描边 + 体积 ---------- */
+function limb(x1,y1,x2,y2,w,base,dark,light){
+  ctx.lineCap = "round";
+  ctx.strokeStyle = dark; ctx.lineWidth = w+5;
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  ctx.strokeStyle = base; ctx.lineWidth = w;
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  var dx = x2-x1, dy = y2-y1, len = Math.sqrt(dx*dx+dy*dy)||1;
+  var nx = -dy/len, ny = dx/len, off = w*0.24;
+  ctx.strokeStyle = light; ctx.lineWidth = Math.max(1.4, w*0.26);
+  ctx.beginPath();
+  ctx.moveTo(x1+nx*off, y1+ny*off); ctx.lineTo(x2+nx*off, y2+ny*off);
+  ctx.stroke();
+}
+function head3d(cx,cy,rx,ry,base,dark,light){
+  ctx.fillStyle = dark;
+  ctx.beginPath(); ctx.ellipse(cx,cy,rx+2.6,ry+2.6,0,0,Math.PI*2); ctx.fill();
+  var g = ctx.createRadialGradient(cx-rx*0.34, cy-ry*0.42, rx*0.08, cx, cy, ry*1.22);
+  g.addColorStop(0, light); g.addColorStop(0.55, base); g.addColorStop(1, dark);
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2); ctx.fill();
+}
+function bodyGrad(cx,cy,r,c1,c2,c3){
+  var g = ctx.createRadialGradient(cx-r*0.34, cy-r*0.44, r*0.06, cx, cy, r*1.18);
+  g.addColorStop(0,c1); g.addColorStop(0.52,c2); g.addColorStop(1,c3);
+  return g;
+}
+
+/* 三星堆青铜头像 · 守着祭祀坑的双刃武士
+   依据：圆顶笄发 / 长脸宽颐 / 宽眉大眼眼角上挑 / 蒜头鼻 /
+         阔口紧闭 / 大耳外张耳垂穿孔 / 颈下端前呈倒尖角形 */
+function drawFighter(p){
+  var bob = Math.sin(p.walk*2)*3.5;
+  var hurt = p.hurtT > 0;
+  var isP1 = (p === G.p1);
+
+  /* 青铜三调：亮 / 中 / 暗 */
+  var L1 = hurt ? "#ffe4d9" : (isP1 ? "#f2e2b2" : "#e9deb9");
+  var M1 = hurt ? "#eaa79c" : (isP1 ? "#c3a777" : "#b8a378");
+  var D1 = hurt ? "#a85c52" : (isP1 ? "#6b5630" : "#62502e");
+  /* 衣：玩家一深靛，玩家二赭褐 */
+  var CL = hurt ? "#f0a89e" : (isP1 ? "#5b6890" : "#7d5f4f");
+  var CM = hurt ? "#d0786e" : (isP1 ? "#39425e" : "#543c33");
+  var CD = hurt ? "#8a4a44" : (isP1 ? "#222839" : "#32231e");
+
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.scale(1.3, 1.3);
+  if(p.inv>0 && Math.floor(p.inv*20)%2===0) ctx.globalAlpha = 0.45;
+
+  /* 影子：柔边 */
+  ctx.save(); ctx.globalAlpha *= .45;
+  var sg = ctx.createRadialGradient(0,4,2,0,4,46);
+  sg.addColorStop(0,"rgba(0,0,0,.95)"); sg.addColorStop(1,"rgba(0,0,0,0)");
+  ctx.fillStyle = sg;
+  ctx.beginPath(); ctx.ellipse(0,4,46,13,0,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  var sw = Math.sin(p.walk*2)*16;
+
+  /* ---- 腿 ---- */
+  limb(-9,-58+bob, -9-sw,-12, 13, CM, CD, CL);
+  limb( 9,-58+bob,  9+sw,-12, 13, CM, CD, CL);
+  /* 护胫 */
+  ctx.strokeStyle = D1; ctx.lineWidth = 2.2;
+  ctx.beginPath(); ctx.moveTo(-9-sw-3,-34); ctx.lineTo(-9-sw+6,-34); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo( 9+sw-6,-34); ctx.lineTo( 9+sw+3,-34); ctx.stroke();
+  /* 跣足 */
+  ctx.fillStyle = D1;
+  ctx.beginPath(); ctx.ellipse(-9-sw-7,-2, 10, 5.4, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse( 9+sw+7,-2, 10, 5.4, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = M1;
+  ctx.beginPath(); ctx.ellipse(-9-sw-7,-3.6, 7.6, 3.8, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse( 9+sw+7,-3.6, 7.6, 3.8, 0, 0, Math.PI*2); ctx.fill();
+
+  /* ---- 躯干 ---- */
+  /* 暗底描边 */
+  ctx.fillStyle = CD;
+  ctx.beginPath();
+  ctx.moveTo(-21,-114+bob); ctx.quadraticCurveTo(-28,-86+bob,-24,-47+bob);
+  ctx.lineTo(24,-47+bob); ctx.quadraticCurveTo(28,-86+bob,21,-114+bob);
+  ctx.closePath(); ctx.fill();
+  /* 衣身体积 */
+  ctx.fillStyle = bodyGrad(0,-80+bob, 36, CL, CM, CD);
+  ctx.beginPath();
+  ctx.moveTo(-17.5,-112+bob); ctx.quadraticCurveTo(-24,-86+bob,-20,-50+bob);
+  ctx.lineTo(20,-50+bob); ctx.quadraticCurveTo(24,-86+bob,17.5,-112+bob);
+  ctx.closePath(); ctx.fill();
+
+  /* 胸前青铜甲片 + 云雷纹 */
+  ctx.beginPath();
+  ctx.moveTo(-14.5,-104+bob); ctx.lineTo(14.5,-104+bob);
+  ctx.lineTo(16.5,-78+bob); ctx.lineTo(0,-69+bob); ctx.lineTo(-16.5,-78+bob);
+  ctx.closePath();
+  var cg = ctx.createLinearGradient(0,-104+bob,0,-69+bob);
+  cg.addColorStop(0, L1); cg.addColorStop(0.45, M1); cg.addColorStop(1, D1);
+  ctx.fillStyle = cg; ctx.fill();
+  ctx.strokeStyle = D1; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.strokeStyle = "rgba(58,42,20,.5)"; ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.moveTo(-8,-96+bob); ctx.lineTo(-3,-96+bob); ctx.lineTo(-3,-90+bob); ctx.lineTo(-7,-90+bob);
+  ctx.moveTo( 3,-96+bob); ctx.lineTo( 8,-96+bob); ctx.lineTo( 8,-90+bob); ctx.lineTo( 4,-90+bob);
+  ctx.stroke();
+
+  /* 腰束带 */
+  var bg2 = ctx.createLinearGradient(0,-82+bob,0,-71+bob);
+  bg2.addColorStop(0,"#f7deA0"); bg2.addColorStop(0.5,"#d8b268"); bg2.addColorStop(1,"#7d5c24");
+  ctx.fillStyle = bg2;
+  ctx.fillRect(-20.5,-82+bob, 41, 10);
+  ctx.strokeStyle = "#4e3818"; ctx.lineWidth = 1.3;
+  ctx.strokeRect(-20.5,-82+bob, 41, 10);
+  /* 带扣 */
+  ctx.fillStyle = "#f5e2ae";
+  ctx.beginPath(); ctx.arc(0,-77+bob, 3.2, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = "#6b4c1c"; ctx.lineWidth = 1; ctx.stroke();
+
+  /* 衣摆 */
+  ctx.fillStyle = CD;
+  ctx.beginPath();
+  ctx.moveTo(-20,-72+bob); ctx.lineTo(20,-72+bob);
+  ctx.lineTo(23,-48+bob); ctx.lineTo(-23,-48+bob); ctx.closePath(); ctx.fill();
+
+  /* ---- 颈：较粗，下端前呈倒尖角形 ---- */
+  ctx.fillStyle = D1;
+  ctx.beginPath();
+  ctx.moveTo(-10.5,-118+bob); ctx.lineTo(10.5,-118+bob);
+  ctx.lineTo(12.5,-96+bob); ctx.lineTo(-2,-87+bob); ctx.lineTo(-12.5,-96+bob);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = bodyGrad(0,-102+bob, 14, L1, M1, D1);
+  ctx.beginPath();
+  ctx.moveTo(-8,-118+bob); ctx.lineTo(8,-118+bob);
+  ctx.lineTo(10,-97+bob); ctx.lineTo(-2,-90+bob); ctx.lineTo(-10,-97+bob);
+  ctx.closePath(); ctx.fill();
+
+  /* ---- 笄：先画，藏在头后，只露两端 ---- */
+  ctx.save();
+  ctx.translate(0,-157+bob); ctx.rotate(-0.10);
+  var jg = ctx.createLinearGradient(-30,0,30,0);
+  jg.addColorStop(0,"#6b4c1c"); jg.addColorStop(0.45,"#f8e4b0"); jg.addColorStop(1,"#6b4c1c");
+  ctx.strokeStyle = jg; ctx.lineWidth = 3.4; ctx.lineCap="round";
+  ctx.beginPath(); ctx.moveTo(-30,0); ctx.lineTo(30,0); ctx.stroke();
+  ctx.fillStyle = "#f0d998";
+  ctx.beginPath(); ctx.arc(-30,0, 3.6, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc( 30,0, 3.6, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = "#5a3f14"; ctx.lineWidth = 1; 
+  ctx.beginPath(); ctx.arc(-30,0, 3.6, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc( 30,0, 3.6, 0, Math.PI*2); ctx.stroke();
+  ctx.restore();
+
+  /* ---- 头：长脸宽颐 ---- */
+  head3d(0,-142+bob, 16.5, 23, M1, D1, L1);
+
+  /* 头顶浑圆 + 圆顶（笄从中穿过） */
+  ctx.fillStyle = L1;
+  ctx.beginPath(); ctx.ellipse(0,-161+bob, 11.5, 6, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = D1; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.ellipse(0,-161+bob, 11.5, 6, 0, 0, Math.PI*2); ctx.stroke();
+  /* 笄在头顶穿出的一段 */
+  ctx.strokeStyle = "#e8d29a"; ctx.lineWidth = 2.6; ctx.lineCap="round";
+  ctx.beginPath(); ctx.moveTo(-9,-162.5+bob); ctx.lineTo(9,-162.5+bob); ctx.stroke();
+
+  /* 大耳外张 + 耳垂穿孔 */
+  ctx.fillStyle = M1;
+  ctx.beginPath(); ctx.ellipse(-18.5,-142+bob, 5.6, 15.5, -0.16, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse( 18.5,-142+bob, 5.6, 15.5,  0.16, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = D1; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.ellipse(-18.5,-142+bob, 5.6, 15.5, -0.16, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse( 18.5,-142+bob, 5.6, 15.5,  0.16, 0, Math.PI*2); ctx.stroke();
+  ctx.fillStyle = "#171309";
+  ctx.beginPath(); ctx.arc(-19,-128+bob, 2.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc( 19,-128+bob, 2.2, 0, Math.PI*2); ctx.fill();
+
+  /* 眼窝暗影（让眉骨压下来） */
+  ctx.fillStyle = "rgba(58,42,18,.34)";
+  ctx.beginPath(); ctx.ellipse(0,-146+bob, 15, 7.5, 0, 0, Math.PI*2); ctx.fill();
+
+  /* 宽眉：粗、外端上挑、紧压眼上 */
+  var fx = p.facing;
+  ctx.strokeStyle = "#3a2a10"; ctx.lineWidth = 4.2; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(-13,-151+bob); ctx.lineTo(-2,-154.5+bob); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo( 13,-151+bob); ctx.lineTo( 2,-154.5+bob); ctx.stroke();
+
+  /* 大眼：狭长杏仁、眼角上挑（青铜铸件的沉眼，不画大眼白） */
+  [-6.6, 6.6].forEach(function(ex){
+    ctx.save();
+    ctx.translate(ex,-143+bob);
+    ctx.rotate(ex<0 ? -0.20*fx : 0.20*fx);
+    /* 眼形：深色杏仁 */
+    var eg = ctx.createLinearGradient(0,-3,0,3.2);
+    eg.addColorStop(0,"#5c4622"); eg.addColorStop(1,"#1a1409");
+    ctx.fillStyle = eg;
+    ctx.beginPath(); ctx.ellipse(0,0, 6.2, 3.1, 0, 0, Math.PI*2); ctx.fill();
+    /* 上眼睑压线 */
+    ctx.strokeStyle = "#33240c"; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.ellipse(0,-0.4, 6.2, 3.1, 0, Math.PI*1.06, Math.PI*1.94); ctx.stroke();
+    /* 一点高光，点到即止 */
+    ctx.fillStyle = "rgba(255,248,220,.72)";
+    ctx.beginPath(); ctx.arc(fx*1.8, -0.9, 0.95, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+
+  /* 蒜头鼻 */
+  ctx.fillStyle = D1;
+  ctx.beginPath(); ctx.arc(0,-133+bob, 4.8, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = M1;
+  ctx.beginPath(); ctx.arc(-0.9,-134.6+bob, 3.8, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = "#241a0e";
+  ctx.beginPath(); ctx.arc(-1.8,-136.5+bob, 1.05, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc( 1.8,-136.5+bob, 1.05, 0, Math.PI*2); ctx.fill();
+
+  /* 阔口紧闭 */
+  ctx.strokeStyle = "#38280f"; ctx.lineWidth = 3.4;
+  ctx.beginPath(); ctx.moveTo(-8.5,-123.5+bob); ctx.lineTo(8.5,-123.5+bob); ctx.stroke();
+  ctx.strokeStyle = "rgba(248,228,176,.55)"; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(-7,-122+bob); ctx.lineTo(7,-122+bob); ctx.stroke();
+
+  /* 头顶后方方孔 + U 形轮廓 */
+  ctx.strokeStyle = "rgba(88,66,30,.85)"; ctx.lineWidth = 1.7;
+  ctx.beginPath();
+  ctx.moveTo(-4.5,-167.5+bob); ctx.lineTo(4.5,-167.5+bob);
+  ctx.lineTo(4.5,-163+bob); ctx.lineTo(-4.5,-163+bob); ctx.closePath(); ctx.stroke();
+
+  /* ---- 手臂 + 双刃 ---- */
+  var swinging = p.swingT > 0;
+  var prog = swinging ? 1 - p.swingT/p.swingDur : 0;
+  var ang;
+  if(swinging){
+    ang = lerp(-1.5, 1.15, prog);
+    if(p.swingIdx===1) ang = lerp(1.15, -1.5, prog);
+    if(p.swingIdx===2) ang = lerp(-2.0, 1.5, prog);
+  } else {
+    ang = Math.sin(p.walk*2+1)*0.42 - 0.35;
+  }
+
+  var shX = p.facing*10, shY = -106+bob;
+  var bax = -shX*0.6 + Math.cos(ang+2.2)*34;
+  var bay = shY + Math.sin(ang+2.2)*34;
+  limb(-shX*0.6, shY, bax, bay, 9, M1, D1, L1);
+  var hx = shX + p.facing*Math.cos(ang)*44;
+  var hy = shY + Math.sin(ang)*44;
+  limb(shX, shY, hx, hy, 9.5, M1, D1, L1);
+  /* 腕钏 */
+  ctx.fillStyle = "#f0d998";
+  ctx.beginPath(); ctx.arc(hx,hy, 4.6, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = "#6b4c1c"; ctx.lineWidth = 1.2; ctx.stroke();
+
+  function blade(bx, by, ba, len, wid){
+    ctx.save();
+    ctx.translate(bx,by); ctx.rotate(ba);
+    var wc = (p.weapon && p.weapon.col) || "#e8e4d0";
+    /* 刃身：横向渐变模拟受光面 */
+    var g2 = ctx.createLinearGradient(-wid,0,wid,0);
+    g2.addColorStop(0,"#7d7a6c");
+    g2.addColorStop(0.4, wc);
+    g2.addColorStop(0.6,"#ffffff");
+    g2.addColorStop(1,"#8e8a7a");
+    ctx.fillStyle = g2;
+    ctx.beginPath();
+    ctx.moveTo(-wid,0); ctx.lineTo(wid,0);
+    ctx.lineTo(wid*0.72,-len*0.84); ctx.lineTo(0,-len);
+    ctx.lineTo(-wid*0.72,-len*0.84); ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(30,26,18,.55)"; ctx.lineWidth = 1; ctx.stroke();
+    /* 刃脊 */
+    ctx.strokeStyle = "rgba(255,255,250,.95)"; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(0,-2); ctx.lineTo(0,-len*0.92); ctx.stroke();
+    /* 血槽 */
+    ctx.strokeStyle = "rgba(60,56,46,.45)"; ctx.lineWidth = 1.7;
+    ctx.beginPath(); ctx.moveTo(-wid*0.32,-6); ctx.lineTo(-wid*0.26,-len*0.7); ctx.stroke();
+    /* 护手 */
+    var hg = ctx.createLinearGradient(-wid*1.9,0,wid*1.9,0);
+    hg.addColorStop(0,"#4e3a14"); hg.addColorStop(0.5,"#e6c274"); hg.addColorStop(1,"#4e3a14");
+    ctx.fillStyle = hg;
+    ctx.fillRect(-wid*1.9, -3, wid*3.8, 7);
+    ctx.strokeStyle = "#2e220a"; ctx.lineWidth = 1; ctx.strokeRect(-wid*1.9,-3,wid*3.8,7);
+    /* 柄缠绳 */
+    ctx.strokeStyle = "#3f2c12"; ctx.lineWidth = 2.3;
+    for(var t=0;t<3;t++){
+      ctx.beginPath();
+      ctx.moveTo(-wid*0.72, 4+t*5.2); ctx.lineTo(wid*0.72, 2+t*5.2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  var wp = p.weapon || WEAPONS.short;
+  var ba = (p.facing>0) ? (Math.PI/2 + ang) : -(Math.PI/2 + ang);
+  blade(hx, hy, ba, wp.len, wp.w);
+  blade(bax, bay, ba+0.35, wp.len*0.8, wp.w*0.85);
+
+  /* 旋风斩：环绕刀轮 */
+  if(p.whirlT > 0){
+    var spin = p.whirlT * 30;
+    ctx.save();
+    ctx.translate(0, -95);
+    /* 环状光带 */
+    var ringG = ctx.createRadialGradient(0,0,58,0,0,132);
+    ringG.addColorStop(0,"rgba(255,240,190,0)");
+    ringG.addColorStop(0.55,"rgba(255,240,190,.22)");
+    ringG.addColorStop(0.8,"rgba(255,250,225,.42)");
+    ringG.addColorStop(1,"rgba(255,240,190,0)");
+    ctx.fillStyle = ringG;
+    ctx.beginPath(); ctx.arc(0,0,132,0,Math.PI*2); ctx.fill();
+    /* 六把刀 */
+    for(var b2=0;b2<6;b2++){
+      var aa2 = spin + b2*(Math.PI*2/6);
+      ctx.save();
+      ctx.rotate(aa2);
+      ctx.translate(96, 0);
+      ctx.rotate(Math.PI/2 + 0.25);
+      var g3 = ctx.createLinearGradient(0,0,0,-64);
+      g3.addColorStop(0,"rgba(140,132,116,1)");
+      g3.addColorStop(0.3,"rgba(255,246,214,1)");
+      g3.addColorStop(1,"rgba(255,255,250,1)");
+      ctx.fillStyle = g3;
+      ctx.beginPath();
+      ctx.moveTo(-9,0); ctx.lineTo(9,0); ctx.lineTo(6,-54); ctx.lineTo(0,-66); ctx.lineTo(-6,-54);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,250,.9)"; ctx.lineWidth = 1.4; ctx.stroke();
+      ctx.restore();
+    }
+    /* 内圈气流 */
+    ctx.strokeStyle = "rgba(255,250,220,.55)";
+    ctx.lineWidth = 3;
+    for(var s2=0;s2<3;s2++){
+      var a0 = spin*1.6 + s2*(Math.PI*2/3);
+      ctx.beginPath(); ctx.arc(0,0,64,a0,a0+1.5); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+/* 敌人：锈蚀的青铜面具兵 —— 纵目、大耳、獠牙 */
+function drawEnemy(e){
+  var s = e.scale;
+  var dead = e.state === "dead";
+  var hurt = e.hurtT > 0 && !dead;
+  var col  = dead ? "#5a6f62" : (hurt ? "#f5b4a4" : (e.kind==="boss" ? "#a8906a" : "#6f8f7e"));
+  var line = dead ? "#6f8578" : (hurt ? "#ffd6c8" : (e.kind==="boss" ? "#dcc48c" : "#9fb8a8"));
+
+  ctx.save();
+  ctx.translate(e.x, e.y);
+  if(dead){
+    ctx.globalAlpha = clamp(1 - e.deadT/0.9, 0, 1);
+    ctx.rotate(e.deadT * 1.4 * (e.vx>=0?1:-1));
+  }
+  if(e.state==="windup"){ ctx.translate(0, -6); }
+  ctx.scale(s, s);
+
+  ctx.save(); ctx.globalAlpha *= .35; ctx.fillStyle="#000";
+  ctx.beginPath(); ctx.ellipse(0,4,42,12,0,0,Math.PI*2); ctx.fill(); ctx.restore();
+
+  var bob = e.state==="walk" ? Math.sin(e.walk*2)*3 : 0;
+  var sw  = e.state==="walk" ? Math.sin(e.walk*2)*14 : 0;
+
+  /* 腿 */
+  ctx.strokeStyle = col; ctx.lineWidth = 13; ctx.lineCap="round";
+  ctx.beginPath(); ctx.moveTo(-10,-62+bob); ctx.lineTo(-10-sw,-8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo( 10,-62+bob); ctx.lineTo( 10+sw,-8); ctx.stroke();
+
+  /* 躯干（锈蚀、粗粝）*/
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(-20,-116+bob);
+  ctx.quadraticCurveTo(-28,-86+bob,-23,-52+bob);
+  ctx.lineTo(23,-52+bob);
+  ctx.quadraticCurveTo(28,-86+bob,20,-116+bob);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = line; ctx.lineWidth = 2.4; ctx.stroke();
+
+  /* 锈斑 */
+  ctx.save();
+  ctx.globalAlpha = .34;
+  ctx.fillStyle = hurt ? "#c86a54" : "#4a7a62";
+  for(var k=0;k<5;k++){
+    var rx = -14 + (k*11)%28, ry = -108 + (k*19)%54;
+    ctx.beginPath(); ctx.arc(rx, ry, 4+(k%3), 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+
+  /* ---- 头：锈蚀的纵目面具 ---- */
+  ctx.fillStyle = col;
+  /* 宽脸 */
+  ctx.beginPath();
+  ctx.ellipse(0,-136+bob, 24, 22, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = line; ctx.lineWidth = 2.4; ctx.stroke();
+
+  /* 大耳外张 */
+  ctx.beginPath(); ctx.ellipse(-26,-136+bob, 6, 17, -0.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse( 26,-136+bob, 6, 17,  0.2, 0, Math.PI*2); ctx.fill();
+
+  /* 纵目：凸出的圆柱眼 */
+  var glow = hurt ? "#ffffff" : "#ff7a4a";
+  ctx.fillStyle = "#3a3226";
+  ctx.beginPath(); ctx.ellipse(-8,-142+bob, 7, 7, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse( 8,-142+bob, 7, 7, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(-8,-142+bob, 3.4, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc( 8,-142+bob, 3.4, 0, Math.PI*2); ctx.fill();
+  /* 眼的光芒 */
+  ctx.save();
+  ctx.globalAlpha = .5;
+  ctx.shadowColor = glow; ctx.shadowBlur = 12;
+  ctx.beginPath(); ctx.arc(-8,-142+bob, 2.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc( 8,-142+bob, 2.2, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  /* 阔口 + 獠牙 */
+  ctx.strokeStyle = "#241d14"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-9,-124+bob); ctx.lineTo(9,-124+bob); ctx.stroke();
+  ctx.fillStyle = "#e8e0c8";
+  ctx.beginPath(); ctx.moveTo(-6,-124+bob); ctx.lineTo(-3,-118+bob); ctx.lineTo(0,-124+bob); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo( 0,-124+bob); ctx.lineTo( 3,-118+bob); ctx.lineTo( 6,-124+bob); ctx.closePath(); ctx.fill();
+
+  /* 长矛 */
+  ctx.save();
+  var sa = 0;
+  if(e.state==="windup") sa = -0.9 * (1 - e.t/(e.kind==="boss"?0.55:0.34));
+  if(e.state==="strike") sa = 0.75;
+  /* 握矛的手臂 */
+  ctx.strokeStyle = col; ctx.lineWidth = 10;
+  ctx.beginPath();
+  ctx.moveTo(e.facing*16, -104+bob);
+  ctx.lineTo(e.facing*44, -104+bob);
+  ctx.stroke();
+  ctx.translate(e.facing*22, -104+bob);
+  ctx.rotate(e.facing>0 ? sa : Math.PI - sa);
+  ctx.strokeStyle = "#8a7448"; ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.moveTo(-32,0); ctx.lineTo(96,0); ctx.stroke();
+  ctx.fillStyle = line;
+  ctx.beginPath(); ctx.moveTo(96,0); ctx.lineTo(126,-9); ctx.lineTo(126,9); ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  /* 蓄力警示 */
+  if(e.state==="windup"){
+    ctx.save();
+    ctx.globalAlpha = .5 + Math.sin(performance.now()/60)*0.22;
+    ctx.strokeStyle = "#ff9a6a"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(e.facing*30,-130+bob, 48, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+
+  /* 血条 */
+  if(!dead && e.maxHp > 1){
+    var bw = Math.max(40, e.w*0.72)/s;
+    var by = -(e.h/s) - 26;
+    ctx.fillStyle = "rgba(0,0,0,.62)";
+    ctx.fillRect(-bw/2-1.5, by-1.5, bw+3, 7);
+    ctx.fillStyle = e.kind==="boss" ? "#e0644a" : "#e8c87e";
+    ctx.fillRect(-bw/2, by, bw * clamp(e.hp/e.maxHp,0,1), 4);
+  }
+
+  ctx.restore();
+}
+
+/* 刀光 */
+function drawSlashes(){
+  for(var i=0;i<G.slashes.length;i++){
+    var s = G.slashes[i];
+    var t = 1 - s.life/s.max;
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.scale(s.facing, 1);
+    ctx.globalAlpha = (1-t)*0.92;
+    var r = s.big ? 118 : 92;
+    var a0 = -1.15 + t*1.5;
+    var a1 = a0 + (s.big ? 1.5 : 1.15);
+    var grd = ctx.createRadialGradient(0,0,r*0.55,0,0,r);
+    grd.addColorStop(0,"rgba(255,255,240,0)");
+    grd.addColorStop(0.6,"rgba(255,246,210,.85)");
+    grd.addColorStop(1,"rgba(255,220,150,0)");
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(0,0,r, a0, a1);
+    ctx.arc(0,0,r*0.5, a1, a0, true);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawParticles(){
+  for(var i=0;i<G.particles.length;i++){
+    var q = G.particles[i];
+    ctx.globalAlpha = clamp(q.life/q.max,0,1);
+    ctx.fillStyle = q.col;
+    ctx.fillRect(q.x-q.sz/2, q.y-q.sz/2, q.sz, q.sz);
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* 地上的武器 */
+function drawDrops(){
+  for(var i=0;i<G.drops.length;i++){
+    var d = G.drops[i];
+    var bob = Math.sin(d.bob)*5;
+    var blink = d.life < 4 ? (Math.floor(d.life*8)%2===0 ? 0.3 : 1) : 1;
+    ctx.save();
+    ctx.globalAlpha = blink;
+    ctx.translate(d.x, d.y - 26 + bob);
+    /* 光晕 */
+    var gr = ctx.createRadialGradient(0,0,2,0,0,44);
+    gr.addColorStop(0,"rgba(255,240,190,.34)");
+    gr.addColorStop(1,"rgba(255,240,190,0)");
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.arc(0,0,44,0,Math.PI*2); ctx.fill();
+    /* 武器图标 */
+    ctx.rotate(-0.5);
+    var wp = d.weapon;
+    var g2 = ctx.createLinearGradient(0,0,0,-wp.len*0.8);
+    g2.addColorStop(0,"rgba(110,106,96,1)");
+    g2.addColorStop(0.4,wp.col);
+    g2.addColorStop(1,"rgba(255,252,238,1)");
+    ctx.fillStyle = g2;
+    var L = wp.len*0.62, Wd = wp.w;
+    ctx.beginPath();
+    ctx.moveTo(-Wd,0); ctx.lineTo(Wd,0);
+    ctx.lineTo(Wd*0.7,-L*0.86); ctx.lineTo(0,-L);
+    ctx.lineTo(-Wd*0.7,-L*0.86); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle="rgba(255,255,245,.9)"; ctx.lineWidth=1.1; ctx.stroke();
+    ctx.fillStyle="#8a6a34";
+    ctx.fillRect(-Wd*1.5, -2, Wd*3, 5);
+    ctx.restore();
+
+    /* 名字 */
+    ctx.save();
+    ctx.globalAlpha = blink*0.85;
+    ctx.font = "600 15px 'Microsoft YaHei',sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#e8d9b4";
+    ctx.fillText(wp.name, d.x, d.y - 62);
+    ctx.restore();
+  }
+}
+
+/* 飘字 */
+function drawTexts(){
+  for(var i=0;i<G.texts.length;i++){
+    var t = G.texts[i];
+    ctx.save();
+    ctx.globalAlpha = clamp(t.life/t.max,0,1);
+    ctx.font = "700 22px 'Microsoft YaHei',sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ffd0a0";
+    ctx.shadowColor = "rgba(255,140,80,.9)";
+    ctx.shadowBlur = 14;
+    ctx.fillText(t.txt, t.x, t.y);
+    ctx.restore();
+  }
+}
+
+function render(){
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,W,H);
+
+  if(G.shake > 0) ctx.translate(rnd(-G.shake,G.shake), rnd(-G.shake,G.shake));
+
+  drawBG();
+
+  ctx.save();
+  ctx.translate(-G.camX, 0);
+
+  if(G.horse) {}
+  /* 掉落物（最底层） */
+  drawDrops();
+  /* 敌人 */
+  for(var i=0;i<G.enemies.length;i++) drawEnemy(G.enemies[i]);
+  if(G.p1) drawFighter(G.p1);
+  if(G.p2) drawFighter(G.p2);
+
+  drawSlashes();
+  drawParticles();
+  drawTexts();
+
+  ctx.restore();
+
+  /* 白光 */
+  if(G.flash > 0){
+    ctx.globalAlpha = clamp(G.flash*3,0,1);
+    ctx.fillStyle = "rgba(255,248,220,.4)";
+    ctx.fillRect(0,0,W,H);
+    ctx.globalAlpha = 1;
+  }
+
+  /* 暗角 */
+  var vg = ctx.createRadialGradient(W/2,H/2,340,W/2,H/2,1000);
+  vg.addColorStop(0,"rgba(0,0,0,0)");
+  vg.addColorStop(1,"rgba(0,0,0,.7)");
+  ctx.fillStyle = vg; ctx.fillRect(0,0,W,H);
+
+  /* 玩家阵亡标记 */
+  if(G.p1 && G.p1.dead){
+    ctx.fillStyle = "rgba(224,100,90,.9)";
+    ctx.font = "700 26px 'Microsoft YaHei',sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("玩家一倒下", 46, 130);
+  }
+  if(G.p2 && G.p2.dead){
+    ctx.fillStyle = "rgba(224,100,90,.9)";
+    ctx.font = "700 26px 'Microsoft YaHei',sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText("玩家二倒下", W-46, 130);
+  }
+}
+
+/* ---------------- 主循环 ---------------- */
+var lastT = 0;
+function loop(ts){
+  var dt = Math.min(0.045, (ts - lastT)/1000 || 0.016);
+  lastT = ts;
+  update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+
+buildHearts();
+syncHUD();
+requestAnimationFrame(loop);
+window.focus();
+document.addEventListener("click", function(){ ac(); }, { once:true });
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+# 忽略本地产物与馆方原始资料
+_materials/
+_shots/
+_archive/
+.playwright-mcp/
+
+# 系统
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# 编辑器
+.vscode/
+.idea/
+*.log
