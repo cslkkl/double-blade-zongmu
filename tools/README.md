@@ -95,7 +95,33 @@
 - 同样要先跑 `slice_anim_extra.py`：那三个新 clip 不在 `CLIPS` 主表里，重写后也不在数据文件里。
 - 清理范围是硬编码正则，新增角色动作（clip 名不在 9 个之内）时必须同步改 `slice_anim.py` 顶部的 `CHAR_FRAME_RE`，否则旧帧不会被清掉。
 
-## selftest_enemies.mjs — 敌人绘制自检
+## slice_weapon_assets.py — 武器素材一次性流水线
+
+- 做什么：一次跑完武器视觉的三类产物 —— 站立持械帧 / 出招姿态帧 / 武器专属特效（含打击材质火花），并把四个数据块就地写进 `js/anim-data.js`。
+- 何时跑：新增武器、重出持械或出招姿态、重出武器刀光时。
+- 输入（`sanxingdui-weapon/`）：
+  - `hold-extra.png` 4 格 → `short` / `blade` / `jar` / `bell` 的站立帧
+  - `atk-melee-a.png` 3 格 → `short` / `dagger` / `spear` 的出招姿态
+  - `atk-melee-b.png` 3 格 → `sword` / `axe` / `hammer`
+  - `atk-ranged.png` 4 格 → `bow` / `rock` / `blade` / `jar`
+  - `fx-melee-a.png` 3 件 → `wp-slash-short` / `-dagger` / `-spear`
+  - `fx-melee-b.png` 3 件 → `wp-slash-sword` / `-axe` / `-hammer`
+  - `fx-ranged.png` 3 件 → `wp-slash-bow` / `-rock` / `-burst`（`jar` 与 `bell` 共用 `burst`）
+  - `fx-hit-material.png` 4 格 → `hit-jade` / `hit-bronze` / `hit-blunt` / `hit-airy`
+- 输出：`assets/anim/hold-<key>.webp`、`assets/anim/atk-<key>.webp`、`assets/fx/*.webp`，并**追加 / 就地替换**四个数据块：`window.ANIM_HOLD`（只追加新键）、`window.WEAPON_ATTACK`、`window.WEAPON_FX`、`window.HIT_MATERIAL`。
+- **`scaleFix` 用腰带锚定，不用内容包围盒高**：出招姿态里武器尖端常高过头顶，包围盒高会把角色算成小人。腰带在腰上，任何姿态都够不到，`scaleFix = idle 腰带到脚底 ÷ 该格腰带到脚底`。同一张图的几格由同一次生图画出，比例一致，所以对同图做一致性校验（偏离中位数 > 6% 判误检并用中位数替换）。
+- `anchorX` 同样取腰带行的水平中心，不取包围盒中心 —— 挥砍时武器向一侧大幅伸出，包围盒中心会把人物站位整体带偏。
+- 幂等性：只替换自己那几个文件与那四个数据块，不碰 `window.ANIM` / `window.ENEMY_ANIM`，也不重算已有的 7 个 `hold` 键。
+- 门禁：写完数据文件跑 `node --check js/anim-data.js`，非 0 直接退出；末尾逐张打印洋红残留计数。
+- 验收：`node --check` 通过；腰带到脚底的屏幕长度与 idle 相差 ≤ 2%；洋红残留为 0 或个位数。
+
+## selftest_weapons.mjs — 武器视觉自检
+
+- 做什么：node + mock canvas 跑 `char-rig.js` 与 `fx.js`，校验三件事：每把武器都能拿到「站立帧 / 出招姿态 / 专属刀光」三件套；缺键时能逐级落回（动画 clip → 通用 slash-1..3 → 纯代码弧光）而不抛异常；`WEAPON_FX` 的 `file` 在磁盘上真实存在。
+- 何时跑：改 `char-rig.js`、`fx.js`、`anim-data.js` 的武器相关数据块，或新增武器后。
+- 输入：`js/anim-data.js`、`js/char-rig.js`、`js/fx.js`、`assets/` 目录。
+- 输出：stdout 报表；退出码 0 = 通过，1 = 有失败项。
+- 幂等性：纯只读，无副作用。
 
 - 做什么：node + mock canvas 跑 `enemies-assets.js`，校验对外契约、目标高度、宽高比、`anchorX` 水平对齐、脚底对齐、帧号定格、缓存有界、血条位置、`maxHp ≤ 1` 不画血条、BOSS 血条抬到 `1.6H`、朝向镜像、降级路径不抛异常。
 - 何时跑：改 `enemies-assets.js`、改 `anim-data.js`、改敌人参数后，每次都要跑。

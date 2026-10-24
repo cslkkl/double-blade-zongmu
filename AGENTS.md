@@ -26,6 +26,7 @@
 node tools/check-inline.mjs          # index.html 内联脚本语法
 node tools/selftest_enemies.mjs      # 敌人绘制自检（mock canvas，不开浏览器）
 node tools/selftest_audio.mjs        # 声音自检（mock Web Audio，不开浏览器）
+node tools/selftest_weapons.mjs      # 武器视觉自检（三件套覆盖 / 绘制分流 / 降级）
 Get-ChildItem js -Filter *.js | ForEach-Object { node --check $_.FullName }
 python <maintenance-flow>/check-markdown-links.py . --fragments
 ```
@@ -36,6 +37,7 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 |---|---|
 | `python tools/slice_anim.py` | 角色 9 动作 → `assets/anim/`（重写 `window.ANIM`） |
 | `python tools/slice_anim_extra.py` | 新增 3 动作 → `assets/anim/`（就地替换 / 追加三个 clip） |
+| `python tools/slice_weapon_assets.py` | 武器站立帧 / 出招姿态 / 专属特效 → `assets/anim/hold-*`、`atk-*`、`assets/fx/`（就地写 4 个数据块） |
 | `python tools/prep_interact.py` | 宝箱 / 机关 / 拾取物 → `assets/interact/` |
 | `python tools/prep_icons.py` | 武器 / 物品 / 界面图标 → `assets/icons/` |
 | `python tools/prep_fx.py` | 刀光 / 火花 / 旋风环 / 石块 |
@@ -47,10 +49,10 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 
 ## 验证快照
 
-- 2026-10-24（暂停 + 指南模块化 + 结算页手柄确认后）：`check-inline` 通过；`selftest_enemies` 0 失败；`selftest_audio` 0 失败；`node --check` 9/9 通过。
+- 2026-10-24（武器视觉 + 暂停 + 指南模块化 + 攻击/拾取分家后）：`check-inline` 通过；`selftest_enemies` 0 失败；`selftest_audio` 0 失败；`selftest_weapons` 0 失败；`node --check` 9/9 通过。
 - 暂停链路由 CDP 驱动本机 `file://` 页面实测：Esc 暂停 / 解冻、抽屉开着时 Esc 只收抽屉、暂停中切设备换图、R 重开、暂停页点击、非 play 阶段不响应，逐条断言通过。
-- 规模：`index.html` 约 3900 行；`js/` 9 个模块；`assets/` 127 个文件 3.69 MB。
-- 帧数：角色 12 个 clip 共 43 帧；敌人 4 类共 14 帧。
+- 规模：`index.html` 约 3900 行；`js/` 9 个模块；`assets/` 约 133 个文件（`assets/fx/` 13 张、`anim/` 71 张）。
+- 帧数：角色 12 个 clip 共 43 帧；敌人 4 类共 14 帧；武器站立帧 11 张、出招姿态 10 张。
 - 关卡：6 阵共 85 体。
 - 无 CI，以上为本机手工结果；改完代码重跑一遍再写结论。
 
@@ -62,6 +64,7 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 - [ ] `FX.drawHudPanel` 无调用方（`FX.drawWhirl` 已接进 `drawWhirlAsset`）。
 - [ ] 物品族图标长边占比 0.41~0.65，与 `prep_icons.py` 设定的 0.84 不符，重跑一次可对齐；重跑后要人眼确认六个物品的相对大小。
 - [ ] `slice_anim_extra.py` 写 `scaleFix: 1.0` 只是占位，需按内容高反算后手改（当前三个 clip 已是 0.914 / 0.867 / 0.754）。
+- [ ] 武器出招姿态目前是「一张图 + 由 `swingT` 推导的变换」，不是帧序列。多帧条带（`seq-<key>.png`）已经出图，切帧与 `WEAPON_ATTACK_CLIP` 接线待做 —— 四帧会让挥砍更顺，但要逐帧算 `anchorX`（挥砍时身体前后移）。
 
 ## 活跃坑
 
