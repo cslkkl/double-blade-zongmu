@@ -10,6 +10,12 @@
        { frames, fps, loop, w, h, anchorX, footY, files: [url, ...] }
      }
      window.IMG.pose0  ← window.ANIM 缺失（或帧图全部不可用）时的降级素材
+     window.ANIM_HOLD  ← 手持不同武器的单帧站立图（可选，缺省不影响老行为）：
+       { axe | hammer | sword | dagger | spear | bow | rock :
+         { w, h, anchorX, footY, scaleFix, file } }
+       只在「站定」这一档替换 idle；走/跳/攻击/受伤/旋风/死亡一律沿用动画。
+       键靠 p.weapon.key 实时查表、不缓存 —— 换手后下一帧就换图；
+       该武器没有持械帧 / 图还没就绪 → 落回 idle 动画，不白屏。
 
    降级：ANIM 不存在 / 该 clip 不存在 / 帧图全没加载完 → 回落到旧的
         「单张精灵 + 变换动画」，不报错、不白屏。
@@ -41,6 +47,11 @@
   /* ---------- 帧图缓存：clip -> [Image] ---------- */
   var frameCache = {};             // 只在 warm() 里建 Image，draw 热路径只读
   var warmed = false;
+
+  /* ---------- 持械站立帧缓存：weapon.key -> Image ---------- */
+  var holdCache = {};              // 只在 warmHold() 里建 Image，draw 热路径只读
+  var holdWarmed = false;          // 持械帧独立就位标记（ANIM 缺席也照样试着建）
+
   var pollTimer = 0;
   var pollTries = 0;
 
@@ -73,8 +84,39 @@
     return d;
   }
 
+  /* 持械站立：某把武器的静帧配置；该武器没有持械帧则返回 null */
+  function holdDef(key) {
+    if (!key) return null;
+    var H = window.ANIM_HOLD;
+    if (!H) return null;
+    var d = H[key];
+    if (!d || !d.file) return null;
+    return d;
+  }
+
+  /* 建所有持械帧的 Image（只执行一次；不放在 draw 热路径里）。
+     某个 key 缺失只跳过该 key，不影响其它 —— 逐张可用性由 imageOk 判。 */
+  function warmHold() {
+    if (holdWarmed) return true;
+    var H = window.ANIM_HOLD;
+    if (!H) return false;                       // 数据还没到：交给轮询，别标记已就位
+    holdWarmed = true;
+    if (typeof Image !== "function") return true;  // 非浏览器宿主：只留降级路径
+    for (var k in H) {
+      if (!Object.prototype.hasOwnProperty.call(H, k)) continue;
+      var d = H[k];
+      if (!d || !d.file) continue;
+      if (holdCache[k]) continue;
+      var im = new Image();
+      im.src = d.file;
+      holdCache[k] = im;
+    }
+    return true;
+  }
+
   /* 建立所有帧的 Image（只执行一次；不放在 draw 热路径里） */
   function warm() {
+    warmHold();                       // 持械帧自带 flag，ANIM 缺席也照建
     if (warmed) return;
     var A = animData();
     if (!A) return;
@@ -96,7 +138,7 @@
 
   /* anim-data.js 可能后于本文件就位：轻量轮询补一次预热 */
   function armPoll() {
-    if (warmed || pollTimer) return;
+    if ((warmed && holdWarmed) || pollTimer) return;
     if (typeof setTimeout !== "function") return;   // 非浏览器宿主：只做同步预热
     pollTries = 0;
     pollTimer = setTimeout(pollTick, 0);
@@ -104,7 +146,8 @@
 
   function pollTick() {
     pollTimer = 0;
-    if (animData()) { warm(); return; }
+    warm();                           // 内部含 warmHold()
+    if (warmed && holdWarmed) return;
     if (pollTries++ < 120) pollTimer = setTimeout(pollTick, 60);
   }
 
@@ -129,6 +172,9 @@
       return (f && clipDef(f)) ? f : "attack";
     }
     if (Math.abs(p.vx) > 60) return "walk";
+    /* 「站定」是唯一允许被持械静帧替换的一档（见 drawHold）：
+       它要求 dead / whirl / throw / hurt / pickup 全为 0、着地、没在挥砍，
+       所以走路绝不会被替换成站姿 —— 那会变成滑步。 */
     return "idle";
   }
 
@@ -353,8 +399,68 @@
   }
 
   /* ================================================================== */
-  /*  降级路径：单张精灵 + 变换动画（原实现）                           */
+  /*  持械站立：单帧静帧                                                 */
   /* ================================================================== */
+
+  /* 单帧，没有帧计时器，也没有帧号推导 —— 一张图就是全部。
+     其余（锚点 / 镜像 / 三种 alpha / 受击闪白）与 drawFrames 逐项对齐，
+     否则换武器那一刻的站立姿态会跟 idle 差一个像素级的位移或亮度。
+     返回 false = 「这张画不出来」，调用方落回 idle 动画。
+     weapon.key 每次现读，不缓存 —— equipBagSlot / stowWeapon 换手后
+     下一帧立刻换成新武器，不需要任何失效通知。 */
+  function drawHold(ctx, p, t) {
+    var def = holdDef(p.weapon && p.weapon.key);
+    if (!def) return false;                 // 该武器没有持械帧（fist/short/blade/jar/bell）
+    var img = holdCache[p.weapon.key];
+    if (!imageOk(img)) return false;        // 图还在加载 / 已失败 → 落回 idle 动画
+
+    var srcW = def.w > 0 ? def.w : (img.naturalWidth || 1);
+    var srcH = def.h > 0 ? def.h : (img.naturalHeight || 1);
+    var fix = (typeof def.scaleFix === "number") ? def.scaleFix : 1;
+    var sc = (TARGET_H / srcH) * fix;
+    var w = srcW * sc;
+    var h = srcH * sc;
+
+    var ax = typeof def.anchorX === "number" ? def.anchorX : 0.5;
+    var fy = typeof def.footY === "number" ? def.footY : 1.0;
+    var dx = -ax * w;
+    var dy = -fy * h;
+
+    /* 透明度：无敌闪烁 / 死亡淡出 / 前景遮挡淡出（p.__alphaMul） */
+    var alpha = 1;
+    if (p.dead) alpha = 0.5;
+    else if (p.inv > 0 && Math.floor(p.inv * 20) % 2 === 0) alpha = 0.55;
+    alpha *= alphaMul(p);
+
+    /* 持械帧同样推进 idle 的时钟：换回动画时 dt 不会因为静帧期间
+       一直没更新而突然变大（drawFrames 会把 >0.1 的 dt 截断，那会跳帧）。 */
+    stateOf(p).last = t;
+
+    drawShadow(ctx, p);
+
+    var color = (p.padTag || "") === "p1" ? "#ffcf6a" : "#6fd8c0";
+    var art = tintedFrame(img, "hold#" + p.weapon.key, 0, w, h, color, 0.10) || img;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(p.x, p.y);
+    ctx.scale(p.facing < 0 ? -1 : 1, 1);
+    ctx.drawImage(art, dx, dy, w, h);
+
+    /* 受击闪白（idle 态正常情况下 hurtT 已归零，留着与动画路径保持一致） */
+    if (p.hurtT > 0) {
+      var k = p.hurtT / 0.28;
+      if (k > 1) k = 1;
+      if (k > 0) {
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = 0.45 * k * alpha;
+        ctx.drawImage(img, dx, dy, w, h);
+        ctx.globalCompositeOperation = "source-over";
+      }
+    }
+    ctx.restore();
+    return true;
+  }
 
   function legacyTinted(img, color, amt) {
     var cacheKey = "p|" + color + "|" + amt;
@@ -516,6 +622,15 @@
     if (typeof t !== "number" || !isFinite(t)) t = 0;
 
     var name = resolveClip(p);
+    /* 持械站立：优先级插在 idle 之前、其余动作之后。
+       resolveClip 落到 "idle" 就等于「站定不动」（dead / whirl / throw / hurt /
+       pickup / 离地 / 挥砍 / 走路 都不返回 "idle"），所以走、跳、攻击、受伤、
+       旋风、死亡一律保持原动画，不会变成站姿滑步。
+       idle 帧整个缺失（name === null）时，只要状态本身还是 idle，持械帧照样顶用
+       —— 它不依赖 idle 的帧图。 */
+    var standing = (name === "idle") || (name === null && pickClip(p) === "idle");
+    if (standing && drawHold(ctx, p, t)) return;
+
     if (name && drawFrames(ctx, p, t, name)) return;
 
     drawLegacy(ctx, p, t);
@@ -530,6 +645,12 @@
       for (var i = 0; i < arr.length; i++) {
         if (imageOk(arr[i])) { anyReady = true; return true; }
       }
+    }
+
+    /* 持械帧也算「有图可画」：帧图整批失败时至少还能画出手里的那把武器 */
+    for (var h in holdCache) {
+      if (!Object.prototype.hasOwnProperty.call(holdCache, h)) continue;
+      if (imageOk(holdCache[h])) { anyReady = true; return true; }
     }
 
     var leg = window.IMG && window.IMG.pose0;

@@ -26,6 +26,8 @@
     modeBuilt: false,
     modeOpen: false,
     modeHandler: null,
+    modePick: "duo",        /* 手柄左右键高亮的那一项，Start 确认 */
+    padHooked: false,
 
     helpBuilt: false,
     helpOpen: false,
@@ -131,7 +133,8 @@
   will-change:transform;
 }
 .uis-modebtn:hover,
-.uis-modebtn:focus-visible{
+.uis-modebtn:focus-visible,
+.uis-modebtn.uis-pick{
   transform:translateY(-4px);
   border-color:var(--uis-gold-hi);
   background:linear-gradient(180deg,rgba(245,217,142,.16),rgba(217,180,94,.05));
@@ -150,7 +153,8 @@
   transition:color .24s ease,border-color .24s ease;
 }
 .uis-modebtn:hover .uis-modebtn-key,
-.uis-modebtn:focus-visible .uis-modebtn-key{
+.uis-modebtn:focus-visible .uis-modebtn-key,
+.uis-modebtn.uis-pick .uis-modebtn-key{
   color:var(--uis-gold-hi);border-color:rgba(245,217,142,.62);
 }
 .uis-mbtn-name{
@@ -161,7 +165,8 @@
   display:block;margin-top:10px;font-size:11.5px;letter-spacing:.16em;text-indent:.16em;
   color:#837969;
 }
-.uis-modebtn:hover .uis-mbtn-desc{color:#a99b82}
+.uis-modebtn:hover .uis-mbtn-desc,
+.uis-modebtn.uis-pick .uis-mbtn-desc{color:#a99b82}
 
 .uis-modefoot{
   margin-top:26px;font-size:10.5px;letter-spacing:.24em;text-indent:.24em;
@@ -327,7 +332,7 @@
   .uis-mode,.uis-card,.uis-modebtn,.uis-help-panel,.uis-help-scrim,.uis-pickup{
     transition-duration:.01ms !important;
   }
-  .uis-modebtn:hover,.uis-modebtn:focus-visible{transform:none}
+  .uis-modebtn:hover,.uis-modebtn:focus-visible,.uis-modebtn.uis-pick{transform:none}
   .uis-help-close:hover{transform:none}
 }
 `;
@@ -446,7 +451,87 @@
   function installKeyHook() {
     if (S.hookInstalled) return;
     global.addEventListener("keydown", onKeyDown, false);
+    installPadHook();
     S.hookInstalled = true;
+  }
+
+  /* =======================================================================
+     手柄：模式选择页必须能用面键选，否则插着手柄的人卡在第一屏。
+     A（0）选单人，B（1）选双人，X（2）/ Y（3）也能选（单人 / 双人各一个），
+     左摇杆左右或十字键左右切换高亮，Start（9）确认高亮项。
+     只在模式页 / 按键抽屉打开时轮询，其余时间不占帧。
+     ======================================================================= */
+  var padPrev = {};
+
+  function padBtn(gp, i) {
+    var b = gp.buttons && gp.buttons[i];
+    return !!(b && (b.pressed || b.value > 0.5));
+  }
+
+  function padEdge(key, on) {
+    if (on && !padPrev[key]) { padPrev[key] = true; return true; }
+    if (!on) padPrev[key] = false;
+    return false;
+  }
+
+  function padFrame() {
+    var wantPad = S.modeOpen || S.helpOpen;
+    if (!wantPad) {
+      /* 不打开时只清标记，避免残留状态让下一次变成「已按下」 */
+      padPrev = {};
+      return;
+    }
+
+    var nav = global.navigator;
+    if (!nav || typeof nav.getGamepads !== "function") return;
+    var list = nav.getGamepads() || [];
+    var gp = null;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && list[i].connected) { gp = list[i]; break; }
+    }
+    if (!gp) {
+      if (!gp && !list.length) { /* 没有手柄 */ }
+      var any = null;
+      for (var j = 0; j < list.length; j++) { if (list[j]) { any = list[j]; break; } }
+      gp = any;
+      if (!gp) return;
+    }
+
+    var ax = (gp.axes && gp.axes[0]) || 0;
+    var leftOn = ax < -0.5 || padBtn(gp, 14);
+    var rightOn = ax > 0.5 || padBtn(gp, 15);
+
+    if (S.modeOpen) {
+      if (padEdge("m_a", padBtn(gp, 0)) || padEdge("m_x", padBtn(gp, 2))) { chooseMode("solo"); return; }
+      if (padEdge("m_b", padBtn(gp, 1)) || padEdge("m_y", padBtn(gp, 3))) { chooseMode("duo"); return; }
+      if (padEdge("m_start", padBtn(gp, 9))) { chooseMode(S.modePick || "duo"); return; }
+      if (padEdge("m_left", leftOn)) { setModePick("solo"); }
+      if (padEdge("m_right", rightOn)) { setModePick("duo"); }
+      return;
+    }
+
+    if (S.helpOpen) {
+      if (padEdge("h_b", padBtn(gp, 1)) || padEdge("h_start", padBtn(gp, 9)) || padEdge("h_y", padBtn(gp, 3))) {
+        toggleKeyHelp();
+      }
+    }
+  }
+
+  function installPadHook() {
+    if (S.padHooked) return;
+    var tick = function () {
+      /* 手柄异常不能拖垮游戏，但也不能吞掉 —— 首次报错打到控制台，便于定位 */
+      try {
+        padFrame();
+      } catch (e) {
+        if (!S.padErrShown) { S.padErrShown = true; if (global.console) global.console.warn("padFrame:", e && e.message); }
+      }
+      global.requestAnimationFrame(tick);
+    };
+    if (typeof global.requestAnimationFrame === "function") {
+      global.requestAnimationFrame(tick);
+      S.padHooked = true;
+    }
   }
 
   /* =======================================================================
@@ -592,6 +677,17 @@
     blurInside();
   }
 
+  /* 手柄左右键切换高亮项：给按钮挂 .uis-pick，样式复用 hover */
+  function setModePick(mode) {
+    S.modePick = mode;
+    if (!doc) return;
+    var nodes = doc.querySelectorAll(".uis-modebtn");
+    for (var i = 0; i < nodes.length; i++) {
+      var on = nodes[i].getAttribute("data-mode") === mode;
+      nodes[i].classList.toggle("uis-pick", on);
+    }
+  }
+
   function chooseMode(mode) {
     if (!S.modeOpen) return;
     var fn = S.modeHandler;
@@ -607,20 +703,35 @@
   var KEY_ROWS = [
     { act: "移动",   cells: [[{ k: "A" }, { k: "D" }],
                              [{ k: "←" }, { k: "→" }]] },
-    { act: "跳跃",   cells: [[{ k: "W" }],
-                             [{ k: "↑" }]] },
-    { act: "攻击",   cells: [[{ k: "F" }, { o: "/" }, { k: "J" }],
+    { act: "跳跃",   cells: [[{ k: "W" }, { o: "/" }, { k: "空格" , mini: true }],
+                             [{ k: "↑" }, { o: "/" }, { k: "右Shift", mini: true }]] },
+    { act: "普通攻击", cells: [[{ k: "F" }, { o: "/" }, { k: "J" }],
                              [{ k: "/" }, { o: "/" }, { k: "小键盘 0", mini: true }]] },
+    { act: "拾取 / 开箱", cells: [[{ k: "F" }, { o: "/" }, { k: "J" }],
+                             [{ k: "/" }, { o: "/" }, { k: "小键盘 0", mini: true }]] },
+    { act: "换武器格", cells: [[{ k: "Q" }, { o: "/" }, { k: "Tab", mini: true }],
+                             [{ k: "," }, { o: "/" }, { k: "\\", mini: true }]] },
+    { act: "丢弃",   cells: [[{ k: "E" }], [{ k: "." }]] },
+    { act: "递给队友", cells: [[{ k: "R" }], [{ k: "'" }]] },
     { act: "旋风斩", cells: [WHIRL, WHIRL] }
   ];
 
+  /* 面键分工定死：A 挥刀 / X 跳 / B 技能 / Y 拾取。
+     Xbox 与 PS 编号相同、刻字不同，两列并排写。 */
+  function face(xbox, ps) {
+    return [{ k: xbox, pad: true }, { t: "（Xbox）", dim: true }, { o: "/" },
+            { k: ps, pad: true }, { t: "（PS）", dim: true }];
+  }
+
   var PAD_ROWS = [
-    { act: "移动",   cells: [[{ k: "左摇杆", pad: true }, { o: "/" }, { k: "十字键", pad: true }]] },
-    { act: "跳跃",   cells: [[{ k: "A", pad: true }, { t: "（Xbox）", dim: true }, { o: "/" },
-                              { k: "×", pad: true }, { t: "（PS）", dim: true }]] },
-    { act: "攻击",   cells: [[{ k: "X", pad: true }, { t: "（Xbox）", dim: true }, { o: "/" },
-                              { k: "□", pad: true }, { t: "（PS）", dim: true }]] },
-    { act: "旋风斩", cells: [WHIRL] }
+    { act: "移动",   cells: [[{ k: "左摇杆", pad: true }, { o: "/" }, { k: "十字键左右", pad: true }]] },
+    { act: "普通攻击", cells: [face("A", "×")] },
+    { act: "跳跃",   cells: [face("X", "□")] },
+    { act: "技能",   cells: [face("B", "○")] },
+    { act: "拾取 / 开箱", cells: [face("Y", "△")] },
+    { act: "换武器格", cells: [[{ k: "LB", pad: true }, { o: "/" }, { k: "RB", pad: true }]] },
+    { act: "丢弃",   cells: [[{ k: "十字下", pad: true }]] },
+    { act: "递给队友", cells: [[{ k: "十字上", pad: true }]] }
   ];
 
   var TIPS = [
@@ -924,4 +1035,9 @@
     }
   };
 
+  /* 手柄轮询与游戏循环无关：模块一加载就挂上，否则插着手柄的人
+     在模式页还没被任何 UIShell 方法触发时按面键毫无反应。
+     padFrame 内部用 S.modeOpen / S.helpOpen 判断要不要真正处理。 */
+  installKeyHook();
+  installPadHook();
 })(window, document);
