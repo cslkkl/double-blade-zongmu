@@ -584,6 +584,11 @@ function imgReady(name){
 /* ---------------- 输入 ---------------- */
 var KEYS = {};
 window.addEventListener("keydown", function(e){
+  /* 带修饰键的组合一律不接管：Ctrl+R 是浏览器刷新、Cmd+R 是重载、
+     Alt+← 是后退 —— 这些键在游戏里都绑了东西（R 重开），不挡就会出现
+     「按 Ctrl+R 想刷新，结果先重开一局再刷新」。js/audio.js 的 M 键
+     早就查了修饰键，这里是同一个口径。 */
+  if(e.ctrlKey || e.metaKey || e.altKey) return;
   if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].indexOf(e.key)>=0) e.preventDefault();
   if(!KEYS[e.code]) KEYS[e.code+"_p"] = true;
   KEYS[e.code] = true;
@@ -632,10 +637,23 @@ window.addEventListener("keyup", function(e){
   }
 });
 /* 失焦 / 切标签页：键位状态全清，否则会一直以为玩家按着跳过键 */
+/* 失焦 / 切标签页 / 锁屏：按键状态必须全清。
+   不清的话，按住 D 切窗口再回来，角色会自己一直往右走 ——
+   因为 keyup 事件在窗口失焦时根本收不到，KEYS["KeyD"] 永远是 true。
+   这条注释以前就写着「全清」，但实际只清了短片那三个变量。 */
 window.addEventListener("blur", function(){
   introKeyDownAt = 0;
   introHoldT = 0;
   introSetHoldUI(false, 0);
+  /* 所有键位状态 + 所有「按下瞬间」标记 */
+  for(var k in KEYS){ KEYS[k] = false; }
+  /* 手柄的按下沿也要清：失焦期间 padPrev 里留着的 true 会让回来后的
+     第一帧就冒出一个假边沿（比如当场挥一刀）。 */
+  stopPadEdge();
+  /* 触屏的手指状态同理（pointerup 在切 App 时也会丢） */
+  if(window.Touch && Touch.clearAll) Touch.clearAll();
+  /* 回来后的短暂沉默：与解冻暂停同一条闸，避免「按 Alt+Tab 回来顺手砍一刀」 */
+  if(typeof G !== "undefined" && G.phase === "play") G.resumeGrace = 0.18;
 });
 
 var PADS = [null,null];

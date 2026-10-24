@@ -896,8 +896,14 @@
     var n = def.files.length;
     if (n <= 0) return false;
 
-    /* 帧号由位移推导（见 WALK_CYCLE 的说明），不按时间自由播放 */
-    var phase = (p.walk || 0) / WALK_CYCLE * n;
+    /* 帧号由位移推导（见 WALK_CYCLE 的说明），不按时间自由播放。
+
+       WALK_CYCLE 是按「4 帧一轮」校准的（3.6 单位位移 = 4 帧）。序列只有 3 帧时
+       不能照搬：一循环的位移还是 3.6、但只翻 3 帧，步频会慢 25%（实测斧头从
+       12.6 帧/秒掉到 9.4），看起来像在滑步。所以按帧数等比缩放周期：
+       每帧固定覆盖 WALK_CYCLE/4 的位移，与帧数无关。 */
+    var cycle = WALK_CYCLE * n / 4;
+    var phase = (p.walk || 0) / cycle * n;
     var idx = Math.floor(phase) % n;
     if (idx < 0) idx = 0;
 
@@ -973,8 +979,11 @@
     if (n <= 1) return 0;
     var idx = 0;
     if (state === "walk") {
-      /* 一个 4 帧循环 = WALK_CYCLE 单位 walk 位移，与 walkClipDef 的旧路径同源 */
-      idx = Math.floor((p.walk || 0) / WALK_CYCLE * n);
+      /* 每帧固定覆盖 WALK_CYCLE/4 的位移，与帧数无关 —— 3 帧序列（斧头）
+         照搬 4 帧的周期会让步频慢 25%，读起来像滑步。
+         与 drawWalkFrames 用同一个口径。 */
+      var cycle = WALK_CYCLE * n / 4;
+      idx = Math.floor((p.walk || 0) / cycle * n);
     } else if (state === "attack") {
       idx = attackFrame(p, n);
       if (idx < 0) idx = 0;
