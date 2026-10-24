@@ -16,45 +16,73 @@
   #hud{position:absolute;inset:0;pointer-events:none}
 
   /* --- 玩家血条 --- */
-  .pbar{position:absolute;top:26px;width:340px}
-  .pbar.p1{left:40px}
-  .pbar.p2{right:40px;text-align:right}
-  .pname{font-size:12px;letter-spacing:.32em;color:#8a7a5c;margin-bottom:8px}
-  .pname em{font-style:normal;color:#e8c87e;font-size:15px;letter-spacing:.14em}
-  .hpwrap{display:flex;gap:7px}
-  .pbar.p2 .hpwrap{justify-content:flex-end}
-  .hp{width:44px;height:16px;border:1px solid rgba(200,168,102,.5);border-radius:2px;
-    background:rgba(0,0,0,.45);transition:.15s;position:relative;overflow:hidden}
-  .hp.on{background:linear-gradient(180deg,#f0d68e,#b0903f);border-color:#f0d68e;
-    box-shadow:0 0 12px rgba(240,214,142,.5)}
+  .pbar{position:absolute;top:22px;width:352px;padding:12px 16px 13px;
+    background:linear-gradient(180deg,rgba(18,14,8,.86),rgba(18,14,8,.62));
+    border:1px solid rgba(217,180,94,.42);border-radius:4px;
+    box-shadow:0 3px 18px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,232,170,.10)}
+  .pbar.p1{left:28px}
+  .pbar.p2{right:28px;text-align:right}
+  /* 单人模式：玩家二 HUD 整块收起 */
+  .solo .pbar.p2{display:none}
+  .pbar::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;
+    background:linear-gradient(90deg,transparent,rgba(217,180,94,.85),transparent)}
+  .pname{font-size:11.5px;letter-spacing:.30em;color:#a89873;margin-bottom:9px;
+    text-shadow:0 1px 3px rgba(0,0,0,.9)}
+  .pname em{font-style:normal;color:#f5d98e;font-size:15px;letter-spacing:.12em;
+    text-shadow:0 0 14px rgba(245,217,142,.55),0 1px 3px rgba(0,0,0,.95)}
+  .hpwrap{display:block}
+  /* 连续血条：一整条，不分格 */
+  .hpbar{position:relative;width:100%;height:18px;border-radius:3px;overflow:hidden;
+    background:linear-gradient(180deg,rgba(0,0,0,.82),rgba(0,0,0,.55));
+    border:1px solid rgba(122,96,40,.95);
+    box-shadow:inset 0 2px 5px rgba(0,0,0,.9),inset 0 -1px 0 rgba(255,232,170,.07)}
+  .hpbar i{display:block;height:100%;width:100%;border-radius:2px;
+    background:linear-gradient(180deg,#fff6d0,#e8bd5c 38%,#b8862e 72%,#8a6120);
+    box-shadow:0 0 14px rgba(255,214,130,.6),inset 0 1px 0 rgba(255,255,240,.85);
+    transition:width .22s cubic-bezier(.22,.9,.3,1),background .2s}
+  /* 低血：变红并脉动 */
+  .hpbar.low i{background:linear-gradient(180deg,#ffd3c0,#e0603f 40%,#a8301c 78%,#7a1d10);
+    box-shadow:0 0 18px rgba(255,90,60,.85),inset 0 1px 0 rgba(255,220,200,.8);
+    animation:hplow .7s infinite}
+  @keyframes hplow{0%,100%{opacity:1}50%{opacity:.72}}
 
   /* 武器 + 能量 */
-  .wpn{display:flex;align-items:center;gap:12px;margin-top:10px}
+  .wpn{display:flex;align-items:center;gap:10px;margin-top:11px}
   .wpn.right{justify-content:flex-end}
-  .wname{font-size:12px;letter-spacing:.14em;color:#c9b578;
-    border:1px solid rgba(200,168,102,.32);border-radius:3px;padding:2px 10px;background:rgba(200,168,102,.07)}
-  .wenergy{display:block;width:120px;height:6px;border-radius:999px;
-    background:rgba(0,0,0,.55);border:1px solid rgba(200,168,102,.28);overflow:hidden}
+  .wname{font-size:11.5px;letter-spacing:.13em;color:#f0d99c;
+    border:1px solid rgba(217,180,94,.55);border-radius:3px;padding:3px 11px;
+    background:rgba(217,180,94,.14);text-shadow:0 1px 3px rgba(0,0,0,.9);
+    box-shadow:inset 0 1px 0 rgba(255,240,190,.18)}
+  .wenergy{display:block;width:126px;height:7px;border-radius:999px;
+    background:rgba(0,0,0,.75);border:1px solid rgba(122,96,40,.9);overflow:hidden;
+    box-shadow:inset 0 1px 3px rgba(0,0,0,.9)}
   .wenergy i{display:block;height:100%;width:0%;border-radius:999px;
-    background:linear-gradient(90deg,#8a6a2e,#f0d68e);transition:width .16s}
-  .wenergy.full i{background:linear-gradient(90deg,#ffe9a8,#fff6d8);box-shadow:0 0 12px rgba(255,240,190,.9)}
+    background:linear-gradient(90deg,#7a5a1e,#e8c26a,#fff0bc);transition:width .16s}
+  .wenergy.full i{background:linear-gradient(90deg,#ffe9a8,#fff8e0);box-shadow:0 0 14px rgba(255,240,190,1)}
   .wenergy.full{animation:epp 0.9s infinite}
-  @keyframes epp{0%,100%{box-shadow:0 0 0 rgba(255,235,170,0)}
-    50%{box-shadow:0 0 16px rgba(255,235,170,.85)}}
+  @keyframes epp{0%,100%{box-shadow:inset 0 1px 3px rgba(0,0,0,.9)}
+    50%{box-shadow:0 0 18px rgba(255,235,170,.95)}}
 
   /* --- 中央信息 --- */
-  #center{position:absolute;left:50%;top:24px;transform:translateX(-50%);text-align:center}
-  #combo{font-size:15px;letter-spacing:.2em;color:#f5e0a8;height:22px;
-    text-shadow:0 0 18px rgba(245,224,168,.9);font-weight:700}
-  #wave{font-size:11.5px;letter-spacing:.34em;color:#6a6152;margin-top:4px}
+  #center{position:absolute;left:50%;top:22px;transform:translateX(-50%);text-align:center;
+    padding:6px 22px;border-radius:3px;
+    background:linear-gradient(180deg,rgba(18,14,8,.78),rgba(18,14,8,.42))}
+  #combo{font-size:17px;letter-spacing:.18em;color:#ffe9b0;height:24px;
+    text-shadow:0 0 20px rgba(255,220,140,1),0 2px 4px rgba(0,0,0,.95);font-weight:700}
+  #wave{font-size:11.5px;letter-spacing:.32em;color:#c4b087;margin-top:3px;
+    text-shadow:0 1px 3px rgba(0,0,0,.95)}
 
   /* --- 底部提示 --- */
-  #keys{position:absolute;left:40px;bottom:26px;font-size:11px;letter-spacing:.06em;
-    color:#4a4336;line-height:1.9}
-  #keys b{color:#9a8a68;font-weight:500}
-  #pad{position:absolute;right:40px;bottom:26px;font-size:11px;letter-spacing:.08em;
-    color:#4a4336;text-align:right;line-height:1.9}
-  #pad b{color:#8fbf7a;font-weight:500}
+  #keys{position:absolute;left:28px;bottom:22px;font-size:11px;letter-spacing:.05em;
+    color:#b6a883;line-height:1.9;padding:9px 14px;border-radius:3px;
+    background:rgba(14,11,7,.66);border:1px solid rgba(217,180,94,.22);
+    text-shadow:0 1px 3px rgba(0,0,0,.95)}
+  #keys b{color:#f0d99c;font-weight:600}
+  #pad{position:absolute;right:28px;bottom:22px;font-size:11px;letter-spacing:.06em;
+    color:#b6a883;text-align:right;line-height:1.9;padding:9px 14px;border-radius:3px;
+    background:rgba(14,11,7,.66);border:1px solid rgba(217,180,94,.22);
+    text-shadow:0 1px 3px rgba(0,0,0,.95)}
+  #pad b{color:#9ede84;font-weight:600}
 
   /* --- 覆盖层 --- */
   .ov{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
@@ -119,10 +147,10 @@
       <div id="wave">第 1 阵</div>
     </div>
     <div id="keys">
-      <b>玩家一</b> A D 走 · W 跳 · J 挥刀（连按三连）<br>
-      <b>玩家二</b> ← → 走 · ↑ 跳 · K 挥刀
+      <b>玩家一</b> A D 走 · W/空格 跳 · F/J 挥刀（连按三连）<br>
+      <b>玩家二</b> ← → 走 · ↑/右Shift 跳 · / 或小键盘0 挥刀
     </div>
-    <div id="pad">手柄：左摇杆走 · A 跳 · X / □ 挥刀</div>
+    <div id="pad">手柄：左摇杆走 · A 跳 · X / □ 挥刀 · <b>H 看完整键位</b></div>
   </div>
 
   <div id="banner"><div class="b1" id="b1"></div><div class="b2" id="b2"></div></div>
@@ -142,14 +170,14 @@
       <div class="cl">
         <h4>玩家一</h4>
         <div class="row"><span>A D</span>左右移动</div>
-        <div class="row"><span>W</span>跳起</div>
-        <div class="row"><span>J</span>挥刀 · 连按三连</div>
+        <div class="row"><span>W / 空格</span>跳起</div>
+        <div class="row"><span>F / J</span>挥刀 · 连按三连</div>
       </div>
       <div class="cl">
         <h4>玩家二</h4>
         <div class="row"><span>← →</span>左右移动</div>
-        <div class="row"><span>↑</span>跳起</div>
-        <div class="row"><span>K</span>挥刀 · 连按三连</div>
+        <div class="row"><span>↑ / 右Shift</span>跳起</div>
+        <div class="row"><span>/ 或小键盘0</span>挥刀 · 连按三连</div>
       </div>
       <div class="cl">
         <h4>手柄</h4>
@@ -158,7 +186,7 @@
         <div class="row"><span>X / □</span>挥刀</div>
       </div>
     </div>
-    <div class="go" id="btnStart"><span class="blink">●</span> 按任意键开打</div>
+    <div class="go" id="btnStart"><span class="blink">●</span> 选择模式 · 开打</div>
   </div>
 
   <!-- 过关 -->
@@ -198,6 +226,13 @@
   </div>
 </div></div>
 
+<script src="js/assets.js"></script>
+<script src="js/anim-data.js"></script>
+<script src="js/background.js"></script>
+<script src="js/char-rig.js"></script>
+<script src="js/enemies-assets.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/ui-shell.js"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -265,6 +300,14 @@ function rnd(a,b){ return a+Math.random()*(b-a); }
 function rectHit(a,b){
   return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
 }
+/* 素材就绪判定（廉价，只读缓存字段）：加载中 / 加载失败都算「没图」，走纯代码降级 */
+function imgReady(name){
+  var img = window.IMG && window.IMG[name];
+  if(!img) return false;
+  if(img.complete === false) return false;
+  if(typeof img.naturalWidth === "number" && img.naturalWidth <= 0) return false;
+  return true;
+}
 
 /* ---------------- 输入 ---------------- */
 var KEYS = {};
@@ -273,14 +316,10 @@ window.addEventListener("keydown", function(e){
   if(!KEYS[e.code]) KEYS[e.code+"_p"] = true;
   KEYS[e.code] = true;
   ac();
-  if(G.phase==="title") startGame();
+  if(G.phase==="title") openModeSelect();      /* 标题阶段：改开模式选择页，不再直接开打 */
   else if(G.phase==="win") restartAll();
 });
 window.addEventListener("keyup", function(e){ KEYS[e.code] = false; });
-function keyPressed(code){
-  if(KEYS[code+"_p"]){ KEYS[code+"_p"] = false; return true; }
-  return false;
-}
 
 var PADS = [null,null];
 function scanPads(){
@@ -291,8 +330,7 @@ function scanPads(){
   PADS[1] = list[1]||null;
   var el = document.getElementById("pad");
   if(list.length){
-    el.innerHTML = '手柄已连接 ×'+list.length+' · 左摇杆走 · A 跳 · X/□ 挥刀';
-    el.style.color = "#7fa86f";
+    el.innerHTML = '手柄已连接 ×'+list.length+' · 左摇杆走 · A 跳 · X/□ 挥刀';    el.style.color = "#7fa86f";
   } else {
     el.innerHTML = '手柄：左摇杆走 · A 跳 · X / □ 挥刀';
     el.style.color = "#4a4336";
@@ -313,18 +351,35 @@ function readPad(p, tag){
   };
 }
 
-/* ---------------- 武器 ---------------- */
+/* ---------------- 武器 ----------------
+   类型：fist 空手 / melee 近战 / bow 弓箭（直线） / throw 投掷（抛物线） */
 var WEAPONS = {
-  short:  { name:"短剑", dmg:1, dur:40, reach:170, swing:0.20, col:"#e8e4d0", w:7,  len:62 },
-  dagger: { name:"匕首", dmg:1, dur:14, reach:142, swing:0.13, col:"#d4dce4", w:6,  len:48 },
-  sword:  { name:"长剑", dmg:2, dur:12, reach:200, swing:0.24, col:"#eef1f7", w:8,  len:80 },
-  hammer: { name:"石锤", dmg:3, dur:7,  reach:214, swing:0.40, col:"#b0a088", w:15, len:66 },
-  rock:   { name:"石块", dmg:3, dur:1,  reach:200, swing:0.30, col:"#8e8474", w:13, len:40 }
+  fist:   { name:"空手",   type:"fist",  dmg:0.5, dur:999, reach:96,  swing:0.26, col:"#c9b78c", w:0,  len:0  },
+  short:  { name:"玉璋刃", type:"melee", dmg:1,   dur:40,  reach:175, swing:0.20, col:"#e8e4d0", w:7,  len:62 },
+  dagger: { name:"骨牙匕", type:"melee", dmg:1,   dur:16,  reach:145, swing:0.13, col:"#d4dce4", w:6,  len:48 },
+  sword:  { name:"青铜剑", type:"melee", dmg:2,   dur:14,  reach:205, swing:0.24, col:"#eef1f7", w:8,  len:80 },
+  axe:    { name:"青铜钺", type:"melee", dmg:3,   dur:11,  reach:185, swing:0.30, col:"#c8b89a", w:12, len:56 },
+  hammer: { name:"神树锤", type:"melee", dmg:4,   dur:8,   reach:220, swing:0.40, col:"#b0a088", w:15, len:66 },
+  spear:  { name:"三枝叉", type:"melee", dmg:3,   dur:16,  reach:238, swing:0.18, col:"#dfe6ee", w:6,  len:96 },
+  bow:    { name:"神鸟弓", type:"bow",   dmg:2,   dur:12,  reach:0,   swing:0.34, col:"#b08a4a", w:6,  len:52 },
+  rock:   { name:"眼形石", type:"throw", dmg:3,   dur:3,   reach:0,   swing:0.32, col:"#8e8474", w:13, len:40 }
 };
 function newWeapon(key){
   var d = WEAPONS[key];
-  return { key:key, name:d.name, dmg:d.dmg, dur:d.dur, max:d.dur,
+  return { key:key, name:d.name, type:d.type, dmg:d.dmg, dur:d.dur, max:d.dur,
            reach:d.reach, swing:d.swing, col:d.col, w:d.w, len:d.len };
+}
+
+/* ---------------- 键位（支持多个绑定） ---------------- */
+function keyDown(codes){
+  for(var i=0;i<codes.length;i++){ if(KEYS[codes[i]]) return true; }
+  return false;
+}
+function keyPressed(codes){
+  for(var i=0;i<codes.length;i++){
+    if(KEYS[codes[i]+"_p"]){ KEYS[codes[i]+"_p"] = false; return true; }
+  }
+  return false;
 }
 
 /* ---------------- 玩家 ---------------- */
@@ -346,6 +401,7 @@ function Player(x, facing, keys, padTag){
   this.whirlTick = 0;
   this.weapon = newWeapon("short");
   this.pickLock = 0;
+  this.throwT = 0;          // 投掷/拉弓动作
 }
 Player.prototype.rect = function(){
   return { x:this.x-30, y:this.y-150, w:60, h:150 };
@@ -377,7 +433,7 @@ Enemy.prototype.rect = function(){
 var G = {
   phase:"title",
   p1:null, p2:null,
-  enemies:[], particles:[], slashes:[], drops:[], texts:[],
+  enemies:[], particles:[], slashes:[], drops:[], texts:[], projectiles:[], hits:[],
   camX:0, shake:0, hitstop:0, flash:0,
   waveIdx:0, waves:[],
   spawnQueue:[], spawnTimer:0,
@@ -396,10 +452,14 @@ function buildWaves(){
   ];
 }
 
-function startGame(){
-  G.p1 = new Player(560,  1, {l:"KeyA",r:"KeyD",j:"KeyW",a:"KeyJ"}, "p1");
-  G.p2 = new Player(700, -1, {l:"ArrowLeft",r:"ArrowRight",j:"ArrowUp",a:"KeyK"}, "p2");
-  G.enemies = []; G.particles = []; G.slashes = []; G.drops = []; G.texts = [];
+function startGame(mode){
+  G.mode = mode || G.mode || "duo";
+  G.p1 = new Player(560, 1,
+    {l:["KeyA"], r:["KeyD"], j:["KeyW","Space"], a:["KeyF","KeyJ"]}, "p1");
+  G.p2 = (G.mode === "solo") ? null
+       : new Player(700, -1,
+           {l:["ArrowLeft"], r:["ArrowRight"], j:["ArrowUp","ShiftRight"], a:["Slash","Numpad0","KeyK"]}, "p2");
+  G.enemies = []; G.particles = []; G.slashes = []; G.drops = []; G.texts = []; G.projectiles = []; G.hits = [];
   G.waves = buildWaves();
   G.waveIdx = 0;
   G.combo = 0; G.comboT = 0; G.maxCombo = 0;
@@ -407,6 +467,8 @@ function startGame(){
   G.camX = 0;
   G.phase = "play";
   hideOv();
+  document.body.classList.toggle("solo", G.mode === "solo");
+  hidePickupHint();
   startWave(0);
   syncHUD();
   ac();
@@ -456,11 +518,25 @@ function gameOver(){
 }
 function restartAll(){ startGame(); }
 
+/* ---------------- 模式选择（ui-shell） ---------------- */
+/* 打开单/双人选择页；选完把 mode 交给 startGame。
+   UIShell 未加载时退回旧行为，直接按双人开打。 */
+var modeSelectBusy = false;
+function openModeSelect(){
+  if(!window.UIShell || !window.UIShell.mountModeSelect){ startGame(); return; }
+  /* 已经开着就别再叠一层；用 DOM 状态判断，避免"忙"标志把按钮锁死 */
+  if(document.querySelector(".uis-mode.uis-on")) return;
+  UIShell.mountModeSelect(function(mode){
+    modeSelectBusy = false;
+    startGame(mode);
+  });
+}
+
 /* ---------------- 覆盖层 ---------------- */
 var OVS = ["ovTitle","ovClear","ovLose","ovWin"];
 function hideOv(){ OVS.forEach(function(id){ document.getElementById(id).classList.remove("on"); }); }
 function showOv(id){ hideOv(); document.getElementById(id).classList.add("on"); }
-document.getElementById("btnStart").addEventListener("click", function(e){ e.stopPropagation(); startGame(); });
+document.getElementById("btnStart").addEventListener("click", function(e){ e.stopPropagation(); openModeSelect(); });
 document.getElementById("btnNext").addEventListener("click", function(e){ e.stopPropagation(); nextWave(); });
 document.getElementById("btnRetry").addEventListener("click", function(e){ e.stopPropagation(); startGame(); });
 document.getElementById("btnAgain").addEventListener("click", function(e){ e.stopPropagation(); startGame(); });
@@ -470,17 +546,22 @@ function buildHearts(){
   ["hp1","hp2"].forEach(function(id){
     var box = document.getElementById(id);
     box.innerHTML = "";
-    for(var i=0;i<6;i++){
-      var d = document.createElement("div"); d.className="hp"; box.appendChild(d);
-    }
+    var d = document.createElement("div");
+    d.className = "hpbar";
+    d.innerHTML = '<i></i>';
+    box.appendChild(d);
   });
 }
 function syncHUD(){
-  if(!G.p1||!G.p2) return;
+  if(!G.p1) return;
   [["hp1",G.p1,"wp1","en1"],["hp2",G.p2,"wp2","en2"]].forEach(function(pr){
-    var nodes = document.getElementById(pr[0]).children;
-    for(var i=0;i<nodes.length;i++){
-      nodes[i].className = "hp" + (i < pr[1].hp ? " on" : "");
+    if(!pr[1]) return;
+    var box = document.getElementById(pr[0]);
+    var bar = box.firstChild;
+    if(bar){
+      var pct = clamp(pr[1].hp / Math.max(1, pr[1].maxHp), 0, 1) * 100;
+      bar.firstChild.style.width = pct + "%";
+      bar.className = "hpbar" + (pct <= 25 ? " low" : "");
     }
     var wn = document.getElementById(pr[2]);
     if(wn) wn.textContent = (pr[1].weapon ? pr[1].weapon.name : "空手");
@@ -513,7 +594,16 @@ function addSlash(p, idx){
   G.slashes.push({
     x:p.x+p.facing*70, y:p.y-95,
     facing:p.facing, life:0.19, max:0.19,
-    big: idx===2, owner:p
+    big: idx===2, seg: idx+1, owner:p
+  });
+}
+/* 打击火花 */
+function addHit(x, y, big, mid){
+  G.hits.push({
+    x:x, y:y, life:0.24, max:0.24,
+    big:!!big, mid:!!mid,
+    seed: Math.floor(Math.random()*97),
+    flip: Math.random()<0.5
   });
 }
 
@@ -585,9 +675,14 @@ function updatePlayer(p, dt, inp, other){
     if(got) return;
   }
 
-  /* ---- 普通攻击 ---- */
+  /* ---- 攻击：按武器类型分流 ---- */
+  var wpNow = p.weapon || newWeapon("fist");
   if(inp.atk && canAct && p.swingCd<=0){
-    startSwing(p, 0);
+    if(wpNow.type === "bow" || wpNow.type === "throw"){
+      fireProjectile(p, wpNow);
+    } else {
+      startSwing(p, 0);
+    }
   } else if(inp.atk && p.swingT>0){
     p.swingQueued = true;
   }
@@ -612,22 +707,31 @@ function updatePlayer(p, dt, inp, other){
   }
 }
 
-/* 拾取 */
+/* 拾取：同类武器不能叠着拿（原作规则） */
 function tryPickup(p){
   for(var i=0;i<G.drops.length;i++){
     var d = G.drops[i];
     if(d.taken) continue;
-    if(Math.abs(d.x - p.x) < 78 && Math.abs(d.y - p.y) < 140){
-      /* 旧武器掉回地上 */
-      if(p.weapon && p.weapon.dur > 0 && p.weapon.key !== "short"){
+    if(Math.abs(d.x - p.x) < 80 && Math.abs(d.y - p.y) < 140){
+      /* 手上已是同一种 → 不捡，提示走开 */
+      if(p.weapon && p.weapon.key === d.weapon.key && p.weapon.type !== "fist"){
+        if(p.pickLock <= 0){
+          showHitText(p.x, p.y-190, "同款武器，先扔掉");
+          p.pickLock = 0.6;
+        }
+        return false;
+      }
+      /* 旧武器（除空手）掉回地上 */
+      if(p.weapon && p.weapon.type !== "fist" && p.weapon.dur > 0){
         dropWeapon(p.x, p.y, p.weapon);
       }
       p.weapon = d.weapon;
       d.taken = true;
-      p.pickLock = 0.25;
+      p.pickLock = 0.26;
       burst(d.x, d.y-40, 10, "#fff0c0", 240);
       tone(660, 0.12, "square", 0.05, 880);
       syncHUD();
+      hidePickupHint();
       return true;
     }
   }
@@ -637,27 +741,151 @@ function dropWeapon(x, y, wp){
   G.drops.push({ x:x, y:GROUND, vy:-420, weapon:wp, taken:false, life:22, bob:rnd(0,6) });
 }
 
+/* ---------------- 掉落池 ----------------
+   权重按波次递增解锁：第一阵只有基础四件，第二阵起青铜钺 / 三枝叉进场，
+   第三阵起才轮得到神鸟弓。同列数字越大越常见，0 表示这一阵还不发放。
+   short / dagger 常见，sword / rock 中档，axe / spear 偏少，hammer / bow 稀有。 */
+var DROP_TABLE = {
+  short:  [28, 25, 26],
+  dagger: [28, 25, 26],
+  sword:  [18, 17, 16],
+  rock:   [16, 14, 12],
+  axe:    [ 0, 12, 12],
+  spear:  [ 0, 11, 11],
+  hammer: [ 0,  6,  7],
+  bow:    [ 0,  0,  5]
+};
+function pickDropKey(wave){
+  var tier = clamp(Math.floor(wave || 0), 0, 2);
+  var total = 0, k;
+  for(k in DROP_TABLE){ total += DROP_TABLE[k][tier] || 0; }
+  if(total <= 0) return "dagger";
+  var r = Math.random() * total;
+  for(k in DROP_TABLE){
+    /* for-in 顺序不保证，但权重表本身有序无关：结果只取决于累计命中 */
+    r -= (DROP_TABLE[k][tier] || 0);
+    if(r <= 0) return k;
+  }
+  return "dagger";
+}
+
+/* ---------------- 拾取提示（ui-shell 气泡） ----------------
+   走进拾取范围就浮出「按 X 拾取 · 武器名」，离开或捡走即消失。
+   提示范围比 tryPickup 稍宽（90 : 80）：先看见提示、再走一步才够得着，
+   避免「提示没出来但已经捡到」的空窗。 */
+var PICK_RANGE = { x: 80, y: 140 };         /* 实际拾取判定，与 tryPickup 一致 */
+var HINT_RANGE = { x: 90, y: 140 };         /* 气泡提示范围 */
+var pickHintSig = "";                       /* 当前气泡内容签名，避免每帧重建 DOM */
+var pickHintClock = 0;                      /* 气泡自动淡出 0.9s，这里每 0.6s 续一次 */
+
+/* 找最近的可提示掉落物；blocked 回传「同款武器不能捡」的那一件 */
+function nearestDrop(p, blocked){
+  if(!p || p.dead) return null;
+  var best = null, bd = 1e9, same = null, sd = 1e9;
+  for(var i=0;i<G.drops.length;i++){
+    var d = G.drops[i];
+    if(d.taken) continue;
+    var dx = Math.abs(d.x - p.x), dy = Math.abs(d.y - p.y);
+    if(!(dx < HINT_RANGE.x && dy < HINT_RANGE.y)) continue;
+    if(p.weapon && p.weapon.key === d.weapon.key && p.weapon.type !== "fist"){
+      if(dx < sd){ sd = dx; same = d; }      /* 同款 → 记下来，仍可提示「先扔掉」 */
+      continue;
+    }
+    if(dx < bd){ bd = dx; best = d; }
+  }
+  if(!best && same && blocked) blocked.value = same;
+  return best;
+}
+function hidePickupHint(){
+  if(pickHintSig === "") return;
+  pickHintSig = "";
+  pickHintClock = 0;
+  if(window.UIShell && window.UIShell.clearPickupHint) UIShell.clearPickupHint();
+}
+function updatePickupHint(dt){
+  if(!window.UIShell || !window.UIShell.showPickupHint) return;
+
+  /* 两玩家一起挑：优先能捡的，其次同款不能捡的 */
+  var pick = null, pickP = null, blocked = null, blockedP = null;
+  [G.p1, G.p2].forEach(function(pl){
+    if(!pl) return;
+    var b = { value:null };
+    var d = nearestDrop(pl, b);
+    if(d){ if(!pick){ pick = d; pickP = pl; } }
+    if(b.value){ if(!blocked){ blocked = b.value; blockedP = pl; } }
+  });
+
+  var target = pick || blocked;
+  var p = pick ? pickP : blockedP;
+
+  /* 谁都不靠近 → 每帧一次 clear（clearPickupHint 幂等，重复调用不闪） */
+  if(!target){ hidePickupHint(); return; }
+
+  /* P2 的攻击键是 / ，提示里用它自己的键名 */
+  var keyName = (p === G.p1) ? "F" : "/";
+  var text = pick ? ("按 " + keyName + " 拾取 · " + pick.weapon.name)
+                  : "同款武器，先扔掉";
+  var sig = Math.round(target.x) + "|" + Math.round(target.y) + "|" + keyName + "|" + text;
+  if(sig !== pickHintSig){ pickHintSig = sig; pickHintClock = 0; }
+
+  pickHintClock -= dt;
+  if(pickHintClock > 0) return;
+  pickHintClock = 0.6;
+
+  /* 屏幕坐标 = 世界坐标 - 相机；气泡挂在掉落物上方 */
+  UIShell.showPickupHint(text, target.x - G.camX, target.y - 150);
+}
+
+/* 武器损坏 → 空手（伤害极低，必须去捡） */
+function breakWeapon(p, wp){
+  burst(p.x + p.facing*60, p.y-100, 14, wp.col, 320);
+  tone(240,0.18,"square",0.06,110);
+  p.weapon = newWeapon("fist");
+  syncHUD();
+}
+
+/* 投掷 / 射箭 */
+function fireProjectile(p, wp){
+  var isBow = (wp.type === "bow");
+  p.throwT = 0.24;
+  p.swingCd = isBow ? 0.38 : 0.50;
+  G.projectiles.push({
+    x: p.x + p.facing*48,
+    y: p.y - 112,
+    vx: p.facing * (isBow ? 1180 : 700),
+    vy: isBow ? 0 : -300,
+    g:  isBow ? 0 : 1500,
+    dmg: wp.dmg,
+    kind: wp.type,
+    owner: p,
+    life: isBow ? 1.8 : 2.6,
+    max:  isBow ? 1.8 : 2.6,
+    spin: 0,
+    hitSet: []
+  });
+  if(isBow){ tone(720,0.10,"sine",0.05,300); noise(0.06,0.05,3000); }
+  else { noise(0.10,0.07,900); }
+  wp.dur--;
+  if(wp.dur <= 0) breakWeapon(p, wp);
+}
+
 /* 挥砍 */
 function startSwing(p, idx){
-  var wp = p.weapon || newWeapon("short");
+  var wp = p.weapon || newWeapon("fist");
   p.swingIdx = idx;
   p.swingDur = idx===2 ? wp.swing*1.5 : wp.swing;
   p.swingT = p.swingDur;
   p.hitSet = [];
   sfxSwing();
-  addSlash(p, idx);
-  /* 耐久 */
-  wp.dur--;
-  if(wp.dur <= 0){
-    burst(p.x + p.facing*70, p.y-100, 12, wp.col, 300);
-    tone(240,0.16,"square",0.05,120);
-    p.weapon = newWeapon("short");
-    p.weapon.dur = 40;
-    syncHUD();
+  if(wp.type !== "fist") addSlash(p, idx);
+  /* 耐久（空手不掉） */
+  if(wp.type !== "fist"){
+    wp.dur--;
+    if(wp.dur <= 0) breakWeapon(p, wp);
   }
 }
 function doSwingHit(p, other){
-  var wp = p.weapon || WEAPONS.short;
+  var wp = p.weapon || WEAPONS.fist;
   var dmg = (p.swingIdx===2 ? wp.dmg+1 : wp.dmg);
   var reach = (p.swingIdx===2 ? wp.reach*1.15 : wp.reach);
   var box = {
@@ -732,6 +960,7 @@ function hitEnemy(e, dmg, dir, big, weak){
   G.hitstop = big ? 0.075 : 0.04;
   G.shake = Math.max(G.shake, big ? 15 : 7);
   burst(e.x, e.y - e.h*0.6, big?16:9, weak ? "#ffd0ff" : "#f7e2a8", big?430:300);
+  addHit(e.x + dir*14, e.y - e.h*0.62, big || weak, !big && dmg >= 14);
   if(weak){
     showHitText(e.x, e.y-e.h-40, "弱点 ×2");
     sfxCrit();
@@ -742,16 +971,13 @@ function hitEnemy(e, dmg, dir, big, weak){
     burst(e.x, e.y-e.h*0.5, 26, "#c9a765", 480);
     sfxDie();
     G.shake = Math.max(G.shake, 12);
-    /* 掉落武器 */
-    var pool = ["dagger","sword","hammer","dagger","sword","rock"];
-    var chance = e.kind==="boss" ? 1 : 0.34;
-    if(Math.random() < chance){
-      var key = pool[Math.floor(Math.random()*pool.length)];
-      dropWeapon(e.x, e.y, newWeapon(key));
-    }
-    if(e.kind==="boss"){
-      dropWeapon(e.x-90, e.y, newWeapon("sword"));
-      dropWeapon(e.x+90, e.y, newWeapon("hammer"));
+    /* 掉落武器：BOSS 走下面固定的三件套，普通敌人按 34% 从当前波次池里抽 */
+    if(e.kind === "boss"){
+      dropWeapon(e.x-170, e.y, newWeapon("sword"));
+      dropWeapon(e.x,     e.y, newWeapon("bow"));     /* 远程保底：保证玩家体验过直线弹道 */
+      dropWeapon(e.x+170, e.y, newWeapon("hammer"));
+    } else if(Math.random() < 0.34){
+      dropWeapon(e.x, e.y, newWeapon(pickDropKey(G.waveIdx)));
     }
   }
 }
@@ -859,25 +1085,28 @@ function update(dt){
     var pad2 = readPad(PADS[1], "p2");
 
     var in1 = {
-      left:  !!KEYS[G.p1.keys.l] || pad1.left,
-      right: !!KEYS[G.p1.keys.r] || pad1.right,
+      left:  keyDown(G.p1.keys.l) || pad1.left,
+      right: keyDown(G.p1.keys.r) || pad1.right,
       jump:  keyPressed(G.p1.keys.j) || pad1.jump,
       atk:   keyPressed(G.p1.keys.a) || pad1.atk
     };
-    var in2 = {
-      left:  !!KEYS[G.p2.keys.l] || pad2.left,
-      right: !!KEYS[G.p2.keys.r] || pad2.right,
-      jump:  keyPressed(G.p2.keys.j) || pad2.jump,
-      atk:   keyPressed(G.p2.keys.a) || pad2.atk
-    };
-    /* 单手柄时两人共用移动 */
-    if(PADS[0] && !PADS[1]){
-      in2.left = in2.left || pad1.left;
-      in2.right = in2.right || pad1.right;
+    var in2 = null;
+    if(G.p2){
+      in2 = {
+        left:  keyDown(G.p2.keys.l) || pad2.left,
+        right: keyDown(G.p2.keys.r) || pad2.right,
+        jump:  keyPressed(G.p2.keys.j) || pad2.jump,
+        atk:   keyPressed(G.p2.keys.a) || pad2.atk
+      };
+      /* 单手柄时两人共用移动 */
+      if(PADS[0] && !PADS[1]){
+        in2.left = in2.left || pad1.left;
+        in2.right = in2.right || pad1.right;
+      }
     }
 
     updatePlayer(G.p1, dt, in1, G.p2);
-    updatePlayer(G.p2, dt, in2, G.p1);
+    if(G.p2) updatePlayer(G.p2, dt, in2, G.p1);
 
     /* 敌人 */
     for(var i=0;i<G.enemies.length;i++) updateEnemy(G.enemies[i], dt);
@@ -900,13 +1129,13 @@ function update(dt){
     }
 
     /* 相机 */
-    var mid = ((G.p1.x + G.p2.x) / 2);
+    var mid = G.p2 ? ((G.p1.x + G.p2.x) / 2) : G.p1.x;
     var targetCam = clamp(mid - W/2, 0, WORLD_W - W);
     G.camX = lerp(G.camX, targetCam, 1 - Math.pow(0.0015, dt));
 
     /* 玩家限制在屏内 */
     [G.p1,G.p2].forEach(function(p){
-      p.x = clamp(p.x, G.camX+54, G.camX+W-54);
+      if(p) p.x = clamp(p.x, G.camX+54, G.camX+W-54);
     });
 
     /* 波次判定 */
@@ -914,13 +1143,21 @@ function update(dt){
       waveCleared();
     }
 
-    /* 双人死亡 */
-    if(G.p1.dead && G.p2.dead) gameOver();
+    /* 全员阵亡 */
+    var allDead = G.p1.dead && (!G.p2 || G.p2.dead);
+    if(allDead) gameOver();
 
     syncHUD();
+
+    /* 拾取提示：走近掉落武器就浮气泡 */
+    updatePickupHint(dt);
   }
   else if(G.phase === "title"){
-    if(anyPress()) startGame();
+    /* 标题阶段按任意键 → 打开模式选择页（不再直接开打） */
+    if(anyPress()) openModeSelect();
+  }
+  else {
+    hidePickupHint();     /* 过关 / 失败 / 通关时收起拾取气泡 */
   }
 
   updateParticles(dt);
@@ -947,6 +1184,11 @@ function updateParticles(dt){
     G.slashes[j].life -= dt;
     if(G.slashes[j].life<=0) G.slashes.splice(j,1);
   }
+  /* 打击火花 */
+  for(var jh=G.hits.length-1;jh>=0;jh--){
+    G.hits[jh].life -= dt;
+    if(G.hits[jh].life<=0) G.hits.splice(jh,1);
+  }
   /* 掉落物 */
   for(var k=G.drops.length-1;k>=0;k--){
     var d = G.drops[k];
@@ -964,6 +1206,42 @@ function updateParticles(dt){
     t.life -= dt;
     t.y -= 46*dt;
     if(t.life<=0) G.texts.splice(m,1);
+  }
+  /* 投掷物 / 箭 */
+  for(var n=G.projectiles.length-1;n>=0;n--){
+    var pr = G.projectiles[n];
+    pr.life -= dt;
+    if(pr.life <= 0){ G.projectiles.splice(n,1); continue; }
+    pr.vy += pr.g*dt;
+    pr.x += pr.vx*dt;
+    pr.y += pr.vy*dt;
+    pr.spin += dt*12;
+    /* 落地 */
+    if(pr.y > GROUND-6){
+      burst(pr.x, GROUND-8, 8, "#8e8474", 200);
+      G.projectiles.splice(n,1);
+      continue;
+    }
+    /* 命中 */
+    var hitOne = false;
+    for(var e2=0;e2<G.enemies.length;e2++){
+      var en = G.enemies[e2];
+      if(en.state === "dead") continue;
+      if(pr.hitSet.indexOf(en) !== -1) continue;
+      var er = en.rect();
+      if(pr.x > er.x && pr.x < er.x+er.w && pr.y > er.y && pr.y < er.y+er.h){
+        var mult2 = (en.kind==="boss" && en.state==="recover") ? 2 : 1;
+        hitEnemy(en, pr.dmg*mult2, pr.vx>0?1:-1, true, mult2>1);
+        G.combo++; G.comboT = 0.9;
+        if(G.combo > G.maxCombo) G.maxCombo = G.combo;
+        if(pr.owner) pr.owner.energy = Math.min(100, pr.owner.energy + 7);
+        hitOne = true;
+        break;
+      }
+    }
+    if(hitOne){ G.projectiles.splice(n,1); continue; }
+    /* 出界 */
+    if(pr.x < G.camX-200 || pr.x > G.camX+W+200) G.projectiles.splice(n,1);
   }
 }
 
@@ -1280,43 +1558,106 @@ function drawFighter(p){
   ctx.strokeStyle = "#e8d29a"; ctx.lineWidth = 2.6; ctx.lineCap="round";
   ctx.beginPath(); ctx.moveTo(-9,-162.5+bob); ctx.lineTo(9,-162.5+bob); ctx.stroke();
 
-  /* 大耳外张 + 耳垂穿孔 */
+  /* 大耳外张 + 耳垂穿孔 —— 尖耳如鸟翼展开 */
   ctx.fillStyle = M1;
-  ctx.beginPath(); ctx.ellipse(-18.5,-142+bob, 5.6, 15.5, -0.16, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse( 18.5,-142+bob, 5.6, 15.5,  0.16, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-15,-152+bob);
+  ctx.quadraticCurveTo(-27,-158+bob, -30,-147+bob);
+  ctx.quadraticCurveTo(-26,-137+bob, -16,-134+bob);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo( 15,-152+bob);
+  ctx.quadraticCurveTo( 27,-158+bob,  30,-147+bob);
+  ctx.quadraticCurveTo( 26,-137+bob,  16,-134+bob);
+  ctx.closePath(); ctx.fill();
   ctx.strokeStyle = D1; ctx.lineWidth = 1.4;
-  ctx.beginPath(); ctx.ellipse(-18.5,-142+bob, 5.6, 15.5, -0.16, 0, Math.PI*2); ctx.stroke();
-  ctx.beginPath(); ctx.ellipse( 18.5,-142+bob, 5.6, 15.5,  0.16, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-15,-152+bob);
+  ctx.quadraticCurveTo(-27,-158+bob, -30,-147+bob);
+  ctx.quadraticCurveTo(-26,-137+bob, -16,-134+bob);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo( 15,-152+bob);
+  ctx.quadraticCurveTo( 27,-158+bob,  30,-147+bob);
+  ctx.quadraticCurveTo( 26,-137+bob,  16,-134+bob);
+  ctx.stroke();
+  /* 耳内刻线 */
+  ctx.strokeStyle = "rgba(70,52,20,.55)"; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(-19,-150+bob); ctx.quadraticCurveTo(-25,-148+bob,-22,-139+bob); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo( 19,-150+bob); ctx.quadraticCurveTo( 25,-148+bob, 22,-139+bob); ctx.stroke();
+  /* 耳垂穿孔 */
   ctx.fillStyle = "#171309";
-  ctx.beginPath(); ctx.arc(-19,-128+bob, 2.2, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc( 19,-128+bob, 2.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-24,-136+bob, 2.3, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc( 24,-136+bob, 2.3, 0, Math.PI*2); ctx.fill();
 
   /* 眼窝暗影（让眉骨压下来） */
   ctx.fillStyle = "rgba(58,42,18,.34)";
   ctx.beginPath(); ctx.ellipse(0,-146+bob, 15, 7.5, 0, 0, Math.PI*2); ctx.fill();
 
-  /* 宽眉：粗、外端上挑、紧压眼上 */
-  var fx = p.facing;
-  ctx.strokeStyle = "#3a2a10"; ctx.lineWidth = 4.2; ctx.lineCap = "round";
-  ctx.beginPath(); ctx.moveTo(-13,-151+bob); ctx.lineTo(-2,-154.5+bob); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo( 13,-151+bob); ctx.lineTo( 2,-154.5+bob); ctx.stroke();
+  /* ================= 金面罩 =================
+     P1 大祭司：全覆式（额头至鼻梁，含颧）
+     P2 少祭司：T 形半覆（只盖额头与鼻梁） */
+  ctx.save();
+  var gmg = ctx.createLinearGradient(-16,-162+bob, 16,-128+bob);
+  gmg.addColorStop(0,"#ffe9a8"); gmg.addColorStop(0.35,"#e6c05a");
+  gmg.addColorStop(0.7,"#b8903f"); gmg.addColorStop(1,"#7d5c1c");
+  ctx.fillStyle = gmg;
+  ctx.beginPath();
+  if(isP1){
+    /* 全覆：额 → 颧 → 下颌有一小段缺口露出青铜 */
+    ctx.moveTo(-15,-161+bob);
+    ctx.quadraticCurveTo(0,-168+bob, 15,-161+bob);
+    ctx.lineTo(15.5,-141+bob);
+    ctx.quadraticCurveTo(12,-128+bob, 0,-127+bob);
+    ctx.quadraticCurveTo(-12,-128+bob, -15.5,-141+bob);
+  } else {
+    /* T 形：额头横带 + 鼻梁竖条 */
+    ctx.moveTo(-14,-161+bob);
+    ctx.quadraticCurveTo(0,-167+bob, 14,-161+bob);
+    ctx.lineTo(14,-149+bob);
+    ctx.lineTo(5,-149+bob);
+    ctx.lineTo(4.5,-131+bob);
+    ctx.lineTo(-4.5,-131+bob);
+    ctx.lineTo(-5,-149+bob);
+    ctx.lineTo(-14,-149+bob);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#5c3f12"; ctx.lineWidth = 1.3; ctx.stroke();
+  /* 金面高光边 */
+  ctx.strokeStyle = "rgba(255,248,214,.75)"; ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(-12,-159+bob); ctx.quadraticCurveTo(0,-165+bob, 12,-159+bob);
+  ctx.stroke();
+  ctx.restore();
 
-  /* 大眼：狭长杏仁、眼角上挑（青铜铸件的沉眼，不画大眼白） */
-  [-6.6, 6.6].forEach(function(ex){
+  /* ================= 纵目 =================
+     柱状凸出的眼球 —— 三星堆的识别码。
+     正面看：一圈柱壁 + 一个亮面 + 深瞳。 */
+  var fx = p.facing;
+  [-7.2, 7.2].forEach(function(ex){
+    var ey = -146+bob;
     ctx.save();
-    ctx.translate(ex,-143+bob);
-    ctx.rotate(ex<0 ? -0.20*fx : 0.20*fx);
-    /* 眼形：深色杏仁 */
-    var eg = ctx.createLinearGradient(0,-3,0,3.2);
-    eg.addColorStop(0,"#5c4622"); eg.addColorStop(1,"#1a1409");
-    ctx.fillStyle = eg;
-    ctx.beginPath(); ctx.ellipse(0,0, 6.2, 3.1, 0, 0, Math.PI*2); ctx.fill();
-    /* 上眼睑压线 */
-    ctx.strokeStyle = "#33240c"; ctx.lineWidth = 1.6;
-    ctx.beginPath(); ctx.ellipse(0,-0.4, 6.2, 3.1, 0, Math.PI*1.06, Math.PI*1.94); ctx.stroke();
-    /* 一点高光，点到即止 */
-    ctx.fillStyle = "rgba(255,248,220,.72)";
-    ctx.beginPath(); ctx.arc(fx*1.8, -0.9, 0.95, 0, Math.PI*2); ctx.fill();
+    ctx.translate(ex, ey);
+    /* 柱壁（外圈） */
+    var wg = ctx.createRadialGradient(-1.6,-2,0.6, 0,0, 8.4);
+    wg.addColorStop(0,"#f0dda6"); wg.addColorStop(0.55,"#c9a95e"); wg.addColorStop(1,"#6b4c1c");
+    ctx.fillStyle = wg;
+    ctx.beginPath(); ctx.arc(0,0, 8.0, 0, Math.PI*2); ctx.fill();
+    /* 柱身厚度：底部弧线 */
+    ctx.strokeStyle = "rgba(58,40,12,.85)"; ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.arc(0,1.4, 7.4, Math.PI*0.12, Math.PI*0.88); ctx.stroke();
+    /* 端面（亮） */
+    var eg2 = ctx.createRadialGradient(-2,-2.4,0.8, 0,0, 6.2);
+    eg2.addColorStop(0,"#fff6d8"); eg2.addColorStop(0.5,"#e8c87e"); eg2.addColorStop(1,"#a8802e");
+    ctx.fillStyle = eg2;
+    ctx.beginPath(); ctx.arc(0,0, 5.9, 0, Math.PI*2); ctx.fill();
+    /* 瞳 */
+    ctx.fillStyle = "#1b1408";
+    ctx.beginPath(); ctx.arc(fx*0.9, 0.4, 2.7, 0, Math.PI*2); ctx.fill();
+    /* 瞳高光 */
+    ctx.fillStyle = "rgba(255,252,235,.92)";
+    ctx.beginPath(); ctx.arc(fx*0.9-1.1, -0.8, 0.95, 0, Math.PI*2); ctx.fill();
     ctx.restore();
   });
 
@@ -1408,8 +1749,8 @@ function drawFighter(p){
   blade(hx, hy, ba, wp.len, wp.w);
   blade(bax, bay, ba+0.35, wp.len*0.8, wp.w*0.85);
 
-  /* 旋风斩：环绕刀轮 */
-  if(p.whirlT > 0){
+  /* 旋风斩：环绕刀轮（whirl-ring.webp 就绪时改由 drawWhirlAsset 画，这里只做降级） */
+  if(p.whirlT > 0 && !imgReady("whirlRing")){
     var spin = p.whirlT * 30;
     ctx.save();
     ctx.translate(0, -95);
@@ -1580,6 +1921,13 @@ function drawEnemy(e){
 function drawSlashes(){
   for(var i=0;i<G.slashes.length;i++){
     var s = G.slashes[i];
+
+    /* 优先用素材刀光 */
+    if(window.FX && window.FX.drawSlash && window.FX.ready()){
+      window.FX.drawSlash(ctx, s);
+      continue;
+    }
+
     var t = 1 - s.life/s.max;
     ctx.save();
     ctx.translate(s.x, s.y);
@@ -1597,6 +1945,79 @@ function drawSlashes(){
     ctx.arc(0,0,r, a0, a1);
     ctx.arc(0,0,r*0.5, a1, a0, true);
     ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+}
+
+/* 打击火花 */
+function drawHits(){
+  for(var i=0;i<G.hits.length;i++){
+    var h = G.hits[i];
+
+    /* 优先用素材火花 */
+    if(window.FX && window.FX.drawHit && window.FX.ready()){
+      window.FX.drawHit(ctx, h);
+      continue;
+    }
+
+    /* 兜底：简单放射线 */
+    var t = 1 - h.life/h.max;
+    ctx.save();
+    ctx.translate(h.x, h.y);
+    ctx.globalAlpha = (1-t)*0.9;
+    ctx.strokeStyle = "#fff6d8";
+    ctx.lineWidth = h.big ? 4 : 2.4;
+    var r0 = 8 + t*46, r1 = r0 + (h.big?34:20);
+    for(var k=0;k<7;k++){
+      var a = k/7*Math.PI*2 + t*0.7;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)*r0, Math.sin(a)*r0);
+      ctx.lineTo(Math.cos(a)*r1, Math.sin(a)*r1);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+/* 投掷物 / 箭 */
+function drawProjectiles(){
+  for(var i=0;i<G.projectiles.length;i++){
+    var p = G.projectiles[i];
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    if(p.kind === "bow"){
+      /* 箭：拖尾 + 箭杆 + 尾羽 */
+      var dir = p.vx > 0 ? 1 : -1;
+      ctx.scale(dir, 1);
+      ctx.strokeStyle = "rgba(255,240,200,.35)";
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(-46,0); ctx.lineTo(-6,0); ctx.stroke();
+      ctx.strokeStyle = "#c9a765"; ctx.lineWidth = 3.4;
+      ctx.beginPath(); ctx.moveTo(-26,0); ctx.lineTo(16,0); ctx.stroke();
+      ctx.fillStyle = "#f2f6ff";
+      ctx.beginPath(); ctx.moveTo(16,0); ctx.lineTo(4,-5); ctx.lineTo(4,5); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = "#e8dcc0"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(-26,0); ctx.lineTo(-34,-6); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-26,0); ctx.lineTo(-34,6); ctx.stroke();
+    } else {
+      /* 石块：有素材就贴图，没就退回代码画的旋转多边形 */
+      if(imgReady("projRock")){
+        var side = p.vx >= 0 ? 1 : -1;
+        ctx.scale(side, 1);
+        ctx.rotate(p.spin);
+        try { ctx.drawImage(window.IMG.projRock, -23, -23, 46, 46); } catch (err) { /* 图坏了就当没图 */ }
+      } else {
+        ctx.rotate(p.spin);
+        var g = ctx.createRadialGradient(-5,-6,2,0,0,16);
+        g.addColorStop(0,"#b8b0a0"); g.addColorStop(1,"#5c554a");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(-14,-6); ctx.lineTo(-4,-14); ctx.lineTo(9,-11);
+        ctx.lineTo(15,2); ctx.lineTo(6,13); ctx.lineTo(-8,11); ctx.lineTo(-15,3);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = "rgba(30,26,20,.6)"; ctx.lineWidth = 1.4; ctx.stroke();
+      }
+    }
     ctx.restore();
   }
 }
@@ -1677,20 +2098,32 @@ function render(){
 
   if(G.shake > 0) ctx.translate(rnd(-G.shake,G.shake), rnd(-G.shake,G.shake));
 
-  drawBG();
+  /* ---- 背景（素材视差层）---- */
+  if(!(window.Background && window.Background.ready()
+       && window.Background.draw(ctx, G.camX, W, H, GROUND, WORLD_W) !== false)){
+    drawBG();
+  }
 
   ctx.save();
   ctx.translate(-G.camX, 0);
 
-  if(G.horse) {}
   /* 掉落物（最底层） */
   drawDrops();
   /* 敌人 */
-  for(var i=0;i<G.enemies.length;i++) drawEnemy(G.enemies[i]);
-  if(G.p1) drawFighter(G.p1);
-  if(G.p2) drawFighter(G.p2);
+  for(var i=0;i<G.enemies.length;i++){
+    if(window.EnemyArt && window.EnemyArt.ready()){
+      window.EnemyArt.draw(ctx, G.enemies[i], G.time);
+    } else {
+      drawEnemy(G.enemies[i]);
+    }
+  }
+  /* 玩家 */
+  if(G.p1) drawPlayer(G.p1);
+  if(G.p2) drawPlayer(G.p2);
 
   drawSlashes();
+  drawHits();
+  drawProjectiles();
   drawParticles();
   drawTexts();
 
@@ -1704,11 +2137,13 @@ function render(){
     ctx.globalAlpha = 1;
   }
 
-  /* 暗角 */
-  var vg = ctx.createRadialGradient(W/2,H/2,340,W/2,H/2,1000);
-  vg.addColorStop(0,"rgba(0,0,0,0)");
-  vg.addColorStop(1,"rgba(0,0,0,.7)");
-  ctx.fillStyle = vg; ctx.fillRect(0,0,W,H);
+  /* 受伤渐晕 */
+  if(window.FX && window.FX.drawHurtVignette){
+    var hv = 0;
+    if(G.p1 && G.p1.hurtT > 0) hv = Math.max(hv, G.p1.hurtT/0.28);
+    if(G.p2 && G.p2.hurtT > 0) hv = Math.max(hv, G.p2.hurtT/0.28);
+    if(hv > 0) window.FX.drawHurtVignette(ctx, W, H, hv*0.8);
+  }
 
   /* 玩家阵亡标记 */
   if(G.p1 && G.p1.dead){
@@ -1723,6 +2158,41 @@ function render(){
     ctx.textAlign = "right";
     ctx.fillText("玩家二倒下", W-46, 130);
   }
+}
+
+/* 玩家绘制：优先用素材精灵 */
+function drawPlayer(p){
+  if(window.CharArt && window.CharArt.ready()){
+    window.CharArt.draw(ctx, p, G.time);
+  } else {
+    drawFighter(p);
+  }
+  drawWhirlAsset(p);
+}
+
+/* ---------------- 旋风光环（whirl-ring.webp） ----------------
+   素材版光环叠在角色上：绕人物腰部偏上旋转，进入 0.12s 淡入、收尾 0.25s 淡出。
+   素材没就绪时返回 false，由 drawFighter 里的程序化刀轮兜底。 */
+var WHIRL_DUR = 1.5;          /* 与 updatePlayer 里 p.whirlT = 1.5 对齐 */
+var WHIRL_FADE_IN = 0.12;
+var WHIRL_FADE_OUT = 0.25;
+function drawWhirlAsset(p){
+  if(!p || !(p.whirlT > 0)) return false;
+  if(!window.FX || !window.FX.drawWhirl) return false;
+  if(!imgReady("whirlRing")) return false;
+
+  var played = WHIRL_DUR - p.whirlT;                       /* 起手到现在过了多久 */
+  var a = Math.min(1, played / WHIRL_FADE_IN, p.whirlT / WHIRL_FADE_OUT);
+  if(!(a > 0)) return false;
+
+  window.FX.drawWhirl(ctx, {
+    x: p.x,
+    y: p.y - 130,          /* 腰部偏上 */
+    r: 260,
+    rot: G.time * 14,      /* 持续累加，转起来 */
+    alpha: a
+  });
+  return true;
 }
 
 /* ---------------- 主循环 ---------------- */
@@ -1740,6 +2210,16 @@ syncHUD();
 requestAnimationFrame(loop);
 window.focus();
 document.addEventListener("click", function(){ ac(); }, { once:true });
+
+/* UI 覆盖层：按键说明只挂载，用 H / Esc 开关（由 ui-shell 自己监听） */
+if(window.UIShell && window.UIShell.mountKeyHelp) UIShell.mountKeyHelp();
+
+/* 预加载素材（失败也不阻塞，自动回退到矢量绘制） */
+if(window.Assets){
+  Assets.load().then(function(r){
+    console.log("[素材] 载入 " + r.loaded + " 张" + (r.failed.length ? "，失败 " + r.failed.length : ""));
+  });
+}
 </script>
 </body>
 </html>
