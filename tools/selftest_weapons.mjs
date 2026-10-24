@@ -320,12 +320,54 @@ for (const k of ATK_KEYS) {
   }
 }
 
-/* 走路：不该画 hold-*（那会变成滑步） */
+/* 走路：三级优先序 —— 行走序列 → 行走静帧 → 通用 walk clip。
+   历史：先是「走路一律画 walk 帧」，结果拿锤子迈步时空手（武器凭空消失）；
+   然后改成走路套静帧，但静帧只有一个姿势，看着像滑步。现在走路有专属 4 帧序列。
+   padTag 用 p2：着色图按玩家配色缓存，上面站定测试已经缓存过 p1，
+   换 p2 才有一次新的内部 drawImage 可断言。 */
 clear();
-CharArt.draw(makeCtx(), player({ vx: 200, weapon: { key: "axe", type: "melee" } }), 3.0);
-ok(!drawnPng("hold-axe.webp"), "走路不该画持械站立帧（滑步）");
-ok(!!drawnPng("walk-"), "走路应画 walk 帧");
-rows.push(["walk", "axe", drawnPng("walk-") ? "walk-*" : "-"]);
+CharArt.draw(makeCtx(), player({ vx: 200, padTag: "p2", walk: 1.7, weapon: { key: "axe", type: "melee" } }), 3.0);
+if (process.env.SELFTEST_DEBUG) {
+  console.log("DEBUG drawCalls:", JSON.stringify(drawCalls.map(c => c.src ? String(c.src) : null)));
+}
+const walkSeq = drawnPng(/walk-axe-\d\.webp$/);
+ok(!!walkSeq, "走路应画持械行走序列 walk-axe-<i>");
+ok(!drawnPng(/^assets\/anim\/walk-\d\.webp$/), "有行走序列时不该画通用 walk 帧");
+rows.push(["walk", "axe", walkSeq ? "walk-axe-N" : "-"]);
+
+/* 帧号必须随位移推进：同一个 p.walk 不变则帧不变，位移变了才换帧 */
+{
+  const seen = new Set();
+  for (const ph of [0, 0.6, 1.2, 1.8, 2.4]) {
+    clear();
+    CharArt.draw(makeCtx(), player({ vx: 200, padTag: "p2", walk: ph, weapon: { key: "axe", type: "melee" } }), 3.0);
+    const c = drawnPng(/walk-axe-(\d)\.webp$/);
+    if (c) seen.add(String(c.src).match(/-(\d)\.webp$/)[1]);
+  }
+  ok(seen.size >= 2, "行走帧号随 p.walk 推进（实际播到 " + [...seen].sort().join(",") + "）");
+  console.log("  axe 行走播到帧：" + [...seen].sort().join(","));
+}
+
+/* 只有行走静帧、没有序列的武器：仍要画持械（连续性不能被素材缺失打断） */
+{
+  const saved = globalThis.__walkClipSaved;
+  const W = S.window.WEAPON_WALK_CLIP;
+  const keep = W && W.axe;
+  if (W) delete W.axe;
+  clear();
+  CharArt.draw(makeCtx(), player({ vx: 200, padTag: "p2", walk: 1.7, weapon: { key: "axe", type: "melee" } }), 3.0);
+  ok(!!drawnPng("hold-axe.webp"), "无行走序列时应落回持械静帧，而不是空手 walk");
+  if (W && keep) W.axe = keep;
+}
+
+/* 没有 hold 帧的武器（如 fist 空手）：走路必须回落到 walk 帧 */
+clear();
+CharArt.draw(makeCtx(), player({ vx: 200, weapon: { key: "fist", type: "fist" } }), 3.0);
+if (process.env.SELFTEST_DEBUG) {
+  console.log("DEBUG fist drawCalls:", JSON.stringify(drawCalls.map(c => c.src ? String(c.src) : null)));
+}
+ok(!drawnPng("hold-"), "空手走路不该画任何持械帧");
+ok(!!drawnPng(/^assets\/anim\/walk-\d\.webp$/), "空手走路应画通用 walk 帧");
 
 /* 旋风斩：不该画 atk-*（旋风有自己的 clip） */
 clear();

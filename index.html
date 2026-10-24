@@ -73,18 +73,29 @@
     box-shadow:0 0 10px rgba(245,217,142,.62),inset 0 0 8px rgba(245,217,142,.22)}
 
   /* 武器 + 能量 */
-  .wpn{display:flex;align-items:center;gap:10px;margin-top:11px}
+  .wpn{display:flex;align-items:center;gap:12px;margin-top:11px}
   .wpn.right{justify-content:flex-end}
-  /* 武器小图标：24px 画布，图没就绪时 display:none，不留空方块 */
-  .wico{display:none;width:24px;height:24px;flex:0 0 auto;order:-1;
-    filter:drop-shadow(0 1px 2px rgba(0,0,0,.9))}
-  /* P2 镜像：名字在前、图标贴名字右侧，两者一起靠右，不挤动能量条 */
+  /* 手持武器立绘：56px 画布，一眼看清手里是什么。
+     图没就绪时 display:none，不留空方块（降级到只有名字）。
+     position 必须显式 static —— 全局那条 canvas{position:absolute;inset:0}
+     是给主画布写的，会把这个 56px 的小画布拽出文档流、压到血条上。 */
+  .wico{position:static;display:none;width:56px;height:56px;flex:0 0 auto;order:-1;
+    background:radial-gradient(circle at 50% 52%,rgba(217,180,94,.13),rgba(217,180,94,0) 72%);
+    border:1px solid rgba(217,180,94,.34);border-radius:4px;
+    box-shadow:inset 0 0 14px rgba(0,0,0,.5);
+    filter:drop-shadow(0 2px 5px rgba(0,0,0,.8))}
+  /* P2 镜像：名字在前、图贴名字右侧，两者一起靠右，不挤动能量条 */
   .wpn.right .wname{order:-1}
   .wpn.right .wico{order:0}
-  .wname{font-size:11.5px;letter-spacing:.13em;color:#f0d99c;
+  .wpn .wmeta{display:flex;flex-direction:column;gap:5px;min-width:0}
+  .wpn.right .wmeta{align-items:flex-end}
+  .wname{font-size:12.5px;letter-spacing:.13em;color:#f0d99c;
     border:1px solid rgba(217,180,94,.55);border-radius:3px;padding:3px 11px;
     background:rgba(217,180,94,.14);text-shadow:0 1px 3px rgba(0,0,0,.9);
     box-shadow:inset 0 1px 0 rgba(255,240,190,.18)}
+  /* 耐久 / 弹数：跟在武器名后面的一行细字，碎了能立刻看见 */
+  .wdura{font-size:10px;letter-spacing:.1em;color:#98896c}
+  .wdura b{font-weight:600;color:#d8c48c}
   .wenergy{display:block;width:126px;height:7px;border-radius:999px;
     background:rgba(0,0,0,.75);border:1px solid rgba(122,96,40,.9);overflow:hidden;
     box-shadow:inset 0 1px 3px rgba(0,0,0,.9)}
@@ -213,13 +224,13 @@
     <div class="pbar p1">
       <div class="pname">玩家一 <em>纵目 · 执</em></div>
       <div class="hpwrap" id="hp1"></div>
-      <div class="wpn"><canvas class="wico" id="wi1" width="24" height="24"></canvas><span class="wname" id="wp1">短剑</span><span class="wenergy" id="en1"><i></i></span></div>
+      <div class="wpn"><canvas class="wico" id="wi1" width="56" height="56"></canvas><span class="wmeta"><span class="wname" id="wp1">短剑</span><span class="wdura" id="wd1"></span></span><span class="wenergy" id="en1"><i></i></span></div>
       <div class="bag" id="bag1"></div>
     </div>
     <div class="pbar p2">
       <div class="pname"><em>执 · 纵目</em> 玩家二</div>
       <div class="hpwrap" id="hp2"></div>
-      <div class="wpn right"><canvas class="wico" id="wi2" width="24" height="24"></canvas><span class="wname" id="wp2">短剑</span><span class="wenergy" id="en2"><i></i></span></div>
+      <div class="wpn right"><canvas class="wico" id="wi2" width="56" height="56"></canvas><span class="wmeta"><span class="wname" id="wp2">短剑</span><span class="wdura" id="wd2"></span></span><span class="wenergy" id="en2"><i></i></span></div>
       <div class="bag" id="bag2"></div>
     </div>
     <div id="center">
@@ -1023,7 +1034,7 @@ function buildHearts(){
 }
 function syncHUD(){
   if(!G.p1) return;
-  [["hp1",G.p1,"wp1","en1","wi1"],["hp2",G.p2,"wp2","en2","wi2"]].forEach(function(pr){
+  [["hp1",G.p1,"wp1","en1","wi1","wd1"],["hp2",G.p2,"wp2","en2","wi2","wd2"]].forEach(function(pr){
     if(!pr[1]) return;
     var box = document.getElementById(pr[0]);
     var bar = box.firstChild;
@@ -1032,15 +1043,26 @@ function syncHUD(){
       bar.firstChild.style.width = pct + "%";
       bar.className = "hpbar" + (pct <= 25 ? " low" : "");
     }
+    var wpnNow = pr[1].weapon;
     var wn = document.getElementById(pr[2]);
     if(wn){
-      var wpn = pr[1].weapon;
-      var wlabel = wpn ? wpn.name : "空手";
-      if(wpn && wpn.type === "throw") wlabel += " ×" + (wpn.ammo | 0);   /* 投掷物带弹数 */
-      wn.textContent = wlabel;
+      wn.textContent = wpnNow ? wpnNow.name : "空手";
     }
-    /* 武器名左侧 / 右侧的小图标：没图就整块 display:none，不留空方块 */
-    drawHudWeaponIcon(document.getElementById(pr[4]), wpIconKey(pr[1].weapon ? pr[1].weapon.key : null));
+    /* 武器名下面那行：近战显示剩余耐久，投掷显示剩余弹数，空手不显示。
+       这是「手里这把还能撑几下」的唯一读数，所以跟着名字走、字小但不省略。 */
+    var wd = document.getElementById(pr[5]);
+    if(wd){
+      var line = "";
+      if(wpnNow && wpnNow.type === "throw"){
+        line = "弹 <b>" + (wpnNow.ammo | 0) + "</b> / " + (wpnNow.ammoMax | 0);
+      } else if(wpnNow && wpnNow.type !== "fist"){
+        var d0 = wpnNow.dur | 0, d1 = wpnNow.max | 0;
+        line = "耐 <b>" + d0 + "</b> / " + (d1 > 0 ? d1 : d0);
+      }
+      if(wd.innerHTML !== line) wd.innerHTML = line;
+    }
+    /* 手持武器立绘（56px）：没图就整块 display:none，不留空方块 */
+    drawHudWeaponIcon(document.getElementById(pr[4]), wpIconKey(wpnNow ? wpnNow.key : null));
     var en = document.getElementById(pr[3]);
     if(en){
       en.firstChild.style.width = clamp(pr[1].energy,0,100)+"%";
@@ -1080,14 +1102,17 @@ function drawHudWeaponIcon(cv, iconKey){
   if(!(nw > 0) || !(nh > 0)) return;
   var g2 = cv.getContext ? cv.getContext("2d") : null;
   if(!g2) return;
-  var s = 24 / Math.max(nw, nh);
+  var SIDE = 56;
+  /* 图标素材统一画布、长边只占 0.84，直接等比塞进 56px 会显小；
+     放 1.3 倍让武器本体吃满框，超出部分由 canvas 自然裁掉（不糊、不拉伸）。 */
+  var s = (SIDE / Math.max(nw, nh)) * 1.3;
   var dw = nw*s, dh = nh*s;
-  g2.clearRect(0, 0, 24, 24);
+  g2.clearRect(0, 0, SIDE, SIDE);
   try{
-    g2.drawImage(im, (24-dw)/2, (24-dh)/2, dw, dh);
+    g2.drawImage(im, (SIDE-dw)/2, (SIDE-dh)/2, dw, dh);
     st.key = iconKey;
   }catch(e){
-    g2.clearRect(0, 0, 24, 24);
+    g2.clearRect(0, 0, SIDE, SIDE);
     st.key = null;
     st.shown = false;
     cv.style.display = "none";

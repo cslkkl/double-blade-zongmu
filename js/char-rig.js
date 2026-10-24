@@ -78,6 +78,18 @@
   var atkClipCache = {};
   var atkClipWarmed = false;
 
+  /* ---------- 武器持械行走序列缓存：weapon.key -> [Image] ---------- */
+  var walkClipCache = {};
+  var walkClipWarmed = false;
+
+  /* 步行每帧对应的位移：p.walk 不是秒数，是位移的缩放值 ——
+     index.html 里 `p.walk += |vx| * dt * 0.024`，也就是 1 单位 walk ≈ 41.7px。
+     一个 4 帧循环 = 两步，按每步 30px 算 = 60px 位移 ≈ 1.44 单位 walk。
+     帧号直接由「走了多远」推导：站着不动不换帧，减速步频自然降，
+     与速度解耦、与时间无关，所以不会出现「滑步」那种脚不动人在飘。
+     想改步频只改这一个数：调大 = 一步跨得远（步频慢），调小 = 碎步。 */
+  var WALK_CYCLE = 1.44;      /* 单位 walk：一个完整 4 帧循环覆盖的位移 */
+
   var pollTimer = 0;
   var pollTries = 0;
 
@@ -134,6 +146,16 @@
   function atkClipDef(key) {
     if (!key) return null;
     var C = window.WEAPON_ATTACK_CLIP;
+    if (!C) return null;
+    var d = C[key];
+    if (!d || !d.files || !d.files.length) return null;
+    return d;
+  }
+
+  /* 武器持械行走序列：某把武器的多帧行走；没有则返回 null */
+  function walkClipDef(key) {
+    if (!key) return null;
+    var C = window.WEAPON_WALK_CLIP;
     if (!C) return null;
     var d = C[key];
     if (!d || !d.files || !d.files.length) return null;
@@ -216,11 +238,35 @@
     return true;
   }
 
+  /* 武器持械行走序列的 Image（同 warmHold 的规矩：一次、不在热路径里建） */
+  function warmWalkClip() {
+    if (walkClipWarmed) return true;
+    var C = window.WEAPON_WALK_CLIP;
+    if (!C) return false;
+    walkClipWarmed = true;
+    if (typeof Image !== "function") return true;
+    for (var k in C) {
+      if (!Object.prototype.hasOwnProperty.call(C, k)) continue;
+      var d = C[k];
+      if (!d || !d.files || !d.files.length) continue;
+      if (walkClipCache[k]) continue;
+      var arr = new Array(d.files.length);
+      for (var f = 0; f < d.files.length; f++) {
+        var im = new Image();
+        im.src = d.files[f];
+        arr[f] = im;
+      }
+      walkClipCache[k] = arr;
+    }
+    return true;
+  }
+
   /* 建立所有帧的 Image（只执行一次；不放在 draw 热路径里） */
   function warm() {
     warmHold();                       // 持械帧自带 flag，ANIM 缺席也照建
     warmAtk();                        // 出招帧同理
     warmAtkClip();                    // 出招序列同理
+    warmWalkClip();                   // 行走序列同理
     if (warmed) return;
     var A = animData();
     if (!A) return;
@@ -242,7 +288,7 @@
 
   /* anim-data.js 可能后于本文件就位：轻量轮询补一次预热 */
   function armPoll() {
-    if ((warmed && holdWarmed && atkWarmed && atkClipWarmed) || pollTimer) return;
+    if ((warmed && holdWarmed && atkWarmed && atkClipWarmed && walkClipWarmed) || pollTimer) return;
     if (typeof setTimeout !== "function") return;   // 非浏览器宿主：只做同步预热
     pollTries = 0;
     pollTimer = setTimeout(pollTick, 0);
@@ -250,8 +296,8 @@
 
   function pollTick() {
     pollTimer = 0;
-    warm();                           // 内部含 warmHold() / warmAtk() / warmAtkClip()
-    if (warmed && holdWarmed && atkWarmed && atkClipWarmed) return;
+    warm();                           // 内部含 hold / atk / atkClip / walkClip 四条预热
+    if (warmed && holdWarmed && atkWarmed && atkClipWarmed && walkClipWarmed) return;
     if (pollTries++ < 120) pollTimer = setTimeout(pollTick, 60);
   }
 
@@ -511,8 +557,12 @@
      否则换武器那一刻的站立姿态会跟 idle 差一个像素级的位移或亮度。
      返回 false = 「这张画不出来」，调用方落回 idle 动画。
      weapon.key 每次现读，不缓存 —— equipBagSlot / stowWeapon 换手后
-     下一帧立刻换成新武器，不需要任何失效通知。 */
-  function drawHold(ctx, p, t) {
+     下一帧立刻换成新武器，不需要任何失效通知。
+
+     walking = true 时（在地面上且真的在走）额外加一层位移驱动的步行变换：
+     上下浮沉 + 顺向轻微前后倾 + 极小的横向压伸。这不是帧动画，但能让
+     「拿着武器走过去」读成走路而不是滑步 —— 手上那把武器不会因为迈步消失。 */
+  function drawHold(ctx, p, t, walking) {
     var def = holdDef(p.weapon && p.weapon.key);
     if (!def) return false;                 // 该武器没有持械帧（fist 空手）
     var img = holdCache[p.weapon.key];
@@ -548,7 +598,24 @@
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.translate(p.x, p.y);
+
+    /* 步行变换：位移驱动（p.walk 由 vx 累加，与 walk clip 同一相位源），
+       不是时间驱动 —— 站着不动时不会自己晃。 */
+    var bob = 0, tilt = 0, sx = 1, sy = 1;
+    if (walking) {
+      var ph = p.walk;
+      bob = Math.abs(Math.sin(ph * 2)) * -5;
+      tilt = Math.sin(ph * 2) * 0.035;
+      sx = 1 + Math.sin(ph * 4) * 0.022;
+      sy = 1 - Math.sin(ph * 4) * 0.022;
+    }
+
     ctx.scale(p.facing < 0 ? -1 : 1, 1);
+    if (bob || tilt || sx !== 1 || sy !== 1) {
+      ctx.translate(0, bob);
+      if (tilt) ctx.rotate(tilt);
+      if (sx !== 1 || sy !== 1) ctx.scale(sx, sy);
+    }
     ctx.drawImage(art, dx, dy, w, h);
 
     /* 受击闪白（idle 态正常情况下 hurtT 已归零，留着与动画路径保持一致） */
@@ -747,8 +814,92 @@
     return true;
   }
 
-  function legacyTinted(img, color, amt) {    var cacheKey = "p|" + color + "|" + amt;
-    if (legacyTint[cacheKey]) return legacyTint[cacheKey];
+  /* ================================================================== */
+  /*  武器持械行走：逐帧序列                                            */
+  /* ================================================================== */
+
+  /* 走路原来落回通用 walk clip（所有角色共用、手上没武器），于是「站着有武器、
+     一走就空手」—— 连续性断在最常发生的那一帧。这条路走 WEAPON_WALK_CLIP。
+
+     帧号由 p.walk（累计位移，与 walk clip 同一相位源）推导，不按时间自由播放：
+     原地踏步时不该有帧动画，减速时步频也要跟着降。这与出招序列相反 ——
+     出招跟判定走（swingT），行走跟位移走（p.walk）。
+
+     挥动变换一律不加：动作已经在 4 张图里，再叠浮沉会变成双倍抖动。 */
+  function drawWalkFrames(ctx, p, t) {
+    var wkey = p.weapon && p.weapon.key;
+    var def = walkClipDef(wkey);
+    if (!def) return false;
+
+    var arr = walkClipCache[wkey];
+    if (!arr || !arr.length) return false;
+
+    var n = def.files.length;
+    if (n <= 0) return false;
+
+    /* 帧号由位移推导（见 WALK_CYCLE 的说明），不按时间自由播放 */
+    var phase = (p.walk || 0) / WALK_CYCLE * n;
+    var idx = Math.floor(phase) % n;
+    if (idx < 0) idx = 0;
+
+    var img = arr[idx];
+    if (!imageOk(img)) {
+      /* 该帧没就绪：找同序列里最近的可用帧，别闪 */
+      var found = -1;
+      for (var k = 0; k < n; k++) {
+        var j = (idx - k + n) % n;
+        if (imageOk(arr[j])) { found = j; break; }
+      }
+      if (found < 0) return false;
+      idx = found;
+      img = arr[idx];
+    }
+
+    var srcW = def.w > 0 ? def.w : (img.naturalWidth || 1);
+    var srcH = def.h > 0 ? def.h : (img.naturalHeight || 1);
+    var fix = (typeof def.scaleFix === "number") ? def.scaleFix : 1;
+    var sc = (TARGET_H / srcH) * fix;
+    var w = srcW * sc;
+    var h = srcH * sc;
+
+    var ax = anchorOf(def, idx);
+    var fy = typeof def.footY === "number" ? def.footY : 1.0;
+    var dx = -ax * w;
+    var dy = -fy * h;
+
+    var alpha = 1;
+    if (p.dead) alpha = 0.5;
+    else if (p.inv > 0 && Math.floor(p.inv * 20) % 2 === 0) alpha = 0.55;
+    alpha *= alphaMul(p);
+
+    stateOf(p).last = t;
+
+    drawShadow(ctx, p);
+
+    var color = (p.padTag || "") === "p1" ? "#ffcf6a" : "#6fd8c0";
+    var art = tintedFrame(img, "walkclip#" + wkey, idx, w, h, color, 0.10) || img;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(p.x, p.y);
+    ctx.scale(p.facing < 0 ? -1 : 1, 1);
+    ctx.drawImage(art, dx, dy, w, h);
+
+    if (p.hurtT > 0) {
+      var k2 = p.hurtT / 0.28;
+      if (k2 > 1) k2 = 1;
+      if (k2 > 0) {
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = 0.45 * k2 * alpha;
+        ctx.drawImage(img, dx, dy, w, h);
+        ctx.globalCompositeOperation = "source-over";
+      }
+    }
+    ctx.restore();
+    return true;
+  }
+
+  function legacyTinted(img, color, amt) {    var cacheKey = "p|" + color + "|" + amt;    if (legacyTint[cacheKey]) return legacyTint[cacheKey];
 
     var cv = document.createElement("canvas");
     cv.width = img.width;
@@ -925,8 +1076,18 @@
        旋风、死亡一律保持原动画，不会变成站姿滑步。
        idle 帧整个缺失（name === null）时，只要状态本身还是 idle，持械帧照样顶用
        —— 它不依赖 idle 的帧图。 */
+    /* 持械：站定与走路都走持械图。
+       优先序：行走序列（逐帧，手里有武器）→ 行走静帧（有 hold 没序列）→ 通用 walk clip。
+       走路必须接管，是为了「连续性」—— 手里拿着锤子迈步时不该突然变回空手。
+       跳跃不接管（离地时腿是收起来的，站姿会穿帮）；旋风 / 投掷 / 拾取 / 死亡
+       不会落到 "walk" 这个名字上，所以也不会被这里截走。 */
     var standing = (name === "idle") || (name === null && pickClip(p) === "idle");
-    if (standing && drawHold(ctx, p, t)) return;
+    var walkingNow = (name === "walk");
+    if (walkingNow && drawWalkFrames(ctx, p, t)) return;
+    if (holdDef(p.weapon && p.weapon.key)) {
+      if (walkingNow && drawHold(ctx, p, t, true)) return;
+      if (standing && drawHold(ctx, p, t, false)) return;
+    }
 
     if (name && drawFrames(ctx, p, t, name)) return;
 

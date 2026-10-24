@@ -164,3 +164,45 @@ window.WEAPON_ATTACK_CLIP = {
 };
 /* <<< slice_weapon_assets: WEAPON_ATTACK_CLIP <<< */
 
+/* >>> slice_weapon_assets: WEAPON_WALK_CLIP >>> */
+/* 4 帧行走循环。有它的武器，走路时画这一套（手里有武器），
+   没有就落回 ANIM_HOLD 的静帧，再没有才落回通用 walk clip。
+   帧号由 p.walk（累计位移）推导，不按时间自由播放 —— 原地踏步会
+   和实际移动对不上，看起来像滑步。
+   同一把武器 4 帧共用画布 w/h 与 scaleFix；anchorX 逐帧一个。 */
+window.WEAPON_WALK_CLIP = {
+  short   : { frames: 4, fps: 10, loop: true, w: 298, h: 479, scaleFix: 0.706, footY: 1.0,
+            anchorX: [0.3708, 0.4262, 0.3691, 0.4245],
+            files: ["assets/anim/walk-short-0.webp", "assets/anim/walk-short-1.webp", "assets/anim/walk-short-2.webp", "assets/anim/walk-short-3.webp"] },
+  dagger  : { frames: 4, fps: 10, loop: true, w: 297, h: 533, scaleFix: 0.707, footY: 1.0,
+            anchorX: [0.367, 0.3746, 0.3653, 0.3822],
+            files: ["assets/anim/walk-dagger-0.webp", "assets/anim/walk-dagger-1.webp", "assets/anim/walk-dagger-2.webp", "assets/anim/walk-dagger-3.webp"] },
+  sword   : { frames: 4, fps: 10, loop: true, w: 325, h: 525, scaleFix: 0.707, footY: 1.0,
+            anchorX: [0.33, 0.33, 0.3508, 0.3092],
+            files: ["assets/anim/walk-sword-0.webp", "assets/anim/walk-sword-1.webp", "assets/anim/walk-sword-2.webp", "assets/anim/walk-sword-3.webp"] },
+  axe     : { frames: 4, fps: 10, loop: true, w: 371, h: 464, scaleFix: 0.708, footY: 1.0,
+            anchorX: [0.5526, 0.566, 0.5499, 0.5243],
+            files: ["assets/anim/walk-axe-0.webp", "assets/anim/walk-axe-1.webp", "assets/anim/walk-axe-2.webp", "assets/anim/walk-axe-3.webp"] },
+  hammer  : { frames: 4, fps: 10, loop: true, w: 367, h: 524, scaleFix: 0.712, footY: 1.0,
+            anchorX: [0.6226, 0.6226, 0.6226, 0.6226],
+            files: ["assets/anim/walk-hammer-0.webp", "assets/anim/walk-hammer-1.webp", "assets/anim/walk-hammer-2.webp", "assets/anim/walk-hammer-3.webp"] },
+  spear   : { frames: 4, fps: 10, loop: true, w: 301, h: 551, scaleFix: 0.831, footY: 1.0,
+            anchorX: [0.3688, 0.3937, 0.3704, 0.3821],
+            files: ["assets/anim/walk-spear-0.webp", "assets/anim/walk-spear-1.webp", "assets/anim/walk-spear-2.webp", "assets/anim/walk-spear-3.webp"] },
+  bow     : { frames: 4, fps: 10, loop: true, w: 282, h: 491, scaleFix: 0.707, footY: 1.0,
+            anchorX: [0.4583, 0.4583, 0.4583, 0.4583],
+            files: ["assets/anim/walk-bow-0.webp", "assets/anim/walk-bow-1.webp", "assets/anim/walk-bow-2.webp", "assets/anim/walk-bow-3.webp"] },
+  rock    : { frames: 4, fps: 10, loop: true, w: 310, h: 509, scaleFix: 0.707, footY: 1.0,
+            anchorX: [0.45, 0.4613, 0.4403, 0.4597],
+            files: ["assets/anim/walk-rock-0.webp", "assets/anim/walk-rock-1.webp", "assets/anim/walk-rock-2.webp", "assets/anim/walk-rock-3.webp"] },
+  blade   : { frames: 4, fps: 10, loop: true, w: 303, h: 518, scaleFix: 0.709, footY: 1.0,
+            anchorX: [0.3498, 0.3333, 0.3449, 0.3474],
+            files: ["assets/anim/walk-blade-0.webp", "assets/anim/walk-blade-1.webp", "assets/anim/walk-blade-2.webp", "assets/anim/walk-blade-3.webp"] },
+  jar     : { frames: 4, fps: 10, loop: true, w: 255, h: 560, scaleFix: 0.894, footY: 1.0,
+            anchorX: [0.8725, 0.8765, 0.8765, 0.8725],
+            files: ["assets/anim/walk-jar-0.webp", "assets/anim/walk-jar-1.webp", "assets/anim/walk-jar-2.webp", "assets/anim/walk-jar-3.webp"] },
+  bell    : { frames: 4, fps: 10, loop: true, w: 296, h: 485, scaleFix: 0.706, footY: 1.0,
+            anchorX: [0.413, 0.413, 0.413, 0.413],
+            files: ["assets/anim/walk-bell-0.webp", "assets/anim/walk-bell-1.webp", "assets/anim/walk-bell-2.webp", "assets/anim/walk-bell-3.webp"] }
+};
+/* <<< slice_weapon_assets: WEAPON_WALK_CLIP <<< */
