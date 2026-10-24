@@ -156,6 +156,15 @@ def patch_js(entries):
 
     OUT_JS.write_text(src, encoding="utf-8")
 
+    # 生成后门禁：缺冒号这类语法错误必须当场炸，不能留到运行时
+    import subprocess
+    r = subprocess.run(["node", "--check", str(OUT_JS)], capture_output=True, text=True)
+    if r.returncode != 0:
+        print("!! anim-data.js 语法错误：")
+        print(r.stderr.strip()[:600])
+        raise SystemExit(1)
+    print("  node --check anim-data.js 通过")
+
 
 def main():
     print("=== 新动作切片 ===")
