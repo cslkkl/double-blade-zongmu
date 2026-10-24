@@ -65,6 +65,7 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 
 - 想改玩法 → `index.html`；想改画面 → [js/README.md](js/README.md)。
 - 想知道为什么这么设计 → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+- 想查某次决策与调查的来龙去脉 → [.agents/notes/](.agents/notes/)。
 - 想重新出素材 → [tools/README.md](tools/README.md)。
 - 想投稿 / 录屏 → [文案包.md](文案包.md)、[操作与录屏说明.md](操作与录屏说明.md)、[交付清单.md](交付清单.md)。
 - 想查原作机制 → [双刃战士玩法介绍.md](双刃战士玩法介绍.md)。
