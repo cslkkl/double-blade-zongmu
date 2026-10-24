@@ -66,11 +66,13 @@
 
 ## char-rig.js
 
-- 职责：玩家逐帧播放器 + 武器专属姿态（站立 / 出招） + 两级降级。
+- 职责：玩家逐帧播放器 + 武器专属姿态（站立 / 行走 / 出招） + 两级降级。
 - 关键导出：`window.CharArt = { draw(ctx, p, t), ready(), HEIGHT: 252 }`。
-- 依赖谁：`window.ANIM`、`window.ANIM_HOLD`（站立持械）、`window.WEAPON_ATTACK`（出招单帧）、`window.WEAPON_ATTACK_CLIP`（出招四帧序列）、`window.IMG.pose0`（降级）。
+- 依赖谁：`window.ANIM`、`window.ANIM_HOLD`（站立持械）、`window.WEAPON_WALK_CLIP`（行走四帧序列）、`window.WEAPON_ATTACK`（出招单帧）、`window.WEAPON_ATTACK_CLIP`（出招四帧序列）、`window.IMG.pose0`（降级）。
 - 被谁依赖：`index.html` 的 `drawPlayer()`；`ready()` 为假则回落到内联 `drawFighter()`。
-- 关键约束：绘制优先级固定为 **出招序列 → 出招单帧 → 持械站立 → 动画 clip → 降级精灵**。出招那两档必须盖在 attack 族之前，否则换武器时手上仍是老模型。
+- 关键约束：绘制优先级固定为 **出招序列 → 出招单帧 → 持械行走序列 → 持械站立 → 动画 clip → 降级精灵**。出招那两档必须盖在 attack 族之前，否则换武器时手上仍是老模型；行走那一档必须盖在通用 `walk` clip 之前，否则「站着有武器、一走就空手」。
+- 关键约束：走路的三级落回是 **`WEAPON_WALK_CLIP` → `ANIM_HOLD` 静帧（叠位移浮沉）→ 通用 `walk` clip**。缺一级就落下一级，任何一级缺失都不许变成空手。跳跃**不**接管 —— 离地时腿是收起来的，站姿会穿帮。
+- 关键约束：行走帧号由 `p.walk`（累计位移）推导，常量是 `WALK_CYCLE`（一个 4 帧循环覆盖的引导位移）。`p.walk` 在 `index.html` 里按 `+= |vx| * dt * 0.024` 累加，所以 1 单位 ≈ 41.7px；站着不动不会换帧，减速步频自然降。改步频只改 `WALK_CYCLE` 一个数，别在代码里插帧。
 - 关键约束：序列的 `scaleFix` 是**一个数**（四帧共用同一画布），`anchorX` 是**逐帧数组**。前者写错会让连击里忽大忽小，后者写成单个数会让挥砍时人左右漂。
 - 关键约束：帧号由 `attackFrame(p, n)` 推导，与 attack 族同一套算法 —— 有几帧不影响判定时机，改帧数只改动画密度。
 - 关键约束：`pickClip()` 的状态优先级不能乱（`dead → whirl → bow/throw → hurt → pickup → jump → attack 族 → walk → idle`）；出招姿态与持械站立都只在「不属于更高优先级状态」时才接管 —— 旋风 / 投掷 / 受击 / 拾取 / 死亡一律走动画。
@@ -79,7 +81,7 @@
 - 关键约束：可选字段 `p.pickupT`（缺省 0）大于 0 时播 `pickup`，调用方置 0.3 秒后自己倒数。
 - 关键约束：可选字段 `p.__forceClip`（缺省 `null`）是攻击态里的替代 clip 名，只在 `swingT > 0` 时读；且只认 `ANIM` 里真实存在的 clip，不存在则回落 `attack`。调用方收招即清空，别让下一次非攻击状态读到旧值。**该武器有 `WEAPON_ATTACK_CLIP` 或 `WEAPON_ATTACK` 时优先用武器自己的图，`__forceClip` 只是两者都没有时的兜底。**
 - 关键约束：可选字段 `p.__alphaMul`（缺省 1）是前景遮挡淡出的通道 —— 本模块会绝对赋值 `globalAlpha`，外层包一层无效，因子必须在这里乘进 `alpha`；`index.html` 的 `drawPlayer()` 设置后要立刻复位成 1。
-- 改后必测：`pickClip` 十二种状态的映射、三个攻击 clip 与判定同步、`WEAPON_ATTACK_CLIP` → `WEAPON_ATTACK` → `ANIM_HOLD` 三级中某一级缺失时是否逐级落回、帧图缺失时是否落到 `pose0` 再到纯代码、`__alphaMul` 在四条路径上都生效、各 clip 屏幕身高是否仍落在 178~181px。
+- 改后必测：`pickClip` 十二种状态的映射、三个攻击 clip 与判定同步、`WEAPON_ATTACK_CLIP` → `WEAPON_ATTACK` → `ANIM_HOLD` 三级中某一级缺失时是否逐级落回、走路三级（行走序列 → 持械静帧 → 通用 walk）是否都拿得到武器、行走帧号是否随 `p.walk` 变化、帧图缺失时是否落到 `pose0` 再到纯代码、`__alphaMul` 在四条路径上都生效、各 clip 屏幕身高是否仍落在 178~181px。
 
 ## enemies-assets.js
 
@@ -149,7 +151,7 @@
 
 | 改动位置 | 必须同步检查 |
 |---|---|
-| `anim-data.js` | `char-rig` 的 `CLIPS` / `ANIM_HOLD` / `WEAPON_ATTACK` / `WEAPON_ATTACK_CLIP` 键集合、`enemies-assets` 的 `KINDS`、`fx` 的 `WEAPON_FX` / `HIT_MATERIAL`、`scaleFix` 是否仍按内容高反算、各 clip 屏幕身高是否仍在 178~181px |
+| `anim-data.js` | `char-rig` 的 `CLIPS` / `ANIM_HOLD` / `WEAPON_WALK_CLIP` / `WEAPON_ATTACK` / `WEAPON_ATTACK_CLIP` 键集合、`enemies-assets` 的 `KINDS`、`fx` 的 `WEAPON_FX` / `HIT_MATERIAL`、`scaleFix` 是否仍按内容高反算、各 clip 屏幕身高是否仍在 178~181px |
 | `assets.js` | `background` 的 `PROPS`/`CORE_KEYS`/`PROP_KEYS`、`fx` 的 `ready()` 名单、`char-rig` 的 `pose0` 降级、`index.html` 的 `WP_ICON` 与宝箱 / 机关 / 拾取物键名 |
 | `background.js` | `index.html` 的 `Background.ready()` 守卫、`drawFront()` 的调用位置（必须在角色之后）、内联 `drawBG()` 兜底常量、`OCCLUDERS` 的 `w/h` 是否仍与素材比例配准 |
 | `char-rig.js` | `index.html` 的 `drawPlayer()` 守卫、`__alphaMul` 是否仍被乘进 `alpha`、`__forceClip` 是否仍在收招时清空、`Player` 字段（`swingT / swingDur / throwT / whirlT / hurtT / pickupT / onGround`）是否改名 |

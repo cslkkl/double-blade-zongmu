@@ -163,4 +163,3 @@ window.WEAPON_ATTACK_CLIP = {
             files: ["assets/anim/atk-jar-0.webp", "assets/anim/atk-jar-1.webp", "assets/anim/atk-jar-2.webp", "assets/anim/atk-jar-3.webp"] }
 };
 /* <<< slice_weapon_assets: WEAPON_ATTACK_CLIP <<< */
-

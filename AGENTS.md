@@ -39,6 +39,7 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 | `python tools/slice_anim_extra.py` | 新增 3 动作 → `assets/anim/`（就地替换 / 追加三个 clip） |
 | `python tools/slice_weapon_assets.py` | 武器站立帧 / 出招姿态 / 专属特效 → `assets/anim/hold-*`、`atk-*`、`assets/fx/`（就地写 4 个数据块） |
 | `python tools/slice_weapon_seq.py` | 武器出招四帧序列 → `assets/anim/atk-<key>-<0..3>`（写 `WEAPON_ATTACK_CLIP`） |
+| `python tools/slice_weapon_walk.py --src <目录>` | 武器持械行走四帧 → `assets/anim/walk-<key>-<0..3>`（写 `WEAPON_WALK_CLIP`） |
 | `python tools/prep_interact.py` | 宝箱 / 机关 / 拾取物 → `assets/interact/` |
 | `python tools/prep_icons.py` | 武器 / 物品 / 界面图标 → `assets/icons/` |
 | `python tools/prep_fx.py` | 刀光 / 火花 / 旋风环 / 石块 |
@@ -69,6 +70,7 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 - [ ] 物品族图标长边占比 0.41~0.65，与 `prep_icons.py` 设定的 0.84 不符，重跑一次可对齐；重跑后要人眼确认六个物品的相对大小。
 - [ ] `slice_anim_extra.py` 写 `scaleFix: 1.0` 只是占位，需按内容高反算后手改（当前三个 clip 已是 0.914 / 0.867 / 0.754）。
 - [ ] 武器出招是多帧序列（`WEAPON_ATTACK_CLIP`，4 帧），但帧号由 `swingT` 推导、不跟 fps：改帧数只改动画密度，不改出手时机。想更顺就重出 `seq-<key>.png` 再跑 `slice_weapon_seq.py`，别在代码里插帧。
+- [ ] 持械行走（`WEAPON_WALK_CLIP`）的画风与原画有差距：新素材是 AI 重出的青铜面具武士，描边更粗、配色更平。要统一就得连 `hold-*` / `atk-*` 一起重出，单改行走会更割裂。
 
 ## 活跃坑
 
@@ -79,6 +81,8 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
   - 新动作切片后必须实测内容高（alpha > 24 的包围盒），不能凭画布高填 1.0。
   - 验收标准：12 个动作的屏幕身高统一在 178~181px，容差 ±2px。
 - **武器与武器的姿态不能按「内容包围盒高」反算 `scaleFix`**：举钺、举锤时武器尖端高过头顶，包围盒会把角色算成小人（实测 atk-axe 按包围盒 269px、按头冠 174.6px，idle 基准 177.1px）。用「头冠顶 → 脚底」；腰带锚也不行 —— 新图腿更长，腰底占比 0.496 vs idle 0.411，会整体缩 10%。
+- **`detect_head` 只认金色头冠**（`R>=180 G>=145 B<=160`）。AI 新出的青铜面具素材不满足该条件，`slice_weapon_walk.py` 因此加了 `body_top()` 兜底（肩线以上、轮廓中心 ±0.30 宽的竖带取最上行）。11 把里 8 把走兜底；两套锚都失败时直接跳过该武器，不造假数据。
+- 行走帧号跟 **`p.walk`（累计位移）** 走，常量 `WALK_CYCLE` 是「一个 4 帧循环覆盖多少引导位移」。它与出招相反：出招跟判定（`swingT`）、行走跟位移。按时间自由播会在减速时变滑步。
 - 出招序列的 `scaleFix` 是**一把武器一个数**（四帧共用同一画布），`anchorX` 是**逐帧数组**。前者写成逐帧会让连击里忽大忽小，后者写成一个数会让挥砍时整个人左右漂。
 - 洋红底必须 despill，否则边缘一圈紫：见 [tools/README.md](tools/README.md)。
 - 多个 agent 共享同一个 Playwright 实例会互相抢浏览器；自检一律走 mock canvas。
