@@ -367,7 +367,7 @@ function sfxHit(mat, big, weak){
   _toneOld(190,0.10,"square",0.06,110); _noiseOld(0.07,0.09,600);
 }
 function sfxCrit(){
-  if(S){ S.hit({ big: true }); return; }
+  if(S){ S.hit({ mat: recentSwing, big: true }); return; }
   _toneOld(120,0.22,"sawtooth",0.09,55); _noiseOld(0.14,0.12,400);
 }
 function sfxJump(){
@@ -632,9 +632,9 @@ function buildWaves(){
     { name:"第四阵", sub:"坑壁塌了", mech:"rush", chests:2,
       list:["walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute"] },
     { name:"第五阵", sub:"它们数着我的名字", mech:"heal", chests:2,
-      list:["walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute"] },
+      list:["walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute"] },
     { name:"器心 · 纵目之主", sub:"锈蚀的源头", mech:null, chests:2,
-      list:["boss","walker","walker","brute","walker","brute","fast","walker","brute"] }
+      list:["boss","walker","walker","brute","walker","brute","fast","walker","brute","fast","fast"] }
   ];
 }
 
@@ -740,6 +740,7 @@ function waveCleared(){
   /* 不再弹过关页：留 3 秒喘息，玩家还能走动、拾取、开箱。
      机关「rush」把这段压到 0.5 秒，就是「下一波提前到来」。 */
   G.breatherT = G.mechSkipBreather ? 0.5 : BREATHER;
+  if(S && S.bgm) S.bgm.breathe(true);
   G.phaseT = 0;
   document.getElementById("wave").textContent = "第 " + (G.waveIdx+1) + " 阵守住 · 喘息";
   showBanner("这一阵守住了",
@@ -1132,7 +1133,7 @@ function updatePlayer(p, dt, inp, other){
    模型：p.weapon = 手上正在用的（可以是空手 fist）；p.bag = 4 格备用。
    规则：
      · 拾取 → 放进第一个空位；满 → 提示；手 / 背包已有同款 → 不重复收
-     · Q(,) → 选中格右移一格，该格有武器就自动装备，原手上的回到那一格
+     · Q(,) → 换到下一件有武器的格并装备它，原手上的回到被换下的那一格
      · E(.) → 丢当前格（当前格空则丢手上）
      · R(') → 当前格（当前格空则手上）递给队友空位，距离 160px 内
    三个键与现有键位不冲突：P1 用 A/D/W/空格/F/J，P2 用方向键/右Shift///小键盘0/K，
@@ -1179,11 +1180,24 @@ function equipBagSlot(p, i){
   p.bagIdx = i;
   return true;
 }
-/* Q / , —— 选中格右移，格里有武器就自动装备 */
+/* Q / , —— 选中格右移一格；落到有武器的格就自动装备，原手上的换回那一格。
+   空格自动略过：只在「有武器的格」之间跳，一次按键就换一件武器
+   （否则背着一件时要从 0 号格走到 3 号格再绕回来才换得上手）。
+   背包全空时退回「+1 移动高亮」，不做换手。 */
 function bagCycle(p){
-  p.bagIdx = (p.bagIdx + 1) % BAG_SIZE;
-  if(p.bag[p.bagIdx]){
-    equipBagSlot(p, p.bagIdx);
+  var i, filled = 0;
+  for(i=0;i<BAG_SIZE;i++){ if(p.bag[i]) filled++; }
+  var next = (p.bagIdx + 1) % BAG_SIZE;
+  if(filled > 0){
+    var probe = p.bagIdx;
+    for(i=0;i<BAG_SIZE;i++){
+      probe = (probe + 1) % BAG_SIZE;
+      if(p.bag[probe]){ next = probe; break; }
+    }
+  }
+  p.bagIdx = next;
+  if(p.bag[next]){
+    equipBagSlot(p, next);
     tone(560, 0.07, "square", 0.04, 760);
     burst(p.x, p.y-120, 6, "#f0d99c", 160);
   }
@@ -1299,8 +1313,17 @@ function dropWeapon(x, y, wp){
    手里就是同款投掷武器 → 弹数 +1（上限 AMMO_MAX）；
    否则拼回 1 发的同名武器换手 —— 扔光之后靠这条路径把玩法续上。 */
 function pickResidue(p, d){
-  var held = p.weapon;
-  if(held && held.type === "throw" && held.key === d.wkey){
+  /* 先看手里、再看背包：同款投掷物在哪儿，这一发就补到哪儿。
+     背包是后来加的（BAG_SIZE 格），这里只读不改结构；补不到才走拼装分支。 */
+  var held = null;
+  if(p.weapon && p.weapon.type === "throw" && p.weapon.key === d.wkey) held = p.weapon;
+  if(!held && p.bag){
+    for(var bi=0; bi<p.bag.length; bi++){
+      var bw = p.bag[bi];
+      if(bw && bw.type === "throw" && bw.key === d.wkey){ held = bw; break; }
+    }
+  }
+  if(held){
     if(held.ammo >= held.ammoMax){
       if(p.pickLock <= 0){
         showHitText(p.x, p.y-190, "投掷物已满 ×"+held.ammoMax);
@@ -1318,6 +1341,7 @@ function pickResidue(p, d){
     hidePickupHint();
     return true;
   }
+
   var wp = newWeapon(d.wkey);
   wp.ammo = 1;
   /* 异款残骸 → 拼成 1 发的同名武器收进背包第一个空位 */
@@ -1387,7 +1411,7 @@ function openChest(c, p){
   G.shake = Math.max(G.shake, 9);
   burst(c.x, c.y-64, 30, "#f5d98e", 420);
   burst(c.x, c.y-64, 14, "#9fe0c0", 260);
-  sfxCrit();
+  if(S){ S.chest(); } else { sfxCrit(); }
   /* 一张宝箱爆 1~2 件：武器 / 海贝 / 玉器 */
   var n = (Math.random() < 0.55) ? 2 : 1;
   for(var i=0;i<n;i++) chestReward(c, p, i);
@@ -1416,7 +1440,7 @@ function applyPickup(k, p){
   if(k.kind === "cowrie"){
     p.hp = Math.min(p.maxHp, p.hp + 2);
     showHitText(p.x, p.y-200, "海贝 · 气血 +2");
-    tone(680, 0.14, "sine", 0.06, 980);
+    if(S){ S.pickup(); } else { tone(680, 0.14, "sine", 0.06, 980); }
     burst(p.x, p.y-110, 14, "#f7e6c0", 300);
   } else {
     p.energy = Math.min(100, p.energy + 50);
@@ -1604,7 +1628,8 @@ function updatePickupHint(dt){
 /* 武器损坏 → 空手（伤害极低，必须去捡） */
 function breakWeapon(p, wp){
   burst(p.x + p.facing*60, p.y-100, 14, wp.col, 320);
-  tone(240,0.18,"square",0.06,110);
+  if(S){ S.breakWeapon(); } else { tone(240,0.18,"square",0.06,110); }
+  if(S){ recentSwing = S.setMaterial("fist"); }
   p.weapon = newWeapon("fist");
   p.__forceClip = null;                 /* 空手回到原 attack */
   syncHUD();
@@ -1681,7 +1706,7 @@ function startSwing(p, idx){
   /* 攻击动作按武器分流：重武器劈砍 / 快武器突刺 / 其余沿用 attack。
      只挂状态字段，clip 名与帧映射归 char-rig 管（它读 p.__forceClip）。 */
   p.__forceClip = attackClipOf(wp);
-  sfxSwing();
+  sfxSwing(wp.key);
   if(wp.type !== "fist") addSlash(p, idx);
   /* 耐久（空手不掉） */
   if(wp.type !== "fist"){
@@ -1750,7 +1775,7 @@ function whirlHit(p){
       if(G.combo > G.maxCombo) G.maxCombo = G.combo;
     }
   }
-  sfxHit();
+  sfxHit(recentSwing, true, false);
   G.shake = Math.max(G.shake, 6);
 }
 function showHitText(x,y,txt){
@@ -1768,8 +1793,8 @@ function hitEnemy(e, dmg, dir, big, weak){
   addHit(e.x + dir*14, e.y - e.h*0.62, big || weak, !big && dmg >= 14);
   if(weak){
     showHitText(e.x, e.y-e.h-40, "弱点 ×2");
-    sfxCrit();
-  } else if(big){ sfxCrit(); G.flash = 0.12; } else sfxHit();
+    sfxHit(recentSwing, false, true);     /* 弱点：更尖、更亮，和倍伤痛感对齐 */
+  } else if(big){ sfxHit(recentSwing, true, false); G.flash = 0.12; } else sfxHit(recentSwing);
 
   if(e.hp <= 0){
     e.state = "dead"; e.deadT = 0;
@@ -2177,8 +2202,10 @@ function explodeProjectile(pr, R){
   var col = TD_COLS[pr.kind] || "#f7d9a0";
   burst(pr.x, pr.y, big ? 30 : 14, col, big ? 430 : 270);
   G.shake = Math.max(G.shake, big ? 16 : 7);
-  if(big){ sfxCrit(); G.flash = Math.max(G.flash, 0.10); }
-  else sfxHit();
+  /* 爆炸音按投掷物材质走：陶罐闷、玉镖脆、石坠土腥、青铜铃金属 */
+  var pmat = (S && pr.wkey) ? S.matOf(pr.wkey) : recentSwing;
+  if(big){ sfxHit(pmat, true, false); G.flash = Math.max(G.flash, 0.10); }
+  else sfxHit(pmat);
 
   for(var i=0;i<G.enemies.length;i++){
     var e = G.enemies[i];
