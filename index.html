@@ -110,20 +110,44 @@
     background:rgba(14,11,7,.66);border:1px solid rgba(217,180,94,.22);
     text-shadow:0 1px 3px rgba(0,0,0,.95)}
   #keys b{color:#f0d99c;font-weight:600}
-  /* 底部提示按当前输入设备切换：接上手柄看手柄键位，纯键盘看键盘键位。
-     两套都写在 DOM 里，靠 body 上的类互斥显示，不重建节点。 */
-  #keysPad{display:none}
-  body.pad-mode #keysKbd{display:none}
-  body.pad-mode #keysPad{display:block}
-  body.pad-mode #keys{background:rgba(11,16,10,.72);border-color:rgba(158,222,132,.24)}
-  body.pad-mode #keys b{color:#9ede84}
+  /* 底部提示只显示当前输入设备那一套：键盘图 / 手柄图互斥。
+     body 上的 dev-pad / dev-kbd 由 js/guide.js 按「谁在动」切换，
+     文案本身也由它注入 —— 按键叫什么只有一份数据。 */
+  body.dev-pad #keys{background:rgba(11,16,10,.72);border-color:rgba(158,222,132,.24)}
+  body.dev-pad #keys b{color:#9ede84}
   #pad{position:absolute;right:28px;bottom:22px;font-size:11px;letter-spacing:.06em;
     color:#b6a883;text-align:right;line-height:1.9;padding:9px 14px;border-radius:3px;
     background:rgba(14,11,7,.66);border:1px solid rgba(217,180,94,.22);
     text-shadow:0 1px 3px rgba(0,0,0,.95)}
   #pad b{color:#9ede84;font-weight:600}
-  /* 接了手柄：底部那行与 #keysPad 内容重复，收起来只留一处 */
-  body.pad-mode #pad{display:none}
+  /* 标题页三列键位：接手柄时只留手柄那列，键盘两列收起。
+     判定来源是 body 上的 dev-pad / dev-kbd —— 由 js/guide.js 按「谁在动」切换，
+     和底部提示条、说明抽屉同一套开关，不再各自维护一份「插没插手柄」。 */
+  .cl-pad{display:none}
+  body.dev-pad .cl-kbd{display:none}
+  body.dev-pad .cl-pad{display:block}
+
+  /* 暂停时收起底部两行提示：它们本来就该在暂停页里看 */
+  body.is-paused #keys,body.is-paused #pad{display:none}
+
+  /* --- 暂停页 ---
+     背景留 0.80 不透明度，冻住的世界还看得见 —— 暂停不是「离开游戏」，
+     是「站在原地喘一口」。所有内容压在一条中轴上，竖排，不横向撑满。 */
+  .ov.pause{background:radial-gradient(ellipse 70% 66% at 50% 44%,rgba(9,11,14,.80),rgba(5,6,10,.94) 100%)}
+  .pz-head{margin-bottom:26px}
+  .pz-head .eb{margin-bottom:14px}
+  .pz-guide{width:min(1080px,92%);display:flex;justify-content:center}
+  .pz-acts{display:flex;gap:16px;margin-top:30px}
+  .pz-act{display:flex;align-items:center;gap:8px;padding:11px 18px;border-radius:4px;
+    border:1px solid rgba(201,167,101,.34);background:rgba(201,167,101,.06);
+    cursor:pointer;transition:.18s}
+  .pz-act:hover{border-color:#c9a765;background:rgba(201,167,101,.14)}
+  .pz-act b{font-weight:600;font-size:11px;color:#f2e2b6;
+    border:1px solid rgba(201,167,101,.5);border-radius:3px;padding:1px 7px;
+    background:rgba(0,0,0,.4)}
+  .pz-act i{font-style:normal;font-size:10px;color:#6c6354}
+  .pz-act span{font-size:12.5px;letter-spacing:.12em;color:#c9bb98}
+  .pz-act:hover span{color:#f5d98e}
 
   /* --- 覆盖层 --- */
   .ov{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
@@ -147,11 +171,6 @@
 
   .ctrls{display:flex;gap:60px;margin-top:38px}
   .cl{text-align:left}
-  /* 接手柄就只给手柄键位：键盘两列收起，手柄那列出来。
-     判定来源是 body.pad-mode，由 scanPads() 按「是否真有手柄连接」切换。 */
-  .cl-pad{display:none}
-  body.pad-mode .cl-kbd{display:none}
-  body.pad-mode .cl-pad{display:block}
   .cl h4{font-size:11.5px;letter-spacing:.32em;color:#8a7a5c;margin-bottom:14px;font-weight:400}
   .cl .row{font-size:12.5px;color:#a0937c;line-height:2.3;letter-spacing:.05em}
   .cl .row span{display:inline-block;min-width:86px;color:#d8c9a6;
@@ -207,17 +226,8 @@
       <div id="combo"></div>
       <div id="wave">第 1 阵</div>
     </div>
-    <div id="keys">
-      <div id="keysKbd">
-        <b>玩家一</b> A D 走 · W/空格 跳 · F/J 挥刀兼拾取 · <b>Q</b> 换格 · <b>Tab</b> 反向 · <b>E</b> 丢弃 · <b>R</b> 递队友<br>
-        <b>玩家二</b> ← → 走 · ↑/右Shift 跳 · / 或小键盘0 挥刀兼拾取 · <b>,</b> 换格 · <b>\</b> 反向 · <b>.</b> 丢弃 · <b>'</b> 递队友
-      </div>
-      <div id="keysPad">
-        <b>玩家一</b> 左摇杆走 · <b>A</b> 挥刀 · <b>X</b> 跳 · <b>B</b> 旋风斩 · <b>Y</b> 拾取/开箱 · <b>LB/RB</b> 换格 · <b>十字上下</b> 递队友/丢弃<br>
-        <b>玩家二</b> 第二个手柄同上；只插一个手柄时两位共用移动
-      </div>
-    </div>
-    <div id="pad">手柄：左摇杆走 · A 挥刀 · X 跳 · B 旋风斩 · Y 拾取/开箱 · <b>H 看完整键位</b></div>
+    <div id="keys"></div>
+    <div id="pad"></div>
   </div>
 
   <div id="banner"><div class="b1" id="b1"></div><div class="b2" id="b2"></div></div>
@@ -299,6 +309,20 @@
       <span style="color:#332e24">锈蚀怪物、双刃武器与神树场景为游戏化艺术处理，非考古复原</span>
     </div>
   </div>
+
+  <!-- 暂停：画面冻在背后，覆盖层只压一层暗罩，玩家仍看得见自己在哪 -->
+  <div class="ov pause" id="ovPause">
+    <div class="pz-head">
+      <div class="eb">器物静止</div>
+      <div class="tt sm">暂停</div>
+    </div>
+    <div class="pz-guide" id="pzGuide"></div>
+    <div class="pz-acts">
+      <div class="pz-act" id="btnResume"><b>Esc</b><i>或</i><b>Start</b><span>继续</span></div>
+      <div class="pz-act" id="btnRestart"><b>R</b><i>或</i><b>Y</b><span>重新开始</span></div>
+      <div class="pz-act" id="btnPauseHelp"><b>H</b><span>完整键位</span></div>
+    </div>
+  </div>
 </div></div>
 
 <script src="js/assets.js"></script>
@@ -307,6 +331,7 @@
 <script src="js/char-rig.js"></script>
 <script src="js/enemies-assets.js"></script>
 <script src="js/fx.js"></script>
+<script src="js/guide.js"></script>
 <script src="js/ui-shell.js"></script>
 <script src="js/audio.js"></script>
 <script>
@@ -454,44 +479,32 @@ window.addEventListener("keydown", function(e){
   if(!KEYS[e.code]) KEYS[e.code+"_p"] = true;
   KEYS[e.code] = true;
   ac();
-  /* H / Esc / M 归别人的监听器（按键说明、静音），不能顺手把结算页顶掉 */
+
+  /* H / Esc / M 归别人的监听器（按键说明、暂停、静音），不能顺手把结算页顶掉 */
   var uiOwned = (e.code === "KeyH" || e.code === "Escape" || e.code === "KeyM");
+
+  /* Esc 归暂停。说明抽屉开着时那一下由 ui-shell 在捕获阶段吃掉
+     （它会 stopPropagation），所以这里只看 defaultPrevented；
+     isKeyHelpOpen 是第二道保险，防止将来监听顺序被改动。 */
+  if(e.code === "Escape"){
+    if(e.defaultPrevented) return;
+    if(window.UIShell && window.UIShell.isKeyHelpOpen && UIShell.isKeyHelpOpen()) return;
+    if(G.phase === "play"){ togglePause(); return; }
+  }
+
   if(G.phase==="title") openModeSelect();      /* 标题阶段：改开模式选择页，不再直接开打 */
   else if(!uiOwned && (G.phase==="win" || G.phase==="lose")) restartAll();
 });
 window.addEventListener("keyup", function(e){ KEYS[e.code] = false; });
 
 var PADS = [null,null];
-var PAD_MODE = false;        /* 底部提示当前是否按手柄版显示 */
-var padCount = -1;           /* 上一次写进 DOM 的手柄数，用来判定要不要重写 */
+/* 手柄列表与「按哪个设备显示提示」都归 js/guide.js 管：它自己轮询、自己判断
+   谁在动、自己改文案（并且只在连接数或设备真的变了时才动 DOM —— 这一行每帧
+   都会走到，innerHTML 不能每帧重解析）。这里只取结果，不再维护第二份状态。 */
 function scanPads(){
-  var gp = navigator.getGamepads ? navigator.getGamepads() : [];
-  var list = [];
-  for(var i=0;i<gp.length;i++){ if(gp[i] && gp[i].connected) list.push(gp[i]); }
-  PADS[0] = list[0]||null;
-  PADS[1] = list[1]||null;
-  var n = list.length;
-  /* 这一行每帧都会走到，innerHTML 不能每帧重解析；只有连接数变了才动 DOM */
-  if(n !== padCount){
-    padCount = n;
-    var el = document.getElementById("pad");
-    if(el){
-      if(n){
-        el.innerHTML = '手柄已连接 ×'+n+' · 左摇杆走 · A 挥刀 · X 跳 · B 旋风斩 · Y 拾取/开箱 · LB/RB 换格 · 十字上下 递/弃';
-        el.style.color = "#7fa86f";
-      } else {
-        el.innerHTML = '手柄：左摇杆走 · A 挥刀 · X 跳 · B 旋风斩 · Y 拾取/开箱 · <b>H 看完整键位</b>';
-        el.style.color = "#4a4336";
-      }
-    }
-  }
-  /* 底部那块操作提示跟着输入设备走。只在状态真的变了才动 class，
-     避免每次扫描都触发一次样式重算。 */
-  var wantPadMode = n > 0;
-  if(wantPadMode !== PAD_MODE){
-    PAD_MODE = wantPadMode;
-    if(document.body) document.body.classList.toggle("pad-mode", PAD_MODE);
-  }
+  var list = (window.Guide && window.Guide.pads) ? window.Guide.pads() : [];
+  PADS[0] = list[0] || null;
+  PADS[1] = list[1] || null;
   return list;
 }
 var padPrev = {};
@@ -681,6 +694,7 @@ Enemy.prototype.rect = function(){
 /* ---------------- 全局状态 ---------------- */
 var G = {
   phase:"title",
+  paused:false,                /* 暂停：只冻结模拟，不换 phase */
   p1:null, p2:null,
   enemies:[], particles:[], slashes:[], drops:[], texts:[], projectiles:[], hits:[],
   chests:[], mechanisms:[], pickups:[],
@@ -690,7 +704,8 @@ var G = {
   combo:0, comboT:0, maxCombo:0,
   time:0, phaseT:0,
   banner:0,
-  breatherT:0, mechSpawned:false, mechSkipBreather:false
+  breatherT:0, mechSpawned:false, mechSkipBreather:false,
+  resumeGrace:0              /* 解冻后短暂忽略攻击输入，防止按 Esc 的那一下顺手挥刀 */
 };
 
 /* ---------------- 关卡 ----------------
@@ -756,7 +771,10 @@ function startGame(mode){
   G.time = 0; G.shake = 0; G.hitstop = 0; G.flash = 0;
   G.camX = 0;
   G.phase = "play";
+  G.paused = false;
+  G.resumeGrace = 0;
   hideOv();
+  document.body.classList.remove("is-paused");
   document.body.classList.toggle("solo", G.mode === "solo");
   hidePickupHint();
   startWave(0);
@@ -858,8 +876,78 @@ function openModeSelect(){
   });
 }
 
+/* ---------------- 暂停 ----------------
+   暂停不改 G.phase：phase 表达「在哪一段流程」（title/play/win/lose），
+   暂停只是 play 里的一个子状态。这样过关、失败、重开的判定都不用动。
+
+   冻结的是模拟，不是渲染：loop 里跳过 update() 但照常 render()，
+   所以画面停在被暂停的那一帧，玩家看得见自己站在哪、剩多少血。
+   暂停页压在它上面，背景留 0.80 透明度而不是全黑 —— 暂停是「原地喘一口」。 */
+function togglePause(force){
+  if(G.phase !== "play") return false;
+  var want = (typeof force === "boolean") ? force : !G.paused;
+  if(want === G.paused) return false;
+  G.paused = want;
+  if(document.body) document.body.classList.toggle("is-paused", G.paused);
+
+  if(G.paused){
+    hidePickupHint();
+    showPauseGuide();
+    showOv("ovPause");
+    stopPadEdge();            /* 清掉手柄边沿，避免暂停那一帧的按键漏进去 */
+  } else {
+    hideOv();
+    /* 解冻后 0.18 秒不吃攻击输入：Esc 与挥刀常在同一只手上，
+       不设这道闸就会出现「一解除暂停就先砍一刀」。 */
+    G.resumeGrace = 0.18;
+    clearPressed();
+  }
+  return G.paused;
+}
+
+/* 暂停页的操作图：按当前设备渲染，切设备时同帧换掉 */
+function showPauseGuide(){
+  var host = document.getElementById("pzGuide");
+  if(!host) return;
+  if(window.Guide && window.Guide.renderInto){
+    Guide.renderInto(host);
+  } else {
+    host.innerHTML = "";
+  }
+}
+
+/* 清掉所有「按下瞬间」标记：暂停期间攒下的按键不该在解冻后补发 */
+function clearPressed(){
+  for(var k in KEYS){ if(k.indexOf("_p") > 0) KEYS[k] = false; }
+}
+function stopPadEdge(){
+  padPrev = {};
+}
+
+/* 暂停菜单的输入。键盘的 Esc 走 keydown（唯一入口，避免双触发），
+   这里只管手柄与 R / H 这两条键盘快捷键。 */
+function updatePaused(dt){
+  var pads = scanPads();
+  var gp = pads[0] || null;
+
+  if(gp){
+    var b = gp.buttons;
+    function btn(i){ return !!(b[i] && (b[i].pressed || b[i].value > 0.5)); }
+    /* Start / A 继续，Y 重开、B 也留给「继续」（手柄玩家的肌肉记忆多在 A / B） */
+    if(padEdge("pz_start", btn(9)) || padEdge("pz_a", btn(0)) || padEdge("pz_b", btn(1))){
+      togglePause(false); return;
+    }
+    if(padEdge("pz_y", btn(3))){ startGame(); return; }
+  }
+
+  if(keyPressed(["KeyR"])){ startGame(); return; }
+  if(keyPressed(["KeyH"])){
+    if(window.UIShell && window.UIShell.toggleKeyHelp) UIShell.toggleKeyHelp();
+  }
+}
+
 /* ---------------- 覆盖层 ---------------- */
-var OVS = ["ovTitle","ovClear","ovLose","ovWin"];
+var OVS = ["ovTitle","ovClear","ovLose","ovWin","ovPause"];
 function hideOv(){ OVS.forEach(function(id){ document.getElementById(id).classList.remove("on"); }); }
 
 /* ---------------- 结算页确认输入 ----------------
@@ -907,6 +995,14 @@ document.getElementById("btnStart").addEventListener("click", function(e){ e.sto
 document.getElementById("btnNext").addEventListener("click", function(e){ e.stopPropagation(); nextWave(); });
 document.getElementById("btnRetry").addEventListener("click", function(e){ e.stopPropagation(); startGame(); });
 document.getElementById("btnAgain").addEventListener("click", function(e){ e.stopPropagation(); startGame(); });
+
+/* 暂停页三个动作。stopPropagation 是为了不把点击转成「任意键」 */
+document.getElementById("btnResume").addEventListener("click", function(e){ e.stopPropagation(); togglePause(false); });
+document.getElementById("btnRestart").addEventListener("click", function(e){ e.stopPropagation(); startGame(); });
+document.getElementById("btnPauseHelp").addEventListener("click", function(e){
+  e.stopPropagation();
+  if(window.UIShell && window.UIShell.toggleKeyHelp) UIShell.toggleKeyHelp();
+});
 
 /* ---------------- HUD ---------------- */
 function buildHearts(){
@@ -2047,6 +2143,7 @@ function update(dt){
   if(G.shake > 0) G.shake = Math.max(0, G.shake - dt*55);
   if(G.flash > 0) G.flash -= dt;
   if(G.comboT > 0){ G.comboT -= dt; if(G.comboT<=0) G.combo = 0; }
+  if(G.resumeGrace > 0) G.resumeGrace -= dt;
 
   if(G.phase === "play"){
     G.time += dt;
@@ -2077,6 +2174,16 @@ function update(dt){
         in2.left = in2.left || pad1.left;
         in2.right = in2.right || pad1.right;
       }
+    }
+
+    /* 解冻后的短暂沉默：只吃掉「按下一瞬」的动作，移动照常，
+       否则按 Esc 的那一下会顺手挥一刀。 */
+    if(G.resumeGrace > 0){
+      [in1, in2].forEach(function(io){
+        if(!io) return;
+        io.atk = false; io.jump = false; io.skill = false; io.act = false;
+        io.drop = false; io.give = false; io.bagNext = false; io.bagPrev = false;
+      });
     }
 
     updatePlayer(G.p1, dt, in1, G.p2);
@@ -3836,12 +3943,19 @@ function drawWhirlAsset(p){
   return true;
 }
 
-/* ---------------- 主循环 ---------------- */
+/* ---------------- 主循环 ----------------
+   暂停时照样跑 render()，只是不跑 update()：画面停在冻结的那一帧，
+   相机、粒子、飘字都定住，玩家看得见自己站在哪。
+   dt 每帧照常推进（lastT 照常更新），所以解冻时不会补一个巨大帧。 */
 var lastT = 0;
 function loop(ts){
   var dt = Math.min(0.045, (ts - lastT)/1000 || 0.016);
   lastT = ts;
-  update(dt);
+  if(G.paused){
+    updatePaused(dt);
+  } else {
+    update(dt);
+  }
   render();
   requestAnimationFrame(loop);
 }
@@ -3853,7 +3967,14 @@ requestAnimationFrame(loop);
 window.focus();
 document.addEventListener("click", function(){ ac(); }, { once:true });
 
-/* UI 覆盖层：按键说明只挂载，用 H / Esc 开关（由 ui-shell 自己监听） */
+/* 操作指南：设备感知 + 底部提示文案都由它接管（幂等，重复调用无害） */
+if(window.Guide){
+  Guide.mount();
+  /* 暂停页开着时切了设备，图要当帧换掉，不能等下次开暂停 */
+  Guide.onChange(function(){ if(G.paused) showPauseGuide(); });
+}
+
+/* UI 覆盖层：按键说明只挂载，用 H 开关（由 ui-shell 自己监听） */
 if(window.UIShell && window.UIShell.mountKeyHelp) UIShell.mountKeyHelp();
 
 /* 预加载素材（失败也不阻塞，自动回退到矢量绘制；缺哪张由 imgReady 逐项判定） */

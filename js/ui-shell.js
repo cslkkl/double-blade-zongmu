@@ -267,6 +267,15 @@
 .uis-help-panel::-webkit-scrollbar{width:6px}
 .uis-help-panel::-webkit-scrollbar-thumb{background:rgba(217,180,94,.22);border-radius:3px}
 
+/* 抽屉里的操作图：面板内宽只有 ~390px，图和图例必须竖排，不能并排硬挤。
+   js/guide.js 的默认布局是横向（暂停页那种宽容器用），这里覆写为纵向。 */
+.uis-help-body{margin:0 -4px 18px}
+.uis-help-body .gd-host{flex-direction:column;align-items:stretch;gap:16px}
+.uis-help-body .gd-fig{display:flex;justify-content:center}
+.uis-help-body .gd-pad{width:232px}
+.uis-help-body .gd-kbd{flex-direction:column;gap:14px}
+.uis-help-body .gd-legend{width:100%}
+
 /* 说明抽屉的青铜边框：面板图 1448×466 很适合当「竖向长条」的边饰。
    这里只取它的左右云雷纹与上下边框做 border-image，内腔用 fill 保深色底。
    slice 取 140 / 97 / 66 / 97 —— 上 140 是为了把顶中央纵目纹整块留在角片里，
@@ -305,41 +314,7 @@
   background:rgba(217,180,94,.14);transform:rotate(90deg);
 }
 
-/* --- 分块标题 --- */
-.uis-sec{margin-bottom:24px}
-.uis-sec-h{
-  display:flex;align-items:center;gap:9px;margin-bottom:11px;
-  font-size:11.5px;font-weight:400;letter-spacing:.28em;color:#cbbd9a;
-}
-.uis-sec-mark{
-  flex:0 0 auto;width:6px;height:6px;transform:rotate(45deg);
-  background:var(--uis-gold);box-shadow:0 0 10px rgba(217,180,94,.65);
-}
-.uis-sec--pad .uis-sec-mark{
-  background:var(--uis-jade);box-shadow:0 0 10px rgba(92,122,106,.75);
-}
-.uis-sec-note{
-  font-size:10px;letter-spacing:.1em;color:#76897b;margin-left:2px;
-}
-
-/* --- 表格 --- */
-.uis-grid{display:grid;column-gap:14px;row-gap:0}
-.uis-grid--3{grid-template-columns:74px 1fr 1fr}
-.uis-grid--2{grid-template-columns:74px 1fr}
-.uis-th{
-  padding:0 2px 8px;font-size:10px;letter-spacing:.18em;color:#7c7260;
-  border-bottom:1px solid rgba(217,180,94,.22);
-}
-.uis-cell{
-  display:flex;align-items:center;flex-wrap:wrap;gap:5px;min-height:40px;
-  padding:8px 2px;font-size:12.5px;letter-spacing:.04em;
-  border-bottom:1px solid rgba(217,180,94,.075);
-}
-.uis-grid--3 > .uis-cell:nth-last-child(-n+3),
-.uis-grid--2 > .uis-cell:nth-last-child(-n+2){border-bottom:0}
-.uis-act{font-size:12px;letter-spacing:.12em;color:#b6aa90}
-
-/* --- 键帽 --- */
+/* --- 键帽（只剩说明抽屉底部那一行在用） --- */
 .uis-kbd{
   display:inline-block;min-width:26px;padding:3px 8px;
   font-size:12px;line-height:1.45;letter-spacing:.06em;text-align:center;
@@ -352,17 +327,7 @@
     0 3px 7px rgba(0,0,0,.5);
 }
 .uis-kbd--mini{font-size:10.5px;padding:2px 6px;letter-spacing:.02em}
-.uis-kbd--pad{
-  color:#d8e6d6;border-color:rgba(92,122,106,.78);
-  background:linear-gradient(180deg,#141a16,#0a0d0b);
-  box-shadow:
-    inset 0 1px 0 rgba(210,235,215,.12),
-    0 2px 0 #0d1310,
-    0 3px 7px rgba(0,0,0,.5);
-}
-.uis-or{color:#6a6255;font-size:11px;padding:0 1px}
 .uis-txt{font-size:11.5px;letter-spacing:.05em;color:#a99e8a}
-.uis-txt--dim{font-size:10px;color:#6f6759;letter-spacing:.02em}
 
 /* --- 玩法要点 --- */
 .uis-tips{list-style:none;padding-top:14px;border-top:1px solid rgba(217,180,94,.14)}
@@ -566,7 +531,11 @@
     };
   }
 
-  /* 全局键盘：只读监听，不 preventDefault / 不 stopPropagation / 不抢焦点 */
+  /* 全局键盘：只读监听，不 preventDefault / 不 stopPropagation / 不抢焦点。
+     唯一例外是「抽屉开着时按 Esc」：那一下必须由本模块吃掉，
+     否则游戏那边的暂停监听也会收到同一个 Esc，变成「收抽屉 + 暂停」两层一起动。
+     用捕获阶段注册 —— 不依赖两个模块的加载顺序，比在游戏那边写前置判断可靠。
+     平时（抽屉没开）Esc 原样放行，交给游戏去暂停。 */
   function onKeyDown(e) {
     if (!e || e.repeat) return;
 
@@ -583,17 +552,29 @@
       return;   // 选择页开着时，其它键原样交给游戏
     }
 
-    /* 按键说明：H / Esc 开关 */
+    /* 按键说明：H 开合；Esc 只负责关。
+       Esc 的「开」交给游戏的暂停逻辑 —— 一个键两件事会互相打架。
+       分工：H = 看键位，Esc = 暂停；抽屉开着时 Esc 先收抽屉（这里吃掉事件）。 */
     if (S.helpBuilt) {
       if (k === "h" || k === "H" || code === "KeyH") { toggleKeyHelp(); return; }
-      if (k === "Escape" || k === "Esc" || code === "Escape") { toggleKeyHelp(); return; }
+      if ((k === "Escape" || k === "Esc" || code === "Escape") && S.helpOpen) {
+        if (e.preventDefault) e.preventDefault();
+        if (e.stopPropagation) e.stopPropagation();
+        toggleKeyHelp();
+        return;
+      }
     }
   }
 
   function installKeyHook() {
     if (S.hookInstalled) return;
-    global.addEventListener("keydown", onKeyDown, false);
+    /* 捕获阶段：抽屉开着时的 Esc 要在游戏之前拿到 */
+    global.addEventListener("keydown", onKeyDown, true);
     installPadHook();
+    /* 输入设备一变，抽屉里的图跟着换 —— 手柄和键盘永不同时出现 */
+    if (global.Guide && global.Guide.onChange) {
+      global.Guide.onChange(function () { refreshHelpBody(); });
+    }
     S.hookInstalled = true;
   }
 
@@ -865,46 +846,10 @@
 
   /* =======================================================================
      二、按键说明
+     -----------------------------------------------------------------------
+     键位数据表搬到 js/guide.js（全项目唯一一份），本模块只负责容器与开合。
+     这里的 TIPS 是玩法要点，与键位无关，留在本地。
      ======================================================================= */
-  var WHIRL = [{ t: "能量满时" }, { k: "跳" }, { o: "+" }, { k: "攻击" }, { t: "同按" }];
-
-  var KEY_ROWS = [
-    { act: "移动",   cells: [[{ k: "A" }, { k: "D" }],
-                             [{ k: "←" }, { k: "→" }]] },
-    { act: "跳跃",   cells: [[{ k: "W" }, { o: "/" }, { k: "空格", mini: true }],
-                             [{ k: "↑" }, { o: "/" }, { k: "右Shift", mini: true }]] },
-    { act: "普通攻击", cells: [[{ k: "F" }, { o: "/" }, { k: "J" }],
-                             [{ k: "/" }, { o: "/" }, { k: "小键盘 0", mini: true }]] },
-    { act: "拾取 / 开箱", cells: [[{ k: "F" }, { o: "/" }, { k: "J" }],
-                             [{ k: "/" }, { o: "/" }, { k: "小键盘 0", mini: true }]] },
-    { act: "换武器格 →", cells: [[{ k: "Q" }], [{ k: ",", mini: true }]] },
-    { act: "换武器格 ←", cells: [[{ k: "Tab", mini: true }], [{ k: "\\", mini: true }]] },
-    { act: "丢弃",   cells: [[{ k: "E" }], [{ k: ".", mini: true }]] },
-    { act: "递给队友", cells: [[{ k: "R" }], [{ k: "'", mini: true }]] },
-    { act: "旋风斩", cells: [WHIRL, WHIRL] },
-    { act: "键位说明", cells: [[{ k: "H" }, { o: "/" }, { k: "Esc", mini: true }],
-                             [{ k: "H" }, { o: "/" }, { k: "Esc", mini: true }]] },
-    { act: "静音",   cells: [[{ k: "M" }], [{ k: "M" }]] }
-  ];
-
-  /* 面键分工定死：A 挥刀 / X 跳 / B 技能 / Y 拾取。
-     Xbox 与 PS 编号相同、刻字不同，两列并排写。 */
-  function face(xbox, ps) {
-    return [{ k: xbox, pad: true }, { t: "（Xbox）", dim: true }, { o: "/" },
-            { k: ps, pad: true }, { t: "（PS）", dim: true }];
-  }
-
-  var PAD_ROWS = [
-    { act: "移动",   cells: [[{ k: "左摇杆", pad: true }, { o: "/" }, { k: "十字键左右", pad: true }]] },
-    { act: "普通攻击", cells: [face("A", "×")] },
-    { act: "跳跃",   cells: [face("X", "□")] },
-    { act: "技能",   cells: [face("B", "○")] },
-    { act: "拾取 / 开箱", cells: [face("Y", "△")] },
-    { act: "换武器格", cells: [[{ k: "LB", pad: true }, { o: "/" }, { k: "RB", pad: true }]] },
-    { act: "丢弃",   cells: [[{ k: "十字下", pad: true }]] },
-    { act: "递给队友", cells: [[{ k: "十字上", pad: true }]] }
-  ];
-
   var TIPS = [
     "打怪掉武器，走近按攻击键捡起来；手上一把、背包四格",
     "武器有耐久，挥久了会碎，碎了只能空手打",
@@ -912,70 +857,11 @@
     "宝箱与太阳轮机关都用攻击键开启：海贝回血、玉器充能、机关回满或提前放下一阵"
   ];
 
-  function cellContent(items) {
-    var frag = doc.createDocumentFragment();
-    for (var i = 0; i < items.length; i++) {
-      var it = items[i];
-      if (typeof it === "string") { frag.appendChild(txt(it)); continue; }
-      if (it.k) {
-        var extra = "";
-        if (it.pad) extra += " uis-kbd--pad";
-        if (it.mini) extra += " uis-kbd--mini";
-        frag.appendChild(kbd(it.k, extra));
-      } else if (it.o) {
-        frag.appendChild(txt(it.o, "uis-or"));
-      } else if (it.t) {
-        frag.appendChild(txt(it.t, "uis-txt" + (it.dim ? " uis-txt--dim" : "")));
-      }
-    }
-    return frag;
-  }
-
-  function buildSection(title, kind, note, cols, rows) {
-    var sec = doc.createElement("section");
-    sec.className = "uis-sec uis-sec--" + kind;
-
-    var h = doc.createElement("h3");
-    h.className = "uis-sec-h";
-    var mark = doc.createElement("span");
-    mark.className = "uis-sec-mark";
-    h.appendChild(mark);
-    h.appendChild(txt(title, "uis-sec-t"));
-    if (note) h.appendChild(txt(note, "uis-sec-note"));
-    sec.appendChild(h);
-
-    var grid = doc.createElement("div");
-    grid.className = "uis-grid uis-grid--" + cols;
-
-    var heads = cols === 3
-      ? ["动作", "玩家一 · 左半区", "玩家二 · 右半区"]
-      : ["动作", "按键"];
-
-    var i;
-    for (i = 0; i < heads.length; i++) {
-      var th = doc.createElement("div");
-      th.className = "uis-th";
-      th.textContent = heads[i];
-      grid.appendChild(th);
-    }
-
-    for (i = 0; i < rows.length; i++) {
-      var row = rows[i];
-      var act = doc.createElement("div");
-      act.className = "uis-cell uis-act";
-      act.textContent = row.act;
-      grid.appendChild(act);
-
-      for (var c = 0; c < row.cells.length; c++) {
-        var cell = doc.createElement("div");
-        cell.className = "uis-cell";
-        cell.appendChild(cellContent(row.cells[c]));
-        grid.appendChild(cell);
-      }
-    }
-
-    sec.appendChild(grid);
-    return sec;
+  function refreshHelpBody() {
+    if (!D.helpBody) return false;
+    var g = global.Guide;
+    if (g && g.renderInto) return g.renderInto(D.helpBody);
+    return false;
   }
 
   function buildHelp() {
@@ -1025,9 +911,14 @@
     head.appendChild(closeBtn);
     panel.appendChild(head);
 
-    /* 键盘 / 手柄 */
-    panel.appendChild(buildSection("键盘", "key", "", 3, KEY_ROWS));
-    panel.appendChild(buildSection("手柄", "pad", "插上按任意键识别", 2, PAD_ROWS));
+    /* 操作图：手柄图 / 键盘图由 js/guide.js 按当前输入设备渲染。
+       这里只放一个容器 —— 按键叫什么、归哪一组只有 guide.js 那一份数据，
+       本模块不再维护 KEY_ROWS / PAD_ROWS 两张表（历史上前者漏过三次新键位）。 */
+    var bodyWrap = doc.createElement("div");
+    bodyWrap.className = "uis-help-body";
+    panel.appendChild(bodyWrap);
+    D.helpBody = bodyWrap;
+    refreshHelpBody();
 
     /* 玩法要点 */
     var tips = doc.createElement("ul");
