@@ -52,26 +52,6 @@
     animation:hplow .7s infinite}
   @keyframes hplow{0%,100%{opacity:1}50%{opacity:.72}}
 
-  /* --- 背包条：武器名之下的 4 格 --- */
-  /* 纯 DOM + CSS，由 syncHUD() 更新；不在 frame 里重建节点。
-     空格只留深色描边方框，有武器时 canvas 里画图标（没图则方块 + 名字首字）。 */
-  .bag{display:flex;gap:7px;margin-top:10px}
-  .pbar.p2 .bag{justify-content:flex-end}
-  .slot{position:relative;width:34px;height:34px;border-radius:4px;overflow:hidden;
-    border:1px solid rgba(120,104,64,.9);
-    background:linear-gradient(180deg,rgba(0,0,0,.58),rgba(0,0,0,.34));
-    box-shadow:inset 0 1px 4px rgba(0,0,0,.85);
-    transition:border-color .12s,box-shadow .12s}
-  .slot canvas{position:absolute;left:1px;top:1px;width:30px;height:30px;display:block}
-  /* 耐久：格子底部一条细条（投掷物走弹数） */
-  .slot > i{position:absolute;left:3px;right:3px;bottom:2px;height:2px;border-radius:2px;
-    background:rgba(0,0,0,.82);overflow:hidden}
-  .slot > i > b{display:block;height:100%;width:0%;border-radius:2px;
-    background:linear-gradient(90deg,#8a6120,#e8c26a,#fff0bc);transition:width .18s}
-  /* 当前选中格：金色高亮边框 */
-  .slot.sel{border-color:#f5d98e;
-    box-shadow:0 0 10px rgba(245,217,142,.62),inset 0 0 8px rgba(245,217,142,.22)}
-
   /* 武器 + 能量 */
   .wpn{display:flex;align-items:center;gap:12px;margin-top:11px}
   .wpn.right{justify-content:flex-end}
@@ -247,13 +227,11 @@
       <div class="pname">玩家一 <em>纵目 · 执</em></div>
       <div class="hpwrap" id="hp1"></div>
       <div class="wpn"><canvas class="wico" id="wi1" width="56" height="56"></canvas><span class="wmeta"><span class="wname" id="wp1">短剑</span><span class="wdura" id="wd1"></span></span><span class="wenergy" id="en1"><i></i></span></div>
-      <div class="bag" id="bag1"></div>
     </div>
     <div class="pbar p2">
       <div class="pname"><em>执 · 纵目</em> 玩家二</div>
       <div class="hpwrap" id="hp2"></div>
       <div class="wpn right"><canvas class="wico" id="wi2" width="56" height="56"></canvas><span class="wmeta"><span class="wname" id="wp2">短剑</span><span class="wdura" id="wd2"></span></span><span class="wenergy" id="en2"><i></i></span></div>
-      <div class="bag" id="bag2"></div>
     </div>
     <div id="center">
       <div id="combo"></div>
@@ -283,16 +261,16 @@
         <div class="row"><span>A D</span>左右移动</div>
         <div class="row"><span>W / 空格</span>跳起</div>
         <div class="row"><span>F / J</span>挥刀 · 连按三连</div>
-        <div class="row"><span>G</span>拾取 / 开箱</div>
-        <div class="row"><span>Q / E / R</span>换格 / 丢弃 / 递队友</div>
+        <div class="row"><span>G</span>拾取 / 换手</div>
+        <div class="row"><span>E / R</span>丢弃 / 递队友</div>
       </div>
       <div class="cl cl-kbd">
         <h4>玩家二</h4>
         <div class="row"><span>← →</span>左右移动</div>
         <div class="row"><span>↑ / 右Shift</span>跳起</div>
         <div class="row"><span>/ 或小键盘0</span>挥刀 · 连按三连</div>
-        <div class="row"><span>;</span>拾取 / 开箱</div>
-        <div class="row"><span>, . '</span>换格 / 丢弃 / 递队友</div>
+        <div class="row"><span>;</span>拾取 / 换手</div>
+        <div class="row"><span>. / '</span>丢弃 / 递队友</div>
       </div>
       <div class="cl cl-pad">
         <h4>手柄</h4>
@@ -300,8 +278,7 @@
         <div class="row"><span>A</span>挥刀 · 连按三连</div>
         <div class="row"><span>X</span>跳起</div>
         <div class="row"><span>B</span>旋风斩（能量满）</div>
-        <div class="row"><span>Y</span>拾取 / 开箱</div>
-        <div class="row"><span>LB / RB</span>换格</div>
+        <div class="row"><span>Y</span>拾取 / 换手</div>
         <div class="row"><span>十字 ↑ ↓</span>递给队友 / 丢弃</div>
         <div class="row"><span>A / Start</span>结算页继续</div>
       </div>
@@ -398,9 +375,9 @@ var MAX_ALIVE = 7;              /* 同屏存活上限：刷怪排队，波次因
 var INTERACT_R = { x: 80, y: 150 };   /* 宝箱 / 机关的开箱判定半径 */
 
 /* 地上东西的寿命（秒）。没人捡就消失，防止场上杂物越积越多、画面变脏。 */
-var DROP_LIFE = 12;             /* 掉落武器 */
+var DROP_LIFE = 30;             /* 掉落武器：比消耗品活得久（约 2.5 倍），单手一把下换手成本高，捡得从容 */
 var RESIDUE_LIFE = 12;          /* 投掷物残片 */
-var PICKUP_LIFE = 12;           /* 宝箱碎片（海贝 / 玉器） */
+var PICKUP_LIFE = 12;           /* 宝箱碎片（海贝 / 玉器）：消耗品短命，保持画面干净 */
 
 var cv = document.getElementById("cv");
 var ctx = cv.getContext("2d");
@@ -588,17 +565,17 @@ function scanPads(){
 var padPrev = {};
 function padEdge(k,v){ if(v&&!padPrev[k]){padPrev[k]=true;return true;} if(!v)padPrev[k]=false; return false; }
 function readPad(p, tag){
-  if(!p) return {left:false,right:false,jump:false,atk:false,skill:false,act:false,bagPrev:false,bagNext:false,drop:false,give:false};
+  if(!p) return {left:false,right:false,jump:false,atk:false,skill:false,act:false,drop:false,give:false};
   var b = p.buttons, ax = p.axes[0]||0;
   function btn(i){ return !!(b[i] && (b[i].pressed || b[i].value>0.5)); }
-  /* 标准布局编号：0=A 1=B 2=X 3=Y 4=LB 5=RB 8=Back 14=十字左 15=十字右
+  /* 标准布局编号：0=A 1=B 2=X 3=Y 8=Back 14=十字左 15=十字右
      Xbox 记 A/B/X/Y，PS 记 ×/○/□/△，编号一致。
      面键分工（定死，不再混用）：
        A 普通攻击 / 跳跃以外的所有「动手」动作都由 A 出
        X 跳跃
        B 技能（旋风斩）
        Y 拾取 / 开箱
-       LB RB 换背包格   十字上 递给队友   十字下 丢弃 */
+       十字上 递给队友   十字下 丢弃 */
   return {
     left: ax < -0.42 || btn(14),
     right: ax > 0.42 || btn(15),
@@ -606,8 +583,6 @@ function readPad(p, tag){
     jump: padEdge(tag+"_x", btn(2)),        /* X 跳跃 */
     skill: padEdge(tag+"_b", btn(1)),       /* B 旋风斩 */
     act:   padEdge(tag+"_y", btn(3)),       /* Y 拾取 / 开箱 */
-    bagPrev: padEdge(tag+"_lb", btn(4)),
-    bagNext: padEdge(tag+"_rb", btn(5)),
     drop:    padEdge(tag+"_ddown", btn(13)),  /* 十字下 丢弃 */
     give:    padEdge(tag+"_dup",   btn(12))   /* 十字上 递给队友 */
   };
@@ -732,11 +707,9 @@ function Player(x, facing, keys, padTag){
   this.weapon = newWeapon("short");
   this.pickLock = 0;
   this.throwT = 0;          // 投掷/拉弓动作
-  /* ---- 4 格背包 ----
-     weapon 是「手上正在用的」（可以是空手 fist），bag 是备用的 4 格。
-     两处都算「持有」，同款武器不重复收（见 hasWeaponKey）。 */
-  this.bag = [null, null, null, null];
-  this.bagIdx = 0;          // 当前选中格
+  /* ---- 单手一把 ----
+     weapon 是手上正在用的（可以是空手 fist）。没有备用格：
+     地上看到更好的就走过去换，换下来的那把落回原地。 */
   this.pickupT = 0;         // 拾取动作计时（0.3s），char-rig 读它播 pickup
   this.__forceClip = null;  // 攻击动作强制 clip（attack-heavy / attack-thrust）
 }
@@ -791,20 +764,20 @@ var G = {
    六阵：第一阵 6 体，逐阵递增，末阵 BOSS 带随从。
    list 只是排队顺序，实际出场节奏由 update() 的分批刷新控制（0.8~1.4 秒一体）。
    mech 决定本阵末尾浮出的青铜机关：heal 回满血 / rush 下一阵提前 / null 不出。
-   chests 是本阵宝箱数量（世界坐标，落点见 startWave）。 */
+   宝箱不在阵里摆：每破一阵由 nextWave 落下 2 件战利品（见 nextWave）。 */
 function buildWaves(){
   return [
-    { name:"第一阵", sub:"锈蚀试探", mech:"heal", chests:2,
+    { name:"第一阵", sub:"锈蚀试探", mech:"heal",
       list:["walker","walker","walker","walker","walker","fast","fast","fast"] },
-    { name:"第二阵", sub:"它们跑起来了", mech:"rush", chests:2,
+    { name:"第二阵", sub:"它们跑起来了", mech:"rush",
       list:["walker","fast","walker","fast","walker","fast","walker","fast","walker","fast","walker","fast"] },
-    { name:"第三阵", sub:"厚甲压上来", mech:"heal", chests:2,
+    { name:"第三阵", sub:"厚甲压上来", mech:"heal",
       list:["walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute"] },
-    { name:"第四阵", sub:"坑壁塌了", mech:"rush", chests:2,
+    { name:"第四阵", sub:"坑壁塌了", mech:"rush",
       list:["walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute"] },
-    { name:"第五阵", sub:"它们数着我的名字", mech:"heal", chests:2,
+    { name:"第五阵", sub:"它们数着我的名字", mech:"heal",
       list:["walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute"] },
-    { name:"器心 · 纵目之主", sub:"锈蚀的源头", mech:null, chests:2,
+    { name:"器心 · 纵目之主", sub:"锈蚀的源头", mech:null,
       list:["boss","walker","walker","brute","walker","brute","fast","walker","brute","fast","fast"] }
   ];
 }
@@ -836,11 +809,11 @@ function startGame(mode){
   G.mode = mode || G.mode || "duo";
   G.p1 = new Player(560, 1,
     {l:["KeyA"], r:["KeyD"], j:["KeyW","Space"], a:["KeyF","KeyJ"], act:["KeyG"],
-     bag:["KeyQ"], bagPrev:["Tab"], drop:["KeyE"], give:["KeyR"]}, "p1");
+     drop:["KeyE"], give:["KeyR"]}, "p1");
   G.p2 = (G.mode === "solo") ? null
        : new Player(700, -1,
            {l:["ArrowLeft"], r:["ArrowRight"], j:["ArrowUp","ShiftRight"], a:["Slash","Numpad0","KeyK"], act:["Semicolon"],
-            bag:["Comma"], bagPrev:["Backslash"], drop:["Period"], give:["Quote"]}, "p2");
+            drop:["Period"], give:["Quote"]}, "p2");
   G.enemies = []; G.particles = []; G.slashes = []; G.drops = []; G.texts = []; G.projectiles = []; G.hits = [];
   G.chests = []; G.mechanisms = []; G.pickups = [];
   G.breatherT = 0; G.mechSpawned = false; G.mechSkipBreather = false;
@@ -871,15 +844,6 @@ function startWave(i){
   G.breatherT = 0;
   G.mechSpawned = false;
   G.mechSkipBreather = false;
-  G.chests = [];                       /* 宝箱只属于本阵，换阵清空 */
-
-  /* 宝箱落点：以玩家当前所在为基准，左右错开，避开出生点正下方 */
-  var base = G.p1 ? G.p1.x : 560;
-  var n = w.chests || 1;
-  for(var c=0;c<n;c++){
-    var ox = (c === 0) ? 360 : -480;
-    addChest(base + ox, i);
-  }
 
   document.getElementById("wave").textContent = w.name;
   showBanner(w.name, w.sub);
@@ -927,6 +891,14 @@ function waveCleared(){
 function nextWave(){
   if(G.waveIdx >= G.waves.length-1){ goWin(); return; }
   G.waveIdx++;
+  /* 宝箱是破阵奖励，不是开局摆设：每破一阵在这里落 2 件战利品（落在新阵开头，
+     玩家在整个新阵与阵末喘息期里都能开）。先清上一轮的残箱再摆，落点沿用
+     「玩家当前位置 ±错开」避开出生点正下方；喘息期正好开箱换手，
+     带着新武器进下一阵。BOSS 阵破掉直接 goWin，不走这里。 */
+  G.chests = [];
+  var base = G.p1 ? G.p1.x : 560;
+  addChest(base + 360, G.waveIdx);
+  addChest(base - 480, G.waveIdx);
   G.phase = "play";
   hideOv();
   startWave(G.waveIdx);
@@ -1267,8 +1239,6 @@ function syncHUD(){
       en.firstChild.style.width = clamp(pr[1].energy,0,100)+"%";
       en.className = "wenergy" + (pr[1].energy >= 100 ? " full" : "");
     }
-    /* 4 格背包条：在 .pbar 内部，solo 模式下跟着 p2 整块收起 */
-    syncBag(pr[1], pr[0] === "hp1" ? "p1" : "p2");
   });
   var c = document.getElementById("combo");
   if(G.comboT > 0 && G.combo >= 2){
@@ -1315,109 +1285,6 @@ function drawHudWeaponIcon(cv, iconKey){
     st.key = null;
     st.shown = false;
     cv.style.display = "none";
-  }
-}
-
-/* ---------------- HUD 背包条（4 格）----------------
-   纯 DOM + CSS：buildBags() 只建一次节点，syncHUD() 按「状态签名」更新，
-   签名不变就直接返回，不在每帧重建 DOM、也不重画 canvas。
-   格子内容：有图 → 画图标；没图（未就绪 / 加载失败）→ 方块 + 名字首字，
-   保证任何一张 wp* 素材缺失都不留空框、不白屏。 */
-var BAG_CV_S = 30;                       /* 格内 canvas 边长（格子 34px，留 2px 给耐久条） */
-var bagDom = {};                         /* "p1"/"p2" -> { slots:[{box,cv,fill}], sig:"" } */
-
-function buildBags(){
-  [["bag1","p1"],["bag2","p2"]].forEach(function(pair){
-    var root = document.getElementById(pair[0]);
-    if(!root) return;
-    root.innerHTML = "";
-    var rec = { slots:[], sig:"" };
-    for(var i=0;i<BAG_SIZE;i++){
-      var box = document.createElement("div");
-      box.className = "slot";
-      var cv = document.createElement("canvas");
-      cv.width = BAG_CV_S;
-      cv.height = BAG_CV_S;
-      var track = document.createElement("i");     /* 耐久槽 */
-      var fill = document.createElement("b");      /* 耐久填充 */
-      track.appendChild(fill);
-      box.appendChild(cv);
-      box.appendChild(track);
-      root.appendChild(box);
-      rec.slots.push({ box:box, cv:cv, fill:fill });
-    }
-    bagDom[pair[1]] = rec;
-  });
-}
-
-/* 耐久比值：近战用 dur/max，投掷物用 ammo/ammoMax（它的「耐久」是弹数） */
-function bagDuraRatio(w){
-  if(!w) return 0;
-  if(w.type === "throw") return clamp((w.ammo|0) / Math.max(1, w.ammoMax|0), 0, 1);
-  return clamp((w.dur|0) / Math.max(1, w.max|0), 0, 1);
-}
-function bagSigOf(p){
-  var s = "" + (p.bagIdx|0);
-  for(var i=0;i<BAG_SIZE;i++){
-    var w = p.bag[i];
-    if(!w){ s += "|-"; continue; }
-    s += "|" + w.key + "@" + (w.type === "throw" ? (w.ammo|0) : (w.dur|0));
-  }
-  return s;
-}
-
-/* 画一格：图标优先，没图回落「方块 + 名字首字」 */
-function drawBagSlot(cv, wp){
-  if(!cv || !cv.getContext) return;
-  var g = cv.getContext("2d");
-  if(!g) return;
-  var S = BAG_CV_S;
-  g.clearRect(0, 0, S, S);
-  if(!wp) return;                       /* 空格：只留 CSS 的深色描边方框 */
-
-  var drew = false;
-  var iconKey = wpIconKey(wp.key);
-  if(iconKey && imgReady(iconKey)){
-    var im = window.IMG[iconKey];
-    var nw = im.naturalWidth || im.width || 0;
-    var nh = im.naturalHeight || im.height || 0;
-    if(nw > 0 && nh > 0){
-      var sc = (S - 4) / Math.max(nw, nh);
-      var dw = nw*sc, dh = nh*sc;
-      try{ g.drawImage(im, (S-dw)/2, (S-dh)/2, dw, dh); drew = true; }
-      catch(e){ drew = false; g.clearRect(0, 0, S, S); }
-    }
-  }
-  if(drew) return;
-
-  /* 纯代码降级：色块当武器柄身，叠名字首字，读一眼就知道是哪一把 */
-  g.fillStyle = wp.col || "#c9b78c";
-  g.fillRect(4, 4, S-8, S-8);
-  g.strokeStyle = "rgba(20,16,10,.75)";
-  g.lineWidth = 1.5;
-  g.strokeRect(4.5, 4.5, S-9, S-9);
-  var ch = (wp.name || "？").charAt(0);
-  g.font = "700 15px 'Microsoft YaHei',sans-serif";
-  g.textAlign = "center";
-  g.textBaseline = "middle";
-  g.fillStyle = "rgba(22,16,8,.92)";
-  g.fillText(ch, S/2, S/2 + 1);
-}
-
-/* 按签名更新一条背包条；签名没变不做任何事 */
-function syncBag(p, tag){
-  var rec = bagDom[tag];
-  if(!rec || !p || !p.bag) return;
-  var sig = bagSigOf(p);
-  if(sig === rec.sig) return;
-  rec.sig = sig;
-  for(var i=0;i<BAG_SIZE && i<rec.slots.length;i++){
-    var sl = rec.slots[i];
-    var w = p.bag[i] || null;
-    if(i === (p.bagIdx|0)) sl.box.classList.add("sel");
-    else sl.box.classList.remove("sel");
-    drawBagSlot(sl.cv, w);
-    sl.fill.style.width = (bagDuraRatio(w)*100).toFixed(0) + "%";
   }
 }
 
@@ -1520,31 +1387,24 @@ function updatePlayer(p, dt, inp, other){
   if(Math.abs(p.vx)>50 && p.onGround) p.walk += Math.abs(p.vx)*dt*0.024;
   else p.walk *= (1-7*dt);
 
-  /* ---- 背包动作：Q 换格 / E 丢弃 / R 递队友（P2 为 , . '）
-     手柄对应 LB/RB 换格、Y 丢弃、B 递队友。
-     三个都是「按下瞬间」触发，与攻击键一样走 keyPressed 的一次性标记；
+  /* ---- 武器动作：E 丢弃 / R 递队友（P2 为 . '）
+     手柄对应 十字下 丢弃、十字上 递队友。
+     两个都是「按下瞬间」触发，与攻击键一样走 keyPressed 的一次性标记；
      标记无条件吃掉，动作只在能动（未挥砍 / 未受击）时执行，避免攒着延后触发。 */
-  var padBagNext = !!(inp.bagNext), padBagPrev = !!(inp.bagPrev);
   var padDrop = !!(inp.drop), padGive = !!(inp.give);
-  if(p.keys && p.keys.bag){
-    var wantBag  = keyPressed(p.keys.bag);
-    var wantPrev = keyPressed(p.keys.bagPrev);
+  if(p.keys && p.keys.drop){
     var wantDrop = keyPressed(p.keys.drop);
     var wantGive = keyPressed(p.keys.give);
     /* 键盘与手柄任一触发都算 */
-    var goNext = wantBag || padBagNext;
-    var goPrev = wantPrev || padBagPrev;
     var goDrop = wantDrop || padDrop;
     var goGive = wantGive || padGive;
-    if((goNext || goPrev || goDrop || goGive) && canAct && p.pickLock<=0){
-      if(goNext) bagCycle(p, 1);
-      else if(goPrev) bagCycle(p, -1);
-      else if(goDrop) bagDrop(p);
+    if((goDrop || goGive) && canAct && p.pickLock<=0){
+      if(goDrop) bagDrop(p);
       else bagGive(p, other);
     }
   }
 
-  /* ---- 旋风斩发动：能量满 + 招式键（手柄 B / 键盘见 bag 段）或 攻击与跳同按 ----
+  /* ---- 旋风斩发动：能量满 + 招式键（手柄 B）或 攻击与跳同按 ----
      手柄有了独立的 B，键盘保持「攻击+跳」的手感，两条路都通。 */
   if(p.energy >= 100 && (inp.skill || (inp.atk && inp.jump)) && p.whirlT<=0){
     p.whirlT = 1.5; p.whirlTick = 0; p.energy = 0;
@@ -1606,101 +1466,50 @@ function updatePlayer(p, dt, inp, other){
   }
 }
 
-/* ---------------- 背包（4 格）----------------
-   模型：p.weapon = 手上正在用的（可以是空手 fist）；p.bag = 4 格备用。
+/* ---------------- 武器持有（单手一把）----------------
+   模型：p.weapon = 手上正在用的（可以是空手 fist）。没有备用格。
    规则：
-     · 拾取 → 放进第一个空位；满 → 提示；手 / 背包已有同款 → 不重复收
-       （拾取走独立的 act 键，与攻击键分开，见 updatePlayer 里那两道闸）
-     · Q(,) → 换到下一件有武器的格并装备它，原手上的回到被换下的那一格
-     · E(.) → 丢当前格（当前格空则丢手上）
-     · R(') → 当前格（当前格空则手上）递给队友空位，距离 160px 内
-   这几个键与现有键位不冲突：P1 用 A/D/W/空格/F/J/G，P2 用方向键/右Shift///小键盘0/K/;，
+     · 拾取 → 空手就直接上手；手上有别的就换手，换下来的那把落回原地
+     · 同款不叠：手上就是这一款 → 不捡，飘字提示先扔掉
+     · E(.) → 丢手上那把，回到空手
+     · R(') → 手上那把递给队友，距离 160px 内；队友手上有武器时两人对换
+   拾取走独立的 act 键，与攻击键分开（见 updatePlayer 里那两道闸）。
+   这几个键与现有键位不冲突：P1 用 A/D/W/空格/F/J/G/E/R，P2 用方向键/右Shift///小键盘0/K/;/. '，
    ui-shell 只认 1/2/H/Esc。 */
 
-var BAG_SIZE = 4;
 var GIVE_RANGE = 160;              /* 递给队友的距离上限（世界像素） */
 /* 提示文案里的键名。键盘按玩家分，手柄统一按面键名 —— 插着手柄还提示「按 F」
    会让人下意识去找键盘，所以同一套文案要按「这个人当前用的是什么」切换。
    Xbox 与 PS 的键位编号相同、刻字不同，这里取两者都认的记法。 */
 var KEY_LABEL = {
-  p1: { bag:"Q", bagPrev:"Tab", drop:"E", give:"R", atk:"F", open:"G" },
-  p2: { bag:",", bagPrev:"\\", drop:".", give:"'", atk:"/", open:";" }
+  p1: { drop:"E", give:"R", atk:"F", open:"G" },
+  p2: { drop:".", give:"'", atk:"/", open:";" }
 };
-var PAD_LABEL = { bag:"RB", bagPrev:"LB", drop:"十字下", give:"十字上", atk:"A", open:"Y", skill:"B", jump:"X" };
+var PAD_LABEL = { drop:"十字下", give:"十字上", atk:"A", open:"Y", skill:"B", jump:"X" };
 function keyLabel(p, which){
   if(p && p.padActive) return PAD_LABEL[which] || which;
   var t = KEY_LABEL[(p && p.padTag) || "p1"];
   return (t && t[which]) || KEY_LABEL.p1[which];
 }
 
-function bagFirstEmpty(p){
-  for(var i=0;i<BAG_SIZE;i++){ if(!p.bag[i]) return i; }
-  return -1;
+/* 手上是不是真武器（空手 fist 不算） */
+function holdsWeapon(p){
+  return !!(p && p.weapon && p.weapon.type !== "fist" && p.weapon.dur > 0);
 }
-function bagHasKey(p, key){
-  for(var i=0;i<BAG_SIZE;i++){ if(p.bag[i] && p.bag[i].key === key) return true; }
-  return false;
-}
-/* 手 + 背包 都算持有：同款武器散落在地上也不重复收 */
+/* 同款不叠：地上那把与手上是同一款就不捡 */
 function hasWeaponKey(p, key){
-  if(p.weapon && p.weapon.type !== "fist" && p.weapon.key === key) return true;
-  return bagHasKey(p, key);
+  return !!(holdsWeapon(p) && p.weapon.key === key);
 }
-/* 收进背包第一个空位；返回落位下标，满则 -1 */
-function stowWeapon(p, wp){
-  var i = bagFirstEmpty(p);
-  if(i < 0) return -1;
-  p.bag[i] = wp;
-  return i;
-}
-/* 装备背包某格：手上有真武器就换回该格，空手则这一格清空 */
-function equipBagSlot(p, i){
-  var w = p.bag[i];
-  if(!w) return false;
-  var old = p.weapon;
-  p.bag[i] = (old && old.type !== "fist") ? old : null;
-  p.weapon = w;
-  p.bagIdx = i;
-  return true;
-}
-/* Q / , —— 选中格右移一格；落到有武器的格就自动装备，原手上的换回那一格。
-   空格自动略过：只在「有武器的格」之间跳，一次按键就换一件武器
-   （否则背着一件时要从 0 号格走到 3 号格再绕回来才换得上手）。
-   背包全空时退回「+1 移动高亮」，不做换手。 */
-function bagCycle(p, dir){
-  dir = (dir < 0) ? -1 : 1;
-  var i, filled = 0;
-  for(i=0;i<BAG_SIZE;i++){ if(p.bag[i]) filled++; }
-  var next = (p.bagIdx + dir + BAG_SIZE) % BAG_SIZE;
-  if(filled > 0){
-    var probe = p.bagIdx;
-    for(i=0;i<BAG_SIZE;i++){
-      probe = (probe + dir + BAG_SIZE) % BAG_SIZE;
-      if(p.bag[probe]){ next = probe; break; }
-    }
-  }
-  p.bagIdx = next;
-  if(p.bag[next]){
-    equipBagSlot(p, next);
-    tone(560, 0.07, "square", 0.04, 760);
-    burst(p.x, p.y-120, 6, "#f0d99c", 160);
-  }
-  p.pickLock = 0.14;
-  syncHUD();
-}
-/* E / . —— 丢当前格；当前格空则丢手上 */
+/* E / . —— 丢手上那把；本来就空手就只飘字 */
 function bagDrop(p){
-  var i = p.bagIdx, w = p.bag[i];
-  if(w){
-    p.bag[i] = null;
-  } else if(p.weapon && p.weapon.type !== "fist" && p.weapon.dur > 0){
-    w = p.weapon;
-    p.weapon = newWeapon("fist");
-  } else {
-    showHitText(p.x, p.y-190, "这一格是空的");
+  if(!holdsWeapon(p)){
+    showHitText(p.x, p.y-190, "手上没有武器");
     p.pickLock = 0.4;
     return false;
   }
+  var w = p.weapon;
+  p.weapon = newWeapon("fist");
+  p.__forceClip = null;
   dropWeapon(p.x, p.y, w);
   p.pickLock = 0.24;
   burst(p.x, p.y-90, 8, "#c9b78c", 200);
@@ -1708,7 +1517,9 @@ function bagDrop(p){
   syncHUD();
   return true;
 }
-/* R / ' —— 递给队友：当前格 → 队友背包空位，两只手都空就给手上的 */
+/* R / ' —— 递给队友：手上那把 → 队友手上。
+   队友手上有武器就两人对换（换下来的那把不落地，直接接手），
+   队友空手就单纯交出去、自己回到空手。 */
 function bagGive(p, other){
   if(!other || other.dead){
     showHitText(p.x, p.y-190, "没有队友");
@@ -1720,25 +1531,17 @@ function bagGive(p, other){
     p.pickLock = 0.5;
     return false;
   }
-  var fromSlot = true;
-  var w = p.bag[p.bagIdx];
-  if(!w){
-    if(p.weapon && p.weapon.type !== "fist" && p.weapon.dur > 0){ w = p.weapon; fromSlot = false; }
-  }
-  if(!w){
-    showHitText(p.x, p.y-190, "这一格是空的");
+  if(!holdsWeapon(p)){
+    showHitText(p.x, p.y-190, "手上没有武器");
     p.pickLock = 0.5;
     return false;
   }
-  var slot = bagFirstEmpty(other);
-  if(slot < 0){
-    showHitText(p.x, p.y-190, "队友背包已满");
-    p.pickLock = 0.5;
-    return false;
-  }
-  other.bag[slot] = w;
-  if(fromSlot) p.bag[p.bagIdx] = null;
-  else p.weapon = newWeapon("fist");
+  var mine = p.weapon;
+  var theirs = holdsWeapon(other) ? other.weapon : null;
+  other.weapon = mine;
+  p.weapon = theirs || newWeapon("fist");
+  other.__forceClip = null;
+  p.__forceClip = null;
 
   /* 交接：看向对手、短促一声、袖口一点光 */
   p.facing = (other.x >= p.x) ? 1 : -1;
@@ -1747,20 +1550,21 @@ function bagGive(p, other){
   sfxHit();
   tone(920, 0.09, "triangle", 0.05, 1180);
   burst((p.x + other.x)/2, p.y-120, 10, "#a8e6c6", 220);
-  showHitText(other.x, other.y-190, "得 " + w.name);
+  showHitText(other.x, other.y-190, "得 " + mine.name);
   syncHUD();
   return true;
 }
 
-/* 拾取：同类武器不能叠着拿（原作规则），收到背包第一个空位 */
+/* 拾取：单手一把。空手直接上手；手上有别的就换手，旧的那把落回原地。
+   同款不叠：手上就是这一款 → 不捡，提示先扔掉（原作规则）。 */
 function tryPickup(p){
   for(var i=0;i<G.drops.length;i++){
     var d = G.drops[i];
     if(d.taken) continue;
     if(Math.abs(d.x - p.x) < 80 && Math.abs(d.y - p.y) < 140){
-      /* 投掷物残骸：同款补一发，不同款当成 1 发的同名武器进背包 */
+      /* 投掷物残骸：同款补一发，异款换手 */
       if(d.residue) return pickResidue(p, d);
-      /* 手 / 背包已是同一种 → 不捡，提示走开 */
+      /* 手上就是同一种 → 不捡，提示走开 */
       if(hasWeaponKey(p, d.weapon.key)){
         if(p.pickLock <= 0){
           showHitText(p.x, p.y-190, "同款武器，先扔掉");
@@ -1768,27 +1572,18 @@ function tryPickup(p){
         }
         return false;
       }
-      /* 背包满 → 不捡。空手时不占背包格（下面直接上手），这条不拦。 */
-      var handEmpty = !(p.weapon && p.weapon.type !== "fist" && p.weapon.dur > 0);
-      if(!handEmpty && bagFirstEmpty(p) < 0){
-        if(p.pickLock <= 0){
-          showHitText(p.x, p.y-190, "背包已满，按 " + keyLabel(p, "drop") + " 丢弃");
-          p.pickLock = 0.7;
-        }
-        return false;
+      /* 手上有别的武器 → 换手：捡起这把，旧的那把落回原地。
+         落点与拾取判定半径（80px）错开，避免刚放下又立刻被同一把抢回来。 */
+      var swapped = holdsWeapon(p);
+      if(swapped){
+        dropWeapon(p.x - p.facing*96, p.y, p.weapon);
       }
-      if(handEmpty){
-        /* 空手拾取 → 直接上手：否则捡完手里的模型还是空手，玩家会以为没捡到。
-           手上有真武器时仍只进背包（原规则），避免走过掉落物被强行换手。 */
-        p.weapon = d.weapon;
-        p.bagIdx = 0;
-      } else {
-        stowWeapon(p, d.weapon);
-      }
+      p.weapon = d.weapon;
+      p.__forceClip = null;
       d.taken = true;
       p.pickLock = 0.26;
       p.pickupT = 0.30;                       /* 播 pickup 动作 */
-      showHitText(p.x, p.y-190, (handEmpty ? "上手 · " : "入包 · ") + d.weapon.name);
+      showHitText(p.x, p.y-190, (swapped ? "换手 · " : "上手 · ") + d.weapon.name);
       burst(d.x, d.y-40, 10, "#fff0c0", 240);
       tone(660, 0.12, "square", 0.05, 880);
       syncHUD();
@@ -1806,16 +1601,9 @@ function dropWeapon(x, y, wp){
    手里就是同款投掷武器 → 弹数 +1（上限 AMMO_MAX）；
    否则拼回 1 发的同名武器换手 —— 扔光之后靠这条路径把玩法续上。 */
 function pickResidue(p, d){
-  /* 先看手里、再看背包：同款投掷物在哪儿，这一发就补到哪儿。
-     背包是后来加的（BAG_SIZE 格），这里只读不改结构；补不到才走拼装分支。 */
+  /* 只看手里：同款投掷物在手，这一发就补进去；不在手就走拼装分支。 */
   var held = null;
   if(p.weapon && p.weapon.type === "throw" && p.weapon.key === d.wkey) held = p.weapon;
-  if(!held && p.bag){
-    for(var bi=0; bi<p.bag.length; bi++){
-      var bw = p.bag[bi];
-      if(bw && bw.type === "throw" && bw.key === d.wkey){ held = bw; break; }
-    }
-  }
   if(held){
     if(held.ammo >= held.ammoMax){
       if(p.pickLock <= 0){
@@ -1837,15 +1625,12 @@ function pickResidue(p, d){
 
   var wp = newWeapon(d.wkey);
   wp.ammo = 1;
-  /* 异款残骸 → 拼成 1 发的同名武器收进背包第一个空位 */
-  if(bagFirstEmpty(p) < 0){
-    if(p.pickLock <= 0){
-      showHitText(p.x, p.y-190, "背包已满，按 " + keyLabel(p, "drop") + " 丢弃");
-      p.pickLock = 0.6;
-    }
-    return false;
+  /* 异款残骸 → 拼成 1 发的同名武器，换手（旧的那把落回原地） */
+  if(holdsWeapon(p)){
+    dropWeapon(p.x - p.facing*96, p.y, p.weapon);
   }
-  stowWeapon(p, wp);
+  p.weapon = wp;
+  p.__forceClip = null;
   d.taken = true;
   p.pickLock = 0.26;
   p.pickupT = 0.30;
@@ -1905,8 +1690,8 @@ function openChest(c, p){
   burst(c.x, c.y-64, 30, "#f5d98e", 420);
   burst(c.x, c.y-64, 14, "#9fe0c0", 260);
   if(S){ S.chest(); } else { sfxCrit(); }
-  /* 一张宝箱爆 1~2 件：武器 / 海贝 / 玉器 */
-  var n = (Math.random() < 0.55) ? 2 : 1;
+  /* 一张宝箱爆 1 件：武器 / 海贝 / 玉器（降频收敛：不再一次喷两件） */
+  var n = 1;
   for(var i=0;i<n;i++) chestReward(c, p, i);
   showHitText(c.x, c.y-210, "宝箱开启");
 }
@@ -1914,13 +1699,16 @@ function openChest(c, p){
 function chestReward(c, p, i){
   var ox = (i === 0 ? -52 : 52) + rnd(-10,10);
   var r = Math.random();
-  if(r < 0.42){
-    var wp = newWeapon(pickDropKey(G.waveIdx));
+  /* 开箱概率：武器 32% / 海贝 40% / 玉器 28%（合计 100；海贝回血更稳，武器降频）。
+     宝箱武器从偏好池抽：重武器与远程权重加倍 —— 破阵奖励该比小兵掉落更值得期待，
+     但不搞稀有度系统（heavyMul=2，见 DROP_TIERS）。 */
+  if(r < 0.32){
+    var wp = newWeapon(pickDropKey(G.waveIdx, 2));
     dropWeapon(c.x + ox, c.y, wp);
     showHitText(c.x + ox, c.y - 170, "得 " + wp.name);
     return;
   }
-  var kind = (r < 0.74) ? "cowrie" : "jade";
+  var kind = (r < 0.72) ? "cowrie" : "jade";
   G.pickups.push({
     kind: kind, x: c.x + ox, y: c.y - 80,
     vx: ox*2.4, vy: -470, g: 1700,
@@ -1991,34 +1779,23 @@ function nearestInteract(){
 }
 
 /* ---------------- 掉落池 ----------------
-   权重按波次递增解锁：第一阵只有基础四件，第二阵起青铜钺 / 三枝叉进场，
-   第三阵起才轮得到神鸟弓。同列数字越大越常见，0 表示这一阵还不发放。
-   short / dagger 常见，sword / rock 中档，axe / spear 偏少，hammer / bow 稀有。 */
-var DROP_TABLE = {
-  short:  [28, 25, 26],
-  dagger: [28, 25, 26],
-  sword:  [18, 17, 16],
-  rock:   [16, 14, 12],
-  blade:  [10, 11, 10],
-  jar:    [ 0,  9, 10],
-  bell:   [ 0,  7,  9],
-  axe:    [ 0, 12, 12],
-  spear:  [ 0, 11, 11],
-  hammer: [ 0,  6,  7],
-  bow:    [ 0,  0,  5]
-};
-function pickDropKey(wave){
-  var tier = clamp(Math.floor(wave || 0), 0, 2);
-  var total = 0, k;
-  for(k in DROP_TABLE){ total += DROP_TABLE[k][tier] || 0; }
-  if(total <= 0) return "dagger";
-  var r = Math.random() * total;
-  for(k in DROP_TABLE){
-    /* for-in 顺序不保证，但权重表本身有序无关：结果只取决于累计命中 */
-    r -= (DROP_TABLE[k][tier] || 0);
-    if(r <= 0) return k;
+   波数解锁池：档内均匀随机，不再用 33 个数字的加权表。
+   第 0 档（1-2 阵）四件基础；3 阵起加重武器三件；5 阵起加远程与投掷四件。
+   heavyMul 只对第 1、2 档才存在的武器生效（基础四件不吃加成）：
+   宝箱传 2 —— 重武器与远程权重加倍，破阵奖励该比小兵掉落更值得期待，
+   但不搞稀有度系统；敌人掉落传 1，纯均匀。 */
+var DROP_TIERS = [
+  ["short", "dagger", "sword", "rock"],
+  ["axe", "spear", "blade"],
+  ["hammer", "jar", "bell", "bow"]
+];
+function pickDropKey(wave, heavyMul){
+  var tier = clamp(Math.floor(wave || 0), 0, 2), pool = [], t, i, w;
+  for(t=0; t<=tier; t++){
+    w = (t === 0) ? 1 : (heavyMul || 1);   /* 基础四件不吃 heavyMul 加成 */
+    for(i=0; i < DROP_TIERS[t].length * w; i++) pool.push(DROP_TIERS[t][i % DROP_TIERS[t].length]);
   }
-  return "dagger";
+  return pool[(Math.random()*pool.length)|0] || "dagger";
 }
 
 /* ---------------- 拾取提示（ui-shell 气泡） ----------------
@@ -2043,7 +1820,7 @@ function nearestDrop(p, blocked){
       if(dx < bd){ bd = dx; best = d; }
       continue;
     }
-    if(hasWeaponKey(p, d.weapon.key)){        /* 手 / 背包已有同款 → 不算可捡 */
+    if(hasWeaponKey(p, d.weapon.key)){        /* 手上就是同款 → 不算可捡 */
       if(dx < sd){ sd = dx; same = d; }      /* 同款 → 记下来，仍可提示「先扔掉」 */
       continue;
     }
@@ -2084,7 +1861,6 @@ function updatePickupHint(dt){
 
   /* 提示里的键名跟着「这个人当前用什么操作」走：插着手柄提示 X，纯键盘按 p1/p2 区分 */
   var keyName = keyLabel(p, "open");
-  var dropKey = keyLabel(p, "drop");
   var text, hintY;
 
   if(it){
@@ -2097,8 +1873,9 @@ function updatePickupHint(dt){
     return;
   } else {
     var pickLabel = pick ? (pick.residue ? pick.name : pick.weapon.name) : "";
-    if(pick && bagFirstEmpty(pickP) < 0){
-      text = "背包已满 · 按 " + dropKey + " 丢弃";   /* 满格时提前告知，别等按了才提示 */
+    if(pick && holdsWeapon(pickP)){
+      /* 手上有武器 → 捡这把是换手，提示里说清楚，别让人以为会存起来 */
+      text = "按 " + keyName + " 换手 · " + pickLabel;
     } else {
       text = pick ? ("按 " + keyName + " 拾取 · " + pickLabel)
                   : "同款武器，先扔掉";
@@ -2299,8 +2076,8 @@ function hitEnemy(e, dmg, dir, big, weak){
       dropWeapon(e.x-170, e.y, newWeapon("sword"));
       dropWeapon(e.x,     e.y, newWeapon("bow"));     /* 远程保底：保证玩家体验过直线弹道 */
       dropWeapon(e.x+170, e.y, newWeapon("hammer"));
-    } else if(Math.random() < 0.34){
-      dropWeapon(e.x, e.y, newWeapon(pickDropKey(G.waveIdx)));
+    } else if(Math.random() < 0.35){   /* 概率门：约 1/3 的敌人掉武器，其余只吃打击反馈 */
+      dropWeapon(e.x, e.y, newWeapon(pickDropKey(G.waveIdx, 1)));
     }
   }
 }
@@ -2423,7 +2200,6 @@ function update(dt){
          与攻击键分开是硬要求 —— 同一个键既挥刀又捡东西时，站在掉落物旁一按就会
          先捡、把这一刀吃掉，玩家读到的是「乱拾取」。 */
       act:   (G.p1.keys.act && keyPressed(G.p1.keys.act)) || pad1.act,
-      bagNext: pad1.bagNext, bagPrev: pad1.bagPrev,
       drop: pad1.drop, give: pad1.give, skill: pad1.skill
     };
     var in2 = null;
@@ -2434,7 +2210,6 @@ function update(dt){
         jump:  keyPressed(G.p2.keys.j) || pad2.jump,
         atk:   keyPressed(G.p2.keys.a) || pad2.atk,
         act:   (G.p2.keys.act && keyPressed(G.p2.keys.act)) || pad2.act,
-        bagNext: pad2.bagNext, bagPrev: pad2.bagPrev,
         drop: pad2.drop, give: pad2.give, skill: pad2.skill
       };
       /* 单手柄时两人共用移动 */
@@ -2450,7 +2225,7 @@ function update(dt){
       [in1, in2].forEach(function(io){
         if(!io) return;
         io.atk = false; io.jump = false; io.skill = false; io.act = false;
-        io.drop = false; io.give = false; io.bagNext = false; io.bagPrev = false;
+        io.drop = false; io.give = false;
       });
     }
 
@@ -4242,7 +4017,6 @@ function loop(ts){
   requestAnimationFrame(loop);
 }
 
-buildBags();
 buildHearts();
 syncHUD();
 requestAnimationFrame(loop);

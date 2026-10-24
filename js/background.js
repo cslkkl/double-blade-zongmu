@@ -19,8 +19,10 @@
 
    drawFront() 画「角色之后」的真正前景遮挡层，必须等角色、刀光、粒子
    全部落屏后再调用，否则起不到遮挡作用：
-     · 5 座高大遮挡物（祭旗 / 编钟 / 玉璋碑 / 铜鼎 / 神树），视差 1.00
-     · 底部贴 groundY，高度 320~366px（角色 252px，全部高于角色）
+     · 3 座高大遮挡物（纵目面具浮雕 / 铜鼎 / 神树），视差 1.00
+     · 祭旗、编钟已从本层移除：立在角色之上会把人和旗子叠成一坨，只留在中景 PROPS
+     · 底部贴 groundY，高度 250~300px（角色 252px）
+     · 遮挡物不画落地阴影、不做底部压暗 —— 素材是平涂，加了就脏
      · 素材缺失时逐个回落到纯代码石柱，不白屏、不抛错
 
    坐标约定：本模块只在屏幕坐标系里用 camX 计算偏移，不做 translate 到
@@ -79,22 +81,21 @@
      ------------------------------------------------------------------
      x   ：世界坐标中心（视差 1.00，所以屏幕 x = x - camX）
      w   ：遮挡判定宽度；w * 0.42 是「角色算被挡住」的半宽
-     h   ：绘制高度，全部 >= 320px，高于角色 252px
+     h   ：绘制高度，全部 >= 250px，接近或高于角色 252px
      w / h 按素材真实像素比例配准，所以按比例 contain 进 w × h 的框后，
      实际绘制高度就是 h，不会被压矮：
-       banner      246×460 → 0.535
-       bellCluster 305×460 → 0.663
-       jadeTablet  452×460 → 0.983
+       maskRelief  460×306 → 1.503
        brazier     460×440 → 1.045
        sacredTree  460×364 → 1.264
+     祭旗（banner）与编钟（bellCluster）不再进这一层：它们是立在地上的
+     小东西，画到角色之上只会把人劈成两半、盖住头脸。两者仍留在中景
+     PROPS 里按世界坐标排布。
      分布刻意避开出生点 560 / 700（玩家一 560、玩家二 700）。
      ------------------------------------------------------------------ */
   /* 遮挡物尺寸约束：高度略高于角色（252），宽高比严格按素材原始比例，
      否则 contain 之后实际绘制高度会被压矮。
      玉璋碑接近方形，同样的高度会占掉近一屏的宽度，改成横向的纵目面具浮雕。 */
   var OCCLUDERS = [
-    { k: "banner",     x:   400, h: 300, w: 160, flip: true  },  // 祭旗
-    { k: "bellCluster",x:  1060, h: 290, w: 192, flip: false },  // 编钟
     { k: "maskRelief", x:  1720, h: 250, w: 376, flip: false },  // 纵目面具浮雕（横版，不压屏）
     { k: "brazier",    x:  2460, h: 280, w: 293, flip: true  },  // 铜鼎
     { k: "sacredTree", x:  3040, h: 300, w: 379, flip: false }   // 神树
@@ -233,43 +234,14 @@
   }
 
   /* ------------------------------------------------------------------
-     道具落地阴影（离屏 sprite 缓存，避免每帧建渐变）
-     ------------------------------------------------------------------ */
-  var _shadow = null;
-
-  function shadowSprite() {
-    if (_shadow !== null) return _shadow;
-    if (typeof document === "undefined") { _shadow = false; return false; }
-
-    var c = document.createElement("canvas");
-    c.width = 128; c.height = 64;
-    var g2 = c.getContext("2d");
-    if (!g2) { _shadow = false; return false; }
-
-    g2.save();
-    g2.translate(64, 32);
-    g2.scale(1, 0.5);
-    var gd = g2.createRadialGradient(0, 0, 0, 0, 0, 64);
-    gd.addColorStop(0, "rgba(0,0,0,0.52)");
-    gd.addColorStop(0.55, "rgba(0,0,0,0.22)");
-    gd.addColorStop(1, "rgba(0,0,0,0)");
-    g2.fillStyle = gd;
-    g2.beginPath();
-    g2.arc(0, 0, 64, 0, Math.PI * 2);
-    g2.fill();
-    g2.restore();
-
-    _shadow = c;
-    return c;
-  }
-
-  /* ------------------------------------------------------------------
      静物道具（中景之后、地面之前）
+     ------------------------------------------------------------------
+     不再画落地阴影：素材是平涂厚描边，底下一坨黑色椭圆会读成「贴纸浮空」，
+     和角色自带的 drawShadow 也打架。道具只靠底部与地面线的咬合定位。
      ------------------------------------------------------------------ */
   function drawProps(ctx) {
     var I = global.IMG;
     if (!I) return;
-    var sp = shadowSprite();
 
     for (var i = 0; i < PROPS.length; i++) {
       var p = PROPS[i];
@@ -288,15 +260,6 @@
       if (left + w < -80 || left > _W + 80) continue; // 视口剔除
 
       var top = _groundY - p.h;
-
-      /* 落地阴影：只露地面线以上的半截，像压在土面上 */
-      if (sp) {
-        var rw = Math.max(24, w * 0.46);
-        ctx.save();
-        ctx.globalAlpha = 0.55;
-        ctx.drawImage(sp, sx - rw, _groundY - rw * 0.26, rw * 2, rw * 0.52);
-        ctx.restore();
-      }
 
       /* 本体 */
       if (p.flip) {
@@ -433,7 +396,7 @@
     }
   }
 
-  /* 单个遮挡物：落地阴影 + 基座 + 素材（缺失则石柱） */
+  /* 单个遮挡物：基座 + 素材（缺失则石柱）。不画落地阴影、不做底部压暗。 */
   function drawOccluder(ctx, o, seed) {
     var boxW = o.w, boxH = o.h;
     var sx = o.x - _camX * P_OCCLUDER;                 // 世界坐标 -> 屏幕坐标
@@ -443,16 +406,6 @@
     if (sx + halfW < -120 || sx - halfW > _W + 120) return;
 
     var top = _groundY - boxH;
-
-    /* 落地阴影 */
-    var sp = shadowSprite();
-    if (sp) {
-      var rw = Math.max(46, boxW * 0.52);
-      ctx.save();
-      ctx.globalAlpha = 0.62;
-      ctx.drawImage(sp, sx - rw, _groundY - rw * 0.28, rw * 2, rw * 0.56);
-      ctx.restore();
-    }
 
     /* 基座：横在角色脚前，读作「近处的东西」 */
     var pw = boxW * 1.18;
@@ -494,15 +447,6 @@
       }
     }
     if (!drawn) drawStonePillar(ctx, sx, top, boxW, boxH, seed);
-
-    /* 底部压暗：让遮挡物和地面咬合，避免「贴纸浮空」 */
-    ctx.save();
-    var gb = ctx.createLinearGradient(0, _groundY - 84, 0, _groundY + 6);
-    gb.addColorStop(0, "rgba(6,5,4,0)");
-    gb.addColorStop(1, "rgba(6,5,4,0.44)");
-    ctx.fillStyle = gb;
-    ctx.fillRect(sx - pw * 0.55, _groundY - 84, pw * 1.1, 90);
-    ctx.restore();
   }
 
   /* 只画前景遮挡。调用方必须在角色之后调用。 */

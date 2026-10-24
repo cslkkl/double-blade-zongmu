@@ -125,7 +125,7 @@
 - 依赖谁：`document` 与 `#stage`（存在则挂进 stage，用设计像素；否则挂 body 用视口像素）；说明抽屉的操作图来自 `window.Guide`。
 - 被谁依赖：`index.html` 的 `openModeSelect()`、`mountKeyHelp()`、`showPickupHint()`、`clearPickupHint()`。
 - 关键约束：键盘监听只读，不 `preventDefault`、不抢焦点；自己处理 `1 / 2 / H / Esc`；`solo` 模式 HUD 靠 `body.solo` 隐藏玩家二血条。
-- 关键约束：**本模块不再持有键位表**。原来那两张 `KEY_ROWS` / `PAD_ROWS` 已删除，改由 `guide.js` 的 `Guide.renderInto()` 渲染；这里只留一个 `.uis-help-body` 容器和 `TIPS`（玩法要点，与键位无关）。
+- 关键约束：键位数据只在 `guide.js` 的 `KBD_LEGEND / PAD_LEGEND` 一份；ui-shell 本地只剩 `TIPS`（玩法要点）。新增按键只需改 guide.js 的两张表，本模块不用动。
 - 关键约束：`Guide.onChange` 只注册在 `installKeyHook()` 里，设备一变就重绘抽屉，避免抽屉开着时图不跟着换。
 - 关键约束：`guide.js` 的 `PAD_LEGEND` / `KBD_LEGEND` 里都登记了「暂停」一行，值分别是 `Start` 与 `Esc`。改暂停键位要同时改三处：`index.html` 的 `togglePause` 入口、`guide.js` 的两张表、本模块的 Esc 归属判断。
 - 关键约束：**Esc 的归属权在捕获阶段解决**。本模块的 `keydown` 监听用 `true` 注册，抽屉开着时按 Esc 会 `preventDefault` + `stopPropagation` 并只关抽屉；抽屉没开时原样放行，交给游戏的 `togglePause`。不这样做的话两个监听都会收到同一个 Esc，变成「收抽屉 + 暂停」两层一起动（这个 bug 真的出现过）。
