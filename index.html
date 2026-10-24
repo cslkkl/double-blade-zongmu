@@ -703,7 +703,13 @@ function readPad(p, tag){
     skill: padEdge(tag+"_b", btn(1)),       /* B 旋风斩 */
     act:   padEdge(tag+"_y", btn(3)),       /* Y 拾取 / 开箱 */
     drop:    padEdge(tag+"_ddown", btn(13)),  /* 十字下 丢弃 */
-    give:    padEdge(tag+"_dup",   btn(12))   /* 十字上 递给队友 */
+    give:    padEdge(tag+"_dup",   btn(12)),  /* 十字上 递给队友 */
+    /* Start 暂停。以前这里没有 pause 字段，而 togglePause 的入口只有
+       Esc / 暂停页按钮 / 触屏 ❚❚ —— 手柄玩家在对局里根本按不出暂停。
+       指南图例写着「Start 暂停」、暂停页写着「Start 继续」，
+       但「进入」这条路从来没接上（btn(9) 只在已经暂停之后才被读）。
+       Back（8）也接上：Xbox 玩家的肌肉记忆里它同样是暂停位。 */
+    pause: padEdge(tag+"_start", btn(9)) || padEdge(tag+"_back", btn(8))
   };
 }
 
@@ -1374,11 +1380,14 @@ function kbConfirmEdge(){
   if(!anyHeld) uiKbSeenUp = true;
 
   if(!KEYS.__confirmReq) return false;
-  /* 请求标记只在「闸已开」时消费；闸没开就先留着 ——
-     但也不能留太久，否则松开手过两秒会突然自己重开。
-     所以闸没开时直接丢掉这个请求：玩家想重开就再按一下。 */
-  KEYS.__confirmReq = false;
+  /* ⚠️ 这里**不能**在闸未开时就把请求丢掉。
+     失败页刚出现的那一瞬闸必然还没开（玩家最后一刀还按着），
+     如果当场丢弃，玩家「狂按几下」整段都会无效，必须完全松开再按一次 ——
+     手感上是「死了之后按什么都没反应」，比原来更糟。
+     改成：请求先留着，闸开了再消费。跨页残留由 showOv() 里的
+     resetConfirm() 清（它会清 __confirmReq），不会把上一页的请求带过来。 */
   if(!uiKbSeenUp) return false;
+  KEYS.__confirmReq = false;
   return true;
 }
 
@@ -1701,6 +1710,13 @@ function updatePlayer(p, dt, inp, other){
   /* ---- 攻击：按武器类型分流 ---- */
   var wpNow = p.weapon || newWeapon("fist");
   if(inp.atk && canAct && p.swingCd<=0){
+    /* 清掉可能残留的「下一段」请求。
+       收招窗口（swingCd>0）里按下的攻击会记进 swingQueued，但消费点只挂在
+       if(p.swingT>0) 块里 —— 收招期间 swingT 已经是 0，当场没人消费。
+       如果这里不清，残留的 true 会在这一刀打完时被当成「玩家要接第二段」
+       消费掉，凭空多出一刀（原来丢键，现在多键）。
+       玩家看到的是「明明只按了一下，角色却自己连了两下」。 */
+    p.swingQueued = false;
     if(wpNow.type === "bow" || wpNow.type === "throw"){
       fireProjectile(p, wpNow);
     } else {
@@ -2023,7 +2039,14 @@ function activateMechanism(m, p){
   sfxCrit();
   Rumble.player(p.padTag, "mechanism");   /* 一记闷震 */
   if(m.mode === "rush"){
+    /* 「下一阵提前」必须在**这一刻**就把 breatherT 压下去。
+       只置 mechSkipBreather 标记是句空话：消费点在 waveCleared 里算 breatherT，
+       而机关只在「队列排空 + 存活≤2」时才浮出 —— 玩家跑过去按 Y 的时候，
+       清场判定往往已经先跑过了，标记置位后没有任何代码重算，
+       再往后 startWave 又把它重置回 false。提示文案对玩家说谎。
+       这里直接把当前 breatherT 夹到 0.5 秒（若已经进结算页则无效，无害）。 */
     G.mechSkipBreather = true;
+    if(G.breatherT > 0.5) G.breatherT = 0.5;
     showHitText(m.x, m.y-220, "机关咬合 · 下一阵提前");
     tone(300, 0.34, "sawtooth", 0.07, 170);
   } else {
@@ -2303,8 +2326,12 @@ function doSwingHit(p, other){
       other.hurtT = 0.2;
       if(other.weapon && other.weapon.key !== "short"){
         dropWeapon(other.x, other.y, other.weapon);
+        /* 掉到玉璋刃（最基础那把），但**不覆盖 dur**。
+           以前这里写死 `other.weapon.dur = 40`，而 WEAPONS.short 的 dur 是 55 ——
+           绕过了 newWeapon 的正规取值路径，等于「被队友打一下，
+           连换上的基础武器都比捡来的短一截」。玩家读到的是「被队友打会永久变弱」。
+           现在 dur 与 max 都跟着表走（newWeapon 已把两者设成 55）。 */
         other.weapon = newWeapon("short");
-        other.weapon.dur = 40;
         burst(other.x, other.y-100, 14, "#ffd0a0", 340);
         tone(520,0.14,"square",0.06,300);
         showHitText(other.x, other.y-170, "武器脱手！");
@@ -2487,6 +2514,14 @@ function update(dt){
     if(G.p1){ G.p1.padActive = !!PADS[0]; G.p1.touchActive = touchOn && !PADS[0]; }
     if(G.p2){ G.p2.padActive = !!PADS[1]; G.p2.touchActive = touchOn && !PADS[1]; }
 
+    /* 手柄 Start / Back 暂停。
+       放在构造 in1 之前，因为这是「系统级」操作，不属于任一玩家的动作输入：
+       任意一把手柄按下都算，与键盘 Esc 等价。
+       以前这条完全没接 —— readPad 里没有 pause 字段，togglePause 的入口只有
+       Esc / 暂停页按钮 / 触屏 ❚❚，而指南图例与暂停页都写着「Start」，
+       手柄玩家在对局里按 Start 毫无反应。 */
+    if(pad1.pause || (pad2 && pad2.pause)) togglePause(true);
+
     var in1 = {
       left:  keyDown(G.p1.keys.l) || pad1.left || (tch1 && tch1.left),
       right: keyDown(G.p1.keys.r) || pad1.right || (tch1 && tch1.right),
@@ -2647,6 +2682,11 @@ function updateParticles(dt){
     q.x += q.vx*dt; q.y += q.vy*dt;
     q.vx *= (1-2.4*dt);
   }
+  /* 兜底夹一次：burst() 已经按 room 截断，但粒子还有别的来源
+     （命中火花、武器拖尾、旋风残影各走各的 push），多源叠加仍可能超限。
+     这里是唯一的收敛点，一行就够，且不会误伤 —— 只在超限时截断尾部，
+     被丢的总是最早生成的那批（视觉上就是「老火花先熄灭」）。 */
+  if(G.particles.length > PARTICLE_MAX) G.particles.length = PARTICLE_MAX;
   for(var j=G.slashes.length-1;j>=0;j--){
     G.slashes[j].life -= dt;
     if(G.slashes[j].life<=0) G.slashes.splice(j,1);

@@ -544,6 +544,17 @@
     return m > 1 ? 1 : m;
   }
 
+  /* 受伤无敌期间的半透明闪烁。
+     ⚠️ 判据不能只看 p.inv —— 旋风斩也给了 1.5 秒无敌（与 whirlT 同寿），
+     但旋风斩期间角色是「高速自转 + 残影」，不是受伤。
+     只看 inv 会让玩家读到「我是不是掉血了」（实测：放完技能角色半透明闪 1.5 秒）。
+     whirlT > 0 时跳过闪烁，与 pickClip 的优先级一致。 */
+  function hurtFlicker(p) {
+    if (!(p.inv > 0)) return false;
+    if (p.whirlT > 0) return false;
+    return Math.floor(p.inv * 20) % 2 === 0;
+  }
+
   /* ================================================================== */
   /*  主绘制：逐帧动画                                                  */
   /* ================================================================== */
@@ -585,7 +596,7 @@
     /* 透明度：无敌闪烁 / 死亡淡出 / 前景遮挡淡出（p.__alphaMul） */
     var alpha = 1;
     if (p.dead) alpha = 0.5;
-    else if (p.inv > 0 && Math.floor(p.inv * 20) % 2 === 0) alpha = 0.55;
+    else if (hurtFlicker(p)) alpha = 0.55;
     alpha *= alphaMul(p);
 
     drawShadow(ctx, p);
@@ -650,7 +661,7 @@
     /* 透明度：无敌闪烁 / 死亡淡出 / 前景遮挡淡出（p.__alphaMul） */
     var alpha = 1;
     if (p.dead) alpha = 0.5;
-    else if (p.inv > 0 && Math.floor(p.inv * 20) % 2 === 0) alpha = 0.55;
+    else if (hurtFlicker(p)) alpha = 0.55;
     alpha *= alphaMul(p);
 
     /* 持械帧同样推进 idle 的时钟：换回动画时 dt 不会因为静帧期间
@@ -745,7 +756,7 @@
 
     var alpha = 1;
     if (p.dead) alpha = 0.5;
-    else if (p.inv > 0 && Math.floor(p.inv * 20) % 2 === 0) alpha = 0.55;
+    else if (hurtFlicker(p)) alpha = 0.55;
     alpha *= alphaMul(p);
 
     /* 与动画路径共用时钟：切回 clip 时 dt 不会突然变大 */
@@ -842,7 +853,7 @@
 
     var alpha = 1;
     if (p.dead) alpha = 0.5;
-    else if (p.inv > 0 && Math.floor(p.inv * 20) % 2 === 0) alpha = 0.55;
+    else if (hurtFlicker(p)) alpha = 0.55;
     alpha *= alphaMul(p);
 
     stateOf(p).last = t;
@@ -934,7 +945,7 @@
 
     var alpha = 1;
     if (p.dead) alpha = 0.5;
-    else if (p.inv > 0 && Math.floor(p.inv * 20) % 2 === 0) alpha = 0.55;
+    else if (hurtFlicker(p)) alpha = 0.55;
     alpha *= alphaMul(p);
 
     stateOf(p).last = t;
@@ -1049,7 +1060,7 @@
 
     var alpha = 1;
     if (p.dead) alpha = 0.5;
-    else if (p.inv > 0 && Math.floor(p.inv * 20) % 2 === 0) alpha = 0.55;
+    else if (hurtFlicker(p)) alpha = 0.55;
     alpha *= alphaMul(p);
 
     stateOf(p).last = t;
@@ -1112,7 +1123,7 @@
     var bob = 0, tilt = 0, sx = 1, sy = 1, ox = 0, oy = 0;
     var alpha = 1;
 
-    if (p.inv > 0 && Math.floor(p.inv * 20) % 2 === 0) alpha = 0.55;
+    if (hurtFlicker(p)) alpha = 0.55;
 
     /* 旋风斩：高速自转 + 残影 */
     if (p.whirlT > 0) {
