@@ -582,7 +582,10 @@
      手柄：模式选择页必须能用面键选，否则插着手柄的人卡在第一屏。
      A（0）选单人，B（1）选双人，X（2）/ Y（3）也能选（单人 / 双人各一个），
      左摇杆左右或十字键左右切换高亮，Start（9）确认高亮项。
-     只在模式页 / 按键抽屉打开时轮询，其余时间不占帧。
+     抽屉侧：Back/View（8）＝手柄版 H，抽屉没开也能开（原来只有键盘一条路）；
+     抽屉开着时 A/B/Y/Back/Start 都收抽屉 —— 与键盘「抽屉开着 Esc 只收抽屉」
+     同一套 Esc 等价语义。收抽屉那一帧要压制 index.html 暂停页的同键边沿
+     （见 suppressPauseEdges）。只在模式页 / 抽屉 / Back 监听时轮询。
      ======================================================================= */
   var padPrev = {};
 
@@ -597,35 +600,62 @@
     return false;
   }
 
+  /* 第一个手柄：优先取已连接的，全都异常时退回列表里第一个存在的
+     （保持原有取源顺序，与 index.html scanPads → Guide.pads() 的顺序一致）。 */
+  function pickPad() {
+    var nav = global.navigator;
+    if (!nav || typeof nav.getGamepads !== "function") return null;
+    var list = nav.getGamepads() || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && list[i].connected) return list[i];
+    }
+    for (var j = 0; j < list.length; j++) { if (list[j]) return list[j]; }
+    return null;
+  }
+
+  /* 收抽屉的那一下，同一颗键的按下沿还会被 index.html 的 updatePaused 读到：
+     两边的 padPrev 是两个独立模块级变量，ui-shell 消费边沿不会替 index 消费，
+     不隔离就是「关抽屉 + 顺手解除暂停」一层按键触发两层。
+     这里把当前仍按着的键在 index 那侧标成「上一帧就已按下」——
+     padEdge 看不到上升沿，这一帧就只发生「收抽屉」这一件事。
+     前提：ui-shell 的 rAF tick 注册在 index 的 loop 之前（脚本顺序决定），
+     同帧内先跑的是这里，seed 一定赶在 updatePaused 之前落位。
+     index.html 顶层 var 是全局可直接写；padPrev 还不存在说明游戏脚本未定义，
+     那时也不存在暂停页，直接跳过。只压 pz_* 四条（updatePaused 的全部手柄入口）；
+     对局中「关抽屉顺手放技能」是抽屉不冻结游戏的既有语义，不在本次范围。 */
+  function suppressPauseEdges(gp) {
+    if (!global.padPrev) return;
+    var map = { 0: "pz_a", 1: "pz_b", 3: "pz_y", 9: "pz_start" };
+    for (var idx in map) {
+      if (Object.prototype.hasOwnProperty.call(map, idx) && padBtn(gp, +idx)) {
+        global.padPrev[map[idx]] = true;
+      }
+    }
+  }
+
   function padFrame() {
-    var wantPad = S.modeOpen || S.helpOpen;
-    if (!wantPad) {
-      /* 不打开时只清标记，避免残留状态让下一次变成「已按下」 */
-      padPrev = {};
+    var gp = pickPad();
+
+    /* 抽屉与模式页都没开：只盯 Back/View（手柄版 H）开抽屉，
+       其余边沿标记照旧清空，避免残留状态让下一次误判成「已按下」。
+       h_back 必须留在 padPrev 里 —— Back 还按着时清掉它，
+       下一帧会再看到一次上升沿，抽屉开了又立刻被关掉。 */
+    if (!S.modeOpen && !S.helpOpen) {
+      if (!gp) { padPrev = {}; S.padArmed = false; return; }
+      if (padEdge("h_back", padBtn(gp, 8))) { toggleKeyHelp(); }
+      for (var k in padPrev) { if (k !== "h_back") delete padPrev[k]; }
       S.padArmed = false;
       return;
     }
 
-    var nav = global.navigator;
-    if (!nav || typeof nav.getGamepads !== "function") return;
-    var list = nav.getGamepads() || [];
-    var gp = null;
-    for (var i = 0; i < list.length; i++) {
-      if (list[i] && list[i].connected) { gp = list[i]; break; }
-    }
-    if (!gp) {
-      if (!gp && !list.length) { /* 没有手柄 */ }
-      var any = null;
-      for (var j = 0; j < list.length; j++) { if (list[j]) { any = list[j]; break; } }
-      gp = any;
-      if (!gp) return;
-    }
+    if (!gp) return;
 
-    /* 启用闸：模式页刚开的那一帧，把「按任意键进选择页」的那一下还按在手上，
-       直接看按下沿会当场锁定默认项，玩家没得选。必须先见到全部面键松开一次。 */
+    /* 启用闸：页面刚开的那一帧，「开它的那一下」还按在手上，
+       直接看按下沿会当场触发默认动作，玩家没得选。必须先见到全部相关键
+       （含 Back —— 抽屉经常就是被 Back 按住时打开的）松开一次。 */
     if (!S.padArmed) {
       var anyFace = padBtn(gp, 0) || padBtn(gp, 1) || padBtn(gp, 2) ||
-                    padBtn(gp, 3) || padBtn(gp, 9);
+                    padBtn(gp, 3) || padBtn(gp, 8) || padBtn(gp, 9);
       if (!anyFace) { S.padArmed = true; padPrev = {}; }
       return;
     }
@@ -643,9 +673,17 @@
       return;
     }
 
+    /* 抽屉开着：A/B/Y/Back/Start 都收（A 是手柄版 Esc 语义的补全 ——
+       暂停页 A＝继续，抽屉开着 A 只收抽屉，与键盘 Esc 的分工一致）；
+       Back 是 H 的对应位，跟 H 一样走开合切换。 */
     if (S.helpOpen) {
-      if (padEdge("h_b", padBtn(gp, 1)) || padEdge("h_start", padBtn(gp, 9)) || padEdge("h_y", padBtn(gp, 3))) {
+      if (padEdge("h_a", padBtn(gp, 0)) ||
+          padEdge("h_b", padBtn(gp, 1)) ||
+          padEdge("h_y", padBtn(gp, 3)) ||
+          padEdge("h_back", padBtn(gp, 8)) ||
+          padEdge("h_start", padBtn(gp, 9))) {
         toggleKeyHelp();
+        suppressPauseEdges(gp);
       }
     }
   }

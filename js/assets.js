@@ -31,6 +31,14 @@
     mechanismOn:  "assets/interact/mechanism-on.webp",
     pickupCowrie: "assets/interact/pickup-cowrie.webp",
     pickupJade:   "assets/interact/pickup-jade.webp",
+    /* HUD 玩家卡片：青铜底板 + 纵目面具头像（index.html 的 CSS 直接引用
+       同一路径，这里登记只为预热浏览器缓存；图挂了 CSS 天然退回渐变/透明，
+       加载器本身失败不阻塞，别破坏这条设计）。 */
+    hudCard:      "assets/ui/hud-card.webp",
+    portraitP1:   "assets/ui/portrait-p1.webp",
+    /* 标题页 / 通关页全屏场景（ov-title / ov-win 的 CSS 背景同上，仅预热缓存） */
+    titleScene:   "assets/ui/title-scene.webp",
+    winScene:     "assets/ui/win-scene.webp",
     /* 拾取图标：统一画布，避免忽大忽小 */
     wpShort:     "assets/icons/wp-dagger.webp",
     wpDagger:    "assets/icons/wp-dagger.webp",
