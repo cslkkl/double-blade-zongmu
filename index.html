@@ -166,6 +166,28 @@
     background:radial-gradient(ellipse 64% 60% at 50% 46%,rgba(16,18,22,.96),#05060a 100%)}
   .ov.on{display:flex;animation:fadeIn .32s ease}
   @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+  /* --- 开场短片覆盖层 ---
+     视频按 1600×900 逻辑分辨率铺满整个 stage（与 #stage 的缩放一起走，
+     不需要额外适配）。黑色底 + 视频居中，四周可能出现的黑边不明显。 */
+  .ov.intro{background:#05060a;z-index:40;justify-content:center}
+  #introVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
+    background:#05060a}
+  /* 长按跳过的进度环：贴右下角，避开视频自带的字幕（字幕在底部居中）。
+     右下角是画面里最少放字的位置，也不挡主要构图。 */
+  .iskip{position:absolute;right:38px;bottom:34px;
+    display:flex;align-items:center;gap:12px;padding:10px 20px 10px 14px;border-radius:999px;
+    background:rgba(6,7,10,.82);border:1px solid rgba(201,167,101,.42);
+    box-shadow:0 2px 14px rgba(0,0,0,.6);opacity:.9;transition:opacity .2s,border-color .2s}
+  .iskip .ring{width:30px;height:30px;border-radius:50%;flex:0 0 auto;
+    background:conic-gradient(#f5d98e var(--p,0%),rgba(240,217,156,.16) 0);
+    -webkit-mask:radial-gradient(circle,transparent 10px,#000 11px);
+    mask:radial-gradient(circle,transparent 10px,#000 11px)}
+  .iskip .txt{font-size:13px;letter-spacing:.16em;color:#e4d6b4;white-space:nowrap}
+  .iskip .key{color:#f5d98e;font-weight:700}
+  /* 按下后整块提亮，给「真的收到了」的反馈 */
+  .iskip.holding{opacity:1;border-color:rgba(245,217,142,.86);
+    box-shadow:0 0 22px rgba(245,217,142,.36),0 2px 14px rgba(0,0,0,.6)}
   .eb{font-size:11.5px;letter-spacing:.5em;color:#8a7a5c;margin-bottom:24px}
   .tt{font-size:66px;letter-spacing:.13em;color:#f0e4c6;font-weight:700;text-indent:.13em;
     line-height:1.18;text-shadow:0 0 80px rgba(201,167,101,.32)}
@@ -336,6 +358,17 @@
       <div class="pz-act" id="btnPauseHelp"><b>H</b><span>完整键位</span></div>
     </div>
   </div>
+
+  <!-- 开场短片：每次开局（含死亡后重开）播一遍，长按任意「继续键」可跳过。
+       muted + playsinline：浏览器只允许静音自动播放，且移动端不许全屏劫持。 -->
+  <div class="ov intro" id="ovIntro">
+    <video id="introVideo" playsinline muted preload="auto"
+           src="assets/video/short_land.mp4"></video>
+    <div class="iskip" id="iSkip">
+      <div class="ring" id="iRing"></div>
+      <div class="txt">长按 <span class="key" id="iSkipKey">空格</span> 跳过</div>
+    </div>
+  </div>
 </div></div>
 
 <script src="js/assets.js"></script>
@@ -347,6 +380,7 @@
 <script src="js/guide.js"></script>
 <script src="js/ui-shell.js"></script>
 <script src="js/audio.js"></script>
+<script src="js/intro-video.js"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -497,6 +531,17 @@ window.addEventListener("keydown", function(e){
   KEYS[e.code] = true;
   ac();
 
+  /* 开场短片期间：只认「继续键」，其它一律吞掉。
+     这里不做边沿触发 —— 长按跳过的计时在 introTick() 里推进，
+     这里只负责「键现在是按下的」，并且把「其它键」挡在游戏逻辑之外。 */
+  if(G.intro){
+    if(INTRO_KEYS.indexOf(e.code) >= 0){
+      e.preventDefault();
+      if(!introKeyDownAt) introKeyDownAt = performance.now() || Date.now();
+    }
+    return;
+  }
+
   /* H / Esc / M 归别人的监听器（按键说明、暂停、静音），不能顺手把结算页顶掉 */
   var uiOwned = (e.code === "KeyH" || e.code === "Escape" || e.code === "KeyM");
 
@@ -512,7 +557,23 @@ window.addEventListener("keydown", function(e){
   if(G.phase==="title") openModeSelect();      /* 标题阶段：改开模式选择页，不再直接开打 */
   else if(!uiOwned && (G.phase==="win" || G.phase==="lose")) restartAll();
 });
-window.addEventListener("keyup", function(e){ KEYS[e.code] = false; });
+window.addEventListener("keyup", function(e){
+  KEYS[e.code] = false;
+  /* 松手立刻清长按基准：留着会让「按一下 → 松开 → 再按」变成连按累积 */
+  if(INTRO_KEYS.indexOf(e.code) >= 0){
+    var still = false;
+    for(var i=0;i<INTRO_KEYS.length;i++){
+      if(KEYS[INTRO_KEYS[i]]){ still = true; break; }
+    }
+    if(!still) introKeyDownAt = 0;
+  }
+});
+/* 失焦 / 切标签页：键位状态全清，否则会一直以为玩家按着跳过键 */
+window.addEventListener("blur", function(){
+  introKeyDownAt = 0;
+  introHoldT = 0;
+  introSetHoldUI(false, 0);
+});
 
 var PADS = [null,null];
 /* 手柄列表与「按哪个设备显示提示」都归 js/guide.js 管：它自己轮询、自己判断
@@ -722,6 +783,7 @@ var G = {
   time:0, phaseT:0,
   banner:0,
   breatherT:0, mechSpawned:false, mechSkipBreather:false,
+  intro:false,               /* 开场短片：与暂停并列的子状态，只冻结模拟、不换 phase */
   resumeGrace:0              /* 解冻后短暂忽略攻击输入，防止按 Esc 的那一下顺手挥刀 */
 };
 
@@ -797,6 +859,10 @@ function startGame(mode){
   startWave(0);
   syncHUD();
   ac();
+  /* 开局短片：每次开局都播（含死亡后重开）。播完 / 被跳过 / 加载失败都会 resolve，
+     所以这里不 await —— 世界已经在后面开始跑，短片只是压在上面的一层。
+     真正冻住模拟的是 G.intro 这个子状态（见 loop）。 */
+  playIntro();
 }
 function startWave(i){
   var w = G.waves[i];
@@ -902,6 +968,9 @@ function openModeSelect(){
    暂停页压在它上面，背景留 0.80 透明度而不是全黑 —— 暂停是「原地喘一口」。 */
 function togglePause(force){
   if(G.phase !== "play") return false;
+  /* 短片期间不受理暂停：它自己就是一个覆盖全屏的过场，
+     这时候弹暂停页会叠两层遮罩，退出顺序也会乱。 */
+  if(G.intro) return false;
   var want = (typeof force === "boolean") ? force : !G.paused;
   if(want === G.paused) return false;
   G.paused = want;
@@ -964,8 +1033,138 @@ function updatePaused(dt){
 }
 
 /* ---------------- 覆盖层 ---------------- */
-var OVS = ["ovTitle","ovClear","ovLose","ovWin","ovPause"];
+var OVS = ["ovTitle","ovClear","ovLose","ovWin","ovPause","ovIntro"];
 function hideOv(){ OVS.forEach(function(id){ document.getElementById(id).classList.remove("on"); }); }
+
+/* ---------------- 开场短片 + 长按跳过 ----------------
+   短片在每次开局（含死亡后重开）播一遍。要解决四件事：
+
+   ① 播放期间游戏必须冻住，但**不能**走 G.paused —— 那是暂停菜单的状态，
+      会把暂停页的逻辑一起带进来。这里用 G.intro 作为独立子状态，
+      主循环里只做 render()，与暂停分支并列。
+
+   ② 长按跳过要同时支持键盘与手柄。判据是「按住时长短」，不是「按下沿」：
+      键盘记按下的时刻，手柄每帧看仍按着的键。两者共用一个计时器，
+      谁先到阈值谁触发 —— 不做两套独立状态，否则会出现一边按住
+      另一边松开就把进度清零的怪事。
+
+   ③ 长按阈值 0.7s，比双击间隔长、比玩家的忍耐短。进度环实时反映
+      0..1，松手立刻归零（给「反悔」留余地）。
+
+   ④ 短片是静音的（浏览器只允许静音自动播放）。跳过键按设备显示：
+      键盘「空格/Esc」、手柄「A/Start」。
+
+   降级：IntroVideo 模块缺席、或视频加载失败 → 立刻开局，绝不停在覆盖层。 */
+var INTRO_HOLD_SEC = 0.70;          /* 长按多久算跳过 */
+var introHoldT = 0;                 /* 已按住时长 */
+var introHolding = false;           /* 本帧是否处于按住状态 */
+var introRunning = false;           /* 短片是否正在播 */
+
+/* 键盘：这一批键都算「继续」，按住任意一个都能跳过 */
+var INTRO_KEYS = ["Space","Enter","Escape","KeyF","KeyJ","Slash","Numpad0","KeyK"];
+var introKeyDownAt = 0;             /* 第一个按下的时刻，0 = 没按 */
+
+function introEls(){
+  return {
+    ov: document.getElementById("ovIntro"),
+    vd: document.getElementById("introVideo"),
+    skip: document.getElementById("iSkip"),
+    ring: document.getElementById("iRing"),
+    key: document.getElementById("iSkipKey")
+  };
+}
+
+function introSyncHint(){
+  var e = introEls();
+  if(!e.key) return;
+  var pad = PADS[0] || PADS[1];
+  var padActive = !!(window.Guide && window.Guide.device === "pad");
+  /* 文案跟设备走：手柄版写 A / Start，键盘版写空格。
+     两套不同时出现（与 guide.js 的 dev-pad / dev-kbd 同一口径）。 */
+  e.key.textContent = (padActive && pad) ? "A / Start" : "空格";
+}
+
+function introSetHoldUI(on, pct){
+  var e = introEls();
+  if(e.ring) e.ring.style.setProperty("--p", Math.round(pct * 100) + "%");
+  if(e.skip) e.skip.classList.toggle("holding", !!on);
+}
+
+/* 开局前调用：返回 Promise，短片播完 / 被跳过 / 加载失败都会 resolve */
+function playIntro(){
+  if(introRunning) return Promise.resolve();
+  var e = introEls();
+  if(!e.ov || !e.vd) return Promise.resolve();          /* DOM 缺失：直接开局 */
+  if(!window.IntroVideo || !IntroVideo.mount) return Promise.resolve();  /* 模块缺席：降级 */
+
+  IntroVideo.mount(e.vd, e.ov);
+  introRunning = true;
+  introHoldT = 0;
+  introHolding = false;
+  introKeyDownAt = 0;
+  G.intro = true;
+  introSyncHint();
+  introSetHoldUI(false, 0);
+
+  return IntroVideo.play({ maxSeconds: 20.5 }).then(function(res){
+    introRunning = false;
+    G.intro = false;
+    introKeyDownAt = 0;
+    introHoldT = 0;
+    introHolding = false;
+    introSetHoldUI(false, 0);
+    if(e.ov) e.ov.classList.remove("on");
+    return res;
+  });
+}
+
+/* 短片期间「有没有任意手柄按住 A / Start」。
+   为什么不只读 PADS：PADS 由 scanPads() → Guide.pads() 填充，而 Guide 是
+   「对局里的设备探测」，短片是开局之前的覆盖层，两者的刷新时机不一定对齐；
+   模块缺席时 PADS 更是永远空的。这里先刷一次，再直接读 navigator.getGamepads()
+   兜底 —— 跳过这件事只关心「有没有人按着」，不关心是几号玩家。 */
+function introPadHeld(){
+  scanPads();
+  for(var i=0;i<2;i++){
+    var p = PADS[i];
+    if(p && (padHeld(p,0) || padHeld(p,9))) return true;   /* A / Start */
+  }
+  /* 兜底：直接问浏览器要手柄列表（Guide 不在 / 还没轮询到时的路径） */
+  if(navigator.getGamepads){
+    var list = navigator.getGamepads();
+    for(var j=0;j<list.length;j++){
+      var gp = list[j];
+      if(!gp || !gp.buttons) continue;
+      var b0 = gp.buttons[0], b9 = gp.buttons[9];
+      if((b0 && (b0.pressed || b0.value > 0.5)) || (b9 && (b9.pressed || b9.value > 0.5))) return true;
+    }
+  }
+  return false;
+}
+
+/* 每帧：推进长按计时。键盘记按下的时刻，手柄每帧看仍按着的面键。 */
+function introTick(dt){
+  if(!introRunning) return;
+
+  /* 键盘：任一继续键按住（introKeyDownAt 由 keydown 写入、keyup 归零） */
+  var kb = (introKeyDownAt > 0);
+  var on = kb || introPadHeld();
+
+  if(on){
+    introHoldT += dt;
+    if(introHoldT >= INTRO_HOLD_SEC){
+      /* 到阈值：立刻收，别让玩家多按 */
+      introHoldT = INTRO_HOLD_SEC;
+      introSetHoldUI(true, 1);
+      if(window.IntroVideo && IntroVideo.skip) IntroVideo.skip("hold");
+      return;
+    }
+  } else {
+    introHoldT = 0;
+  }
+  introHolding = on;
+  introSetHoldUI(on, introHoldT / INTRO_HOLD_SEC);
+}
 
 /* ---------------- 结算页确认输入 ----------------
    结算页的按钮是 DOM，鼠标点得动，键盘也接上了；手柄此前只在 play 阶段被读，
@@ -4030,7 +4229,11 @@ var lastT = 0;
 function loop(ts){
   var dt = Math.min(0.045, (ts - lastT)/1000 || 0.016);
   lastT = ts;
-  if(G.paused){
+  /* 开场短片是独立子状态，不是暂停：模拟冻住，但 render 照跑（世界在后面）
+     并且要推进长按计时。放在 paused 之前判 —— 短片期间按 Esc 不该开暂停页。 */
+  if(G.intro){
+    introTick(dt);
+  } else if(G.paused){
     updatePaused(dt);
   } else {
     update(dt);
