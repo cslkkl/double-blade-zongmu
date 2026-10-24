@@ -408,16 +408,10 @@
     inset 0 1px 0 rgba(255,240,200,.14);
 }
 
-/* 拾取气泡也用面板图的边饰，和说明抽屉同一套材质。
-   气泡小，slice 按比例收小，避免云雷纹把文字挤出去。 */
-.uis-ok-panel .uis-pickup-body{
-  border:16px solid transparent;
-  border-image:url("assets/ui/panel-frame.webp") 90 62 44 62 fill stretch;
-  border-radius:0;
-  padding:2px 6px 4px;
-  background:rgba(9,9,7,.94);
-  box-shadow:0 6px 18px rgba(0,0,0,.62);
-}
+/* 拾取气泡不套 panel-frame。
+   那张面板图是 1448×466，四角云雷纹本身占 97px 宽；气泡只有约 166×51，
+   硬套 border-image 会把角片压成几个绿疙瘩、纹理全糊，比不用更丑。
+   小控件用回自己的金边深底 —— 和铜牌同色系，不突兀，也不会出黑框。 */
 
 /* ---------- 少动效偏好 ---------- */
 @media (prefers-reduced-motion: reduce){
