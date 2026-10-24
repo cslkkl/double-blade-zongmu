@@ -55,10 +55,11 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 - 2026-10-24（背包改单手 + 去遮挡物阴影 + 并入 main 暂停/Guide 模块化）：check-inline 通过（内联脚本 120422 字符）；selftest_enemies / selftest_audio / selftest_weapons 0 失败；node --check 9/9 通过。
 - 2026-10-25（手柄震动 js/rumble.js + 键位指南放大）：check-inline 通过（内联脚本 127304 字符）；selftest_enemies / selftest_audio / selftest_weapons 0 失败；node --check 10/10 通过。
 - 暂停链路由 CDP 驱动本机 `file://` 页面实测：Esc 暂停 / 解冻、抽屉开着时 Esc 只收抽屉、暂停中切设备换图、R 重开、暂停页点击、非 play 阶段不响应，逐条断言通过。
-- 规模：`index.html` 约 3900 行；`js/` 10 个模块；`assets/` 约 194 个文件 5.96 MB。
-- 素材分布：`anim/` 118（10 张单帧 `atk-*` + 40 张序列帧 `atk-*-<i>` + 4 张 `hold-*`）、`fx/` 13、`icons/` 16、`icon/` 10、`ui/` 6、`interact/` 6、`props/` 8、`char/` 5、根 12。
-- 素材预算：单帧 ≤ 60 KB（实测最大 55.4 KB）、总量 ≤ 8 MB（上调依据见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 的「素材流水线」）。
-- 帧数：角色 12 个 clip 共 43 帧；敌人 4 类共 14 帧；武器站立帧 11、出招单帧 10、出招序列 10 把 × 4 帧。
+- **2026-10-25（手机端适配 + 三份审计修复后）**：`check-inline` 通过（内联脚本 139378 字符）；`selftest_enemies` / `selftest_audio` / `selftest_weapons` 全 0 失败；`node --check` 12/12 通过。浏览器端 12 项端到端断言全绿（0 报错 / 对局正常 / 敌人峰值 7 / 粒子不超 600 / `readPad` 有 `pause` / 拾取半径与提示半径都是 90 / `short` dur=55 / axe walk 3 帧 / `Touch` 已加载 / 粒子兜底 900→600 / `syncHUD` 60 帧 0 次 `getElementById`）。
+- 规模：`index.html` 约 4350 行；`js/` 12 个模块；`assets/` 329 个文件 18.32 MB。
+- 素材分布：`anim/` 249、`fx/` 13、`icons/` 16、`icon/` 10、`ui/` 10、`interact/` 6、`props/` 8、`char/` 5、根 11。
+- 素材预算：单帧 ≤ 60 KB（实测最大 55.4 KB）、总量 ≤ 8 MB（上调依据见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 的「素材流水线」）。**当前 18.32 MB 超预算 10.3 MB**，2026-10-25 已清掉未引用的 15.78 MB（`promo/` 与 `bg-fg.webp`），剩下的都是运行时真加载的。
+- 帧数：角色 12 个 clip 共 43 帧；敌人 4 类共 14 帧；武器站立帧 11、出招单帧 10、出招序列 10 把 × 4 帧、持械行走 11 把（其中斧头 3 帧，见活跃坑）。
 - 关卡：6 阵共 85 体。
 - 无 CI，以上为本机手工结果；改完代码重跑一遍再写结论。
 
@@ -103,6 +104,23 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 - `slice_anim_extra.py` 曾写出缺冒号的 `anim-data.js` 行（`"attack-heavy"{ frames: ...`），整份数据文件当场语法错误；现已在脚本内加 `node --check` 门禁，非 0 直接退出。
 - 敌人走路动画按 `e.walk` 累计位移推进，不跟真实时间；改步频调 `enemies-assets.js` 的 `STRIDE`。
 - 武器只有手上那一把（单手一把语义）：捡到好的直接换手，旧的落回原地；HUD 没有背包格。改拾取/丢弃/递队友时保持这个语义，别把 4 格背包加回来。
+- **`hurt-*` 的源画比 `walk-*` 大 6~19%**（10 把武器的 hurt ratio 全在 0.9893~0.9911，而 walk 只有 0.83~0.97）。5 个状态共用同一个 `scaleFix` 时这个差异会 100% 落到屏幕上 —— 玩家每次挨打都闪一下大小。已给 11 把武器的 `hurt` 单独算 `scaleFix`（验收：walk 与 hurt 屏幕身高差 ≤3px）。**但 `pickup` 不能同样处理**：它是弯腰，宽高比从 2.19 掉到 1.19，按包围盒归一化会把弯腰的人放大到站立高度。判断「是姿势还是画错」看宽高比，不看高度。
+- **`WALK_CYCLE` 是按「4 帧一轮」校准的**（3.6 单位位移）。序列只有 3 帧时（斧头，因 `walk-axe-3.webp` 曾缺失）照搬会让步频慢 25%，读起来像滑步。正确写法 `cycle = WALK_CYCLE * n / 4` —— 每帧固定覆盖相同位移，与帧数无关。`drawWalkFrames` 与 `stateFrame` 两条路径必须用同一口径，否则换状态会跳帧。
+- **`scaleFix` 的「12 动作统一 178~181px」不能只看数字**：`jump`（蹲）、`pickup`（弯腰）本来就更矮，`dead`（倒地）只在结算页出现。真正的判据是「身体主体高 / 画布高」，且要排除武器尖端（举弓/举锤时尖端高过头顶）。用 15% 宽度阈值取「身体顶部」比包围盒顶可靠。
+- **触屏按键层不能放进 `#stage`**：`#stage` 是 1600×900 逻辑坐标、被 `transform:scale(0.43)` 缩过，100px 的按钮到屏幕上只剩 43px，低于 44px 规范下限。按键层必须 `position:fixed` 贴视口，尺寸用 `vmin` 夹在 `[48, 84]`。
+- **触屏按键的纵向间距不能用 `vmin` 百分比**：那会让间距跟屏幕高度成比例，在 390px 高的横屏手机上「跳」能飘到左上角、「拾」压在角色脸上。要用「按钮直径」作单位（`var(--tch-d) * 倍数`），按钮多大间距就多大。
+- **`big` 键（1.22 倍直径）的纵向间距必须留够**：与相邻键的 y 差要 ≥ 1.26 倍直径，卡在 1.2 会在按钮变大的视口上相交。`js/touch.js` 的 `checkOverlap()` 会在布局重建时两两求交并 `console.warn` —— 这是这类布局 bug 的唯一自动化防线，别删。
+- **手机上的 `pointerup` 会丢**（手指滑出屏幕、来电、系统通知、切 App、锁屏）。丢了那枚键就永远「按着」，玩家看到「角色自己一直往前跑，松手也不停」。三道兜底缺一不可：一次性键 8 秒超时回收（`reapStale`）、`pointercancel`、`blur`/`pagehide`/`visibilitychange` 三清。
+- **覆盖层按钮会跟着 `#stage` 一起被 `scale` 缩**：521×1126 竖屏下 `fitScale` 仅 0.325，逻辑 235×108 的按钮到屏幕上只有 76×35。给 `body.dev-touch` 下的 `.pz-act` / `.go` 单独放大（逻辑 100~110px 高），横屏缩完约 52~62px。
+- **覆盖层的触屏通道不能读 `Touch.state()`**：那要求 `active()` 为真，而 `active()` 在非 `play` 阶段返回 false（虚拟键已收起）。要用 `Touch.takeTap()`（全局捕获阶段记的一次性标记，读即消费）。
+- **敌人走路相位种子必须用 `e.__seed`，不能用 `e.x`**：`e.x` 每帧都在变，用它算 `off` 等于每前进 1px 就把相位重新随机一次，腿会疯狂抽搐（实测每秒换帧 32 次，应 2.93 次，放大 11 倍）。
+- **`syncHUD` 里的 `getElementById` 要缓存**：这些节点整局不变，每帧 11 次在 60fps 下是 660 次/秒。用 `hudEl()` 记住。同理 `EnemyArt.ready()` 要提到敌人循环外面 —— 它内部遍历整张帧表，满屏 7 敌就是 7 次全表遍历/帧。
+- **`burst()` 必须按 `room` 截断，`updateParticles()` 还要兜底夹一次**：粒子有多个来源（打击、死亡、旋风、宝箱、命中火花、武器拖尾），只在 `burst` 里限流挡不住多源叠加。
+- **连击的 `swingQueued` 在第一分支开头必须清**：置位在 `swingT<=0` 分支，消费只挂在 `if(p.swingT>0)` 块内 —— 收招期间记的 `true` 当场没人消费，等 `swingCd` 归零后再按，那一刀打完会把残留当成「接第二段」，凭空多出一刀。原来丢键，修完变多键。
+- **`p.inv > 0` 不等于「在受伤闪烁」**：旋风斩也给了 1.5 秒无敌（与 `whirlT` 同寿）。`char-rig.js` 里统一走 `hurtFlicker(p)`，`whirlT > 0` 时跳过。
+- **`PICK_RANGE` 与 `HINT_RANGE` 必须完全相等**：曾经是 80 vs 90，80~90 这一圈里「气泡写着按 G 拾取，按了却捡不起来」。判定与提示用同一个常量，别在 `tryPickup` 里写死数字。
+- **手柄的 `pause` 字段在 `readPad` 里**：`Start`(9) 与 `Back`(8)。这条以前完全没接 —— `togglePause` 只有 Esc / 按钮 / 触屏三个入口，而指南与暂停页都写着「Start」。新增手柄键位时，`readPad` 的空返回也要同步补字段（保持同形）。
+- **机关（`G.mechanisms`）每加新的要先清已激活的**：已激活的金光机关一直立着（用过了还在闪），且避让逻辑每有一个机关就把新落点 +320，会越推越远。宝箱同理但要反过来 —— 未开的留着（玩家还没开），只清已开的。
 
 ## 文档地图
 
