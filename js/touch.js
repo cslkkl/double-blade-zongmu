@@ -840,6 +840,21 @@
     return true;
   }
 
+  /* 「现在有没有任何手指按在虚拟键上」。
+     给结算页 / 暂停页的启用闸用：必须先见到一帧「没手指」才接受下一次点按，
+     否则玩家最后那一刀还按着就会当场把页面顶掉。 */
+  function anyHeld() {
+    for (var id in pointers) {
+      if (pointers.hasOwnProperty(id) && pointers[id]) return true;
+    }
+    for (var t in slots) {
+      if (!slots.hasOwnProperty(t)) continue;
+      var h = slots[t].held;
+      for (var f in h) { if (h.hasOwnProperty(f) && h[f]) return true; }
+    }
+    return false;
+  }
+
   /* ---------------------------------------------------------------------
      振动（安卓 Chrome 有，iOS 没有）
      --------------------------------------------------------------------- */
@@ -943,6 +958,7 @@
     clearAll: clearAll,
     skipHeld: skipHeld,
     takeTap: takeTap,
+    anyHeld: anyHeld,
     buzz: buzz,
     init: init,
     /* 调试用：看当前是按着什么；overlaps 供自动化验收调用 */

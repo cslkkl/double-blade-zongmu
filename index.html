@@ -154,6 +154,12 @@
   .pz-act{display:flex;align-items:center;gap:8px;padding:11px 18px;border-radius:4px;
     border:1px solid rgba(201,167,101,.34);background:rgba(201,167,101,.06);
     cursor:pointer;transition:.18s}
+  /* 触屏上把暂停页三个按钮放大到能按准的尺寸（44px 是规范下限）。
+     #stage 被 scale(0.43) 缩过，1600 逻辑像素里的 44px 到屏幕只剩 19px ——
+     所以这里给的是「逻辑像素 100px 高」，缩完约 43px，刚好够。 */
+  body.dev-touch .pz-act{padding:26px 34px;gap:14px;border-width:2px}
+  body.dev-touch .pz-act b{font-size:20px;padding:3px 14px}
+  body.dev-touch .pz-act span{font-size:22px}
   .pz-act:hover{border-color:#c9a765;background:rgba(201,167,101,.14)}
   .pz-act b{font-weight:600;font-size:11px;color:#f2e2b6;
     border:1px solid rgba(201,167,101,.5);border-radius:3px;padding:1px 7px;
@@ -167,6 +173,11 @@
     justify-content:center;text-align:center;z-index:20;
     background:radial-gradient(ellipse 64% 60% at 50% 46%,rgba(16,18,22,.96),#05060a 100%)}
   .ov.on{display:flex;animation:fadeIn .32s ease}
+  /* 暂停页在触屏上「点空白处 = 继续」：手机上 Esc 与 Start 都不存在，
+     而三个按钮在小屏上仍嫌小。给整层挂指针事件，配合 updatePaused 里
+     的 Touch.takeTap 那条腿。按钮自己 stopPropagation，不会误触。
+     其它覆盖层不挂 —— 标题页 / 结算页上的空白处不该当确认。 */
+  body.dev-touch .ov.pause.on{pointer-events:auto}
   @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 
   /* --- 开场短片覆盖层 ---
@@ -217,6 +228,10 @@
   .go{margin-top:42px;font-size:15px;letter-spacing:.3em;color:#c9a765;
     border:1px solid rgba(201,167,101,.45);border-radius:999px;padding:16px 46px;
     cursor:pointer;transition:.2s}
+  /* 触屏：结算页那个「重来 / 再打一遍」是手机上唯一的出口，必须按得准。
+     逻辑像素放大到 110px 高，缩完约 47px。 */
+  body.dev-touch .go{padding:34px 64px;font-size:26px;letter-spacing:.22em;
+    margin-top:52px;border-width:2px}
   .go:hover{background:rgba(201,167,101,.13);border-color:#c9a765;color:#f5e8c8}
   .blink{animation:blink 1.6s infinite}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
@@ -1127,6 +1142,16 @@ function updatePaused(dt){
   if(keyPressed(["KeyH"])){
     if(window.UIShell && window.UIShell.toggleKeyHelp) UIShell.toggleKeyHelp();
   }
+
+  /* 触屏：手机上暂停页的虚拟键是收起的（覆盖层由 DOM 按钮接管），
+     而 #tch-layer 的 z-index 比 ui-shell 高，不接这条腿玩家就只能去点
+     那个 padding:11px 18px 的小条 —— 手机上按不准。
+     读 Touch.takeTap()（全局捕获阶段记的一次性标记，读即消费）。
+     暂停页上「点一下屏幕 = 继续」是最自然的手机手势。 */
+  if(window.Touch && Touch.takeTap && Touch.takeTap()){
+    togglePause(false);
+    return;
+  }
 }
 
 /* ---------------- 覆盖层 ---------------- */
@@ -1354,6 +1379,29 @@ function kbConfirmEdge(){
      所以闸没开时直接丢掉这个请求：玩家想重开就再按一下。 */
   KEYS.__confirmReq = false;
   if(!uiKbSeenUp) return false;
+  return true;
+}
+
+/* 触屏那条腿：结算页上虚拟键是收起的（覆盖层由 DOM 按钮接管），
+   所以不能读 Touch.state —— 那要求 active() 为真。改读 Touch.takeTap()：
+   js/touch.js 在全局捕获阶段记下「刚有手指落下」，读即消费。
+   与键盘那条腿同构：先见到一帧没手指，之后的一次落下才算确认。
+   注意 takeTap 是「读即消费」，所以即使闸没开也要读掉，否则会攒着。 */
+var uiTouchSeenUp = false;
+function touchConfirmEdge(){
+  var tap = false;
+  try{
+    if(window.Touch && Touch.takeTap) tap = Touch.takeTap();
+    if(window.Touch && Touch.anyHeld) {
+      if(!Touch.anyHeld()) uiTouchSeenUp = true;
+    } else {
+      /* 没有 anyHeld 时保守处理：只要有一次 tap 就当作闸已开 */
+      uiTouchSeenUp = true;
+    }
+  }catch(e){ return false; }
+  if(!tap) return false;
+  if(!uiTouchSeenUp) return false;
+  uiTouchSeenUp = false;      /* 用掉一次，下一次要重新等松开 */
   return true;
 }
 
@@ -2539,7 +2587,7 @@ function update(dt){
 
     /* 结算页：手柄确认。键盘走 keydown（见输入段），这里只补手柄那条腿。 */
     confirmT += dt;
-    if(confirmT >= CONFIRM_ARM && (padConfirmEdge() || kbConfirmEdge())){
+    if(confirmT >= CONFIRM_ARM && (padConfirmEdge() || kbConfirmEdge() || touchConfirmEdge())){
       if(G.phase === "lose" || G.phase === "win") restartAll();
       else if(G.phase === "clear") nextWave();
     }
