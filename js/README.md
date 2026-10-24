@@ -3,8 +3,8 @@
 8 个文件，全部是 IIFE，只往 `window.*` 挂一个对象。
 设计理由见 [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)；本目录规则见 [AGENTS.md](AGENTS.md)。
 
-加载顺序固定：`assets → anim-data → background → char-rig → enemies-assets → fx`，`ui-shell` 随后，`audio` 最后（它要被内联脚本的音效壳捕获成 `window.SND`）。
-顺序写死在 `index.html` 底部，改顺序会破坏依赖方向。
+加载顺序固定：`assets → anim-data → background → char-rig → enemies-assets → fx → ui-shell → audio`。`audio` 必须最后，它要被内联脚本的音效壳捕获成 `window.SND`。
+`audio.js` 排在最后是有意的：它只被 `index.html` 的 `sfx*()` 包装层读取，缺席时那层自动退回老的单振荡器实现。
 
 ---
 
@@ -100,6 +100,7 @@
 - 依赖谁：`document` 与 `#stage`（存在则挂进 stage，用设计像素；否则挂 body 用视口像素）。
 - 被谁依赖：`index.html` 的 `openModeSelect()`、`mountKeyHelp()`、`showPickupHint()`、`clearPickupHint()`。
 - 关键约束：键盘监听只读，不 `preventDefault`、不抢焦点；自己处理 `1 / 2 / H / Esc`；`solo` 模式 HUD 靠 `body.solo` 隐藏玩家二血条。
+- 关键约束：`KEY_ROWS` / `PAD_ROWS` / `TIPS` 是手写数据，**新增按键必须同一次改动内补进去**，否则抽屉里看不到（背包 `Q / E / R` 目前仍是缺口）。
 - 改后必测：模式选择回调是否把 `solo / duo` 传进 `startGame`；气泡坐标是否夹在画面内；`H` `Esc` 开关不吞游戏按键。
 
 ## audio.js
@@ -114,7 +115,6 @@
 - 关键约束：BGM 的喘息压音必须走 `bgm.breathe` 标志，在 `bgmTick` 里统一结算。直接改总线增益会被下一帧 tick 覆盖回满。
 - 关键约束：`file://` 自动播放策略要求一次用户手势，`armFirstGesture()` 负责解锁；`M` 键静音；`visibilitychange` 切后台自动挂起。
 - 改后必测：`node tools/selftest_audio.mjs`（mock Web Audio，不开浏览器），覆盖材质发声、复音节流、BGM 起停与档位、无 `AudioContext` 时安全空转。
-
 ---
 
 ## 变更影响路由
@@ -128,7 +128,6 @@
 | `enemies-assets.js` | 跑 `selftest_enemies.mjs`；`Enemy` 的 `kind / scale / w / h / maxHp / state` 字段是否改名 |
 | `fx.js` | `index.html` 三处 `FX.*` 调用与 `FX.ready()` 守卫 |
 | `ui-shell.js` | `index.html` 四个调用点、`body.solo` 样式、`UIShell` 未加载时的降级分支 |
-| `audio.js` | `index.html` 的 9 个转发壳是否仍一一对应；新增武器要在 `MATERIAL` 表里给材质，否则一律落到 `jade`；跑 `selftest_audio.mjs` |
-| 任意模块 | 跑 `node tools/check-inline.mjs` 与 `node tools/selftest_enemies.mjs` |
+| `audio.js` | 跑 `selftest_audio.mjs`；`index.html` 的 `sfx*()` 包装层是否仍能退回旧实现；新增武器要在 `MATERIAL` 表里给材质，否则一律落到 `jade`；`SND.bgm.*` 的调用点（开局 `start` / 换阵 `setWave` / 通关 `stop`） |
 
 契约变更（导出签名、字段名、`window.*` 名字）必须同一次改动内更新本页与 [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)。
