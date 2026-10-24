@@ -101,7 +101,9 @@
 - 被谁依赖：`index.html` 的 `openModeSelect()`、`mountKeyHelp()`、`showPickupHint()`、`clearPickupHint()`。
 - 关键约束：键盘监听只读，不 `preventDefault`、不抢焦点；自己处理 `1 / 2 / H / Esc`；`solo` 模式 HUD 靠 `body.solo` 隐藏玩家二血条。
 - 关键约束：`KEY_ROWS` / `PAD_ROWS` / `TIPS` 是手写数据，**新增按键必须同一次改动内补进去**，否则抽屉里看不到（背包 `Q / E / R` 目前仍是缺口）。
-- 改后必测：模式选择回调是否把 `solo / duo` 传进 `startGame`；气泡坐标是否夹在画面内；`H` `Esc` 开关不吞游戏按键。
+- 关键约束：模式页 / 抽屉的手柄输入在 `padFrame()` 里轮询，有**启用闸** `S.padArmed`：界面刚开时必须先见到一次全部面键松开才接受输入。「按任意键进模式页」的那一下还按在手上，不设闸会当场锁定默认项，玩家看不到选择页。
+- 关键约束：模式页底部那行提示按 `hasPad()` 切换文案（手柄版 / 键盘版），不要写死成「按 1 / 按 2」。
+- 改后必测：模式选择回调是否把 `solo / duo` 传进 `startGame`；气泡坐标是否夹在画面内；`H` `Esc` 开关不吞游戏按键；手柄 `A` 进选择页后是否**停留**在选择页（不跳选）。
 
 ## audio.js
 
@@ -127,7 +129,7 @@
 | `char-rig.js` | `index.html` 的 `drawPlayer()` 守卫、`__alphaMul` 是否仍被乘进 `alpha`、`__forceClip` 是否仍在收招时清空、`Player` 字段（`swingT / swingDur / throwT / whirlT / hurtT / pickupT / onGround`）是否改名 |
 | `enemies-assets.js` | 跑 `selftest_enemies.mjs`；`Enemy` 的 `kind / scale / w / h / maxHp / state` 字段是否改名 |
 | `fx.js` | `index.html` 三处 `FX.*` 调用与 `FX.ready()` 守卫 |
-| `ui-shell.js` | `index.html` 四个调用点、`body.solo` 样式、`UIShell` 未加载时的降级分支 |
+| `ui-shell.js` | `index.html` 四个调用点、`body.solo` 样式、`UIShell` 未加载时的降级分支、`padFrame` 的启用闸、模式页底部文案 |
 | `audio.js` | 跑 `selftest_audio.mjs`；`index.html` 的 `sfx*()` 包装层是否仍能退回旧实现；新增武器要在 `MATERIAL` 表里给材质，否则一律落到 `jade`；`SND.bgm.*` 的调用点（开局 `start` / 换阵 `setWave` / 通关 `stop`） |
 
 契约变更（导出签名、字段名、`window.*` 名字）必须同一次改动内更新本页与 [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)。

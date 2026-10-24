@@ -28,6 +28,7 @@
     modeHandler: null,
     modePick: "duo",        /* 手柄左右键高亮的那一项，Start 确认 */
     padHooked: false,
+    padArmed: false,        /* 模式页/抽屉刚开时必须先松开一次面键才接受输入 */
 
     helpBuilt: false,
     helpOpen: false,
@@ -620,6 +621,7 @@
     if (!wantPad) {
       /* 不打开时只清标记，避免残留状态让下一次变成「已按下」 */
       padPrev = {};
+      S.padArmed = false;
       return;
     }
 
@@ -636,6 +638,15 @@
       for (var j = 0; j < list.length; j++) { if (list[j]) { any = list[j]; break; } }
       gp = any;
       if (!gp) return;
+    }
+
+    /* 启用闸：模式页刚开的那一帧，把「按任意键进选择页」的那一下还按在手上，
+       直接看按下沿会当场锁定默认项，玩家没得选。必须先见到全部面键松开一次。 */
+    if (!S.padArmed) {
+      var anyFace = padBtn(gp, 0) || padBtn(gp, 1) || padBtn(gp, 2) ||
+                    padBtn(gp, 3) || padBtn(gp, 9);
+      if (!anyFace) { S.padArmed = true; padPrev = {}; }
+      return;
     }
 
     var ax = (gp.axes && gp.axes[0]) || 0;
@@ -788,6 +799,7 @@
     foot.className = "uis-modefoot";
     foot.textContent = "按 1 选单人 · 按 2 选双人";
     card.appendChild(foot);
+    D.foot = foot;
 
     root.appendChild(card);
     layer.appendChild(root);
@@ -797,11 +809,29 @@
     return root;
   }
 
+  /* 有没有手柄连着。模式页底部那行提示要按实际输入设备写，
+     插着手柄还写「按 1 选单人」等于让人去找键盘。 */
+  function hasPad() {
+    var nav = global.navigator;
+    if (!nav || typeof nav.getGamepads !== "function") return false;
+    var list;
+    try { list = nav.getGamepads() || []; } catch (e) { return false; }
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && list[i].connected) return true;
+    }
+    return false;
+  }
+
   function openMode() {
     var root = buildMode();
     if (!root) return;
     if (S.helpOpen) closeHelp();            // 选择页优先，先收起抽屉
     S.modeOpen = true;
+    if (D.foot) {
+      D.foot.textContent = hasPad()
+        ? "A / X 选单人 · B / Y 选双人 · 十字左右切换 · Start 确认"
+        : "按 1 选单人 · 按 2 选双人";
+    }
     root.classList.add("uis-on");
     root.setAttribute("aria-hidden", "false");
   }

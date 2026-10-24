@@ -47,8 +47,8 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 
 ## 验证快照
 
-- 2026-10-24：`check-inline` 通过（内联脚本 113987 字符）；`selftest_enemies` 0 失败；`selftest_audio` 0 失败；`node --check` 8/8 通过；链接校验 0 错误。
-- 规模：`index.html` 3727 行 / 141584 字节；`js/` 8 个模块 4785 行；`assets/` 104 个文件 2901046 字节（2.77 MB）。
+- 2026-10-24：`check-inline` 通过（内联脚本 121802 字符）；`selftest_enemies` 0 失败；`selftest_audio` 0 失败；`node --check` 8/8 通过；链接校验 65 链接 0 错误。
+- 规模：`index.html` 3865 行 / 153342 字节；`js/` 8 个模块 4785 行；`assets/` 104 个文件 2901046 字节（2.77 MB）。
 - 素材分布：`anim/` 57、`icons/` 16、`interact/` 6、`props/` 8、`char/` 5、`assets/` 根 12。
 - 帧数：角色 12 个 clip 共 43 帧；敌人 4 类共 14 帧。
 - 关卡：6 阵共 85 体。
@@ -76,6 +76,10 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 - 声音全在 [js/audio.js](js/audio.js)，实时合成、不读音频文件 —— `file://` 下 `fetch` / `XHR` 取音频会被 CORS 拦，放 `assets/audio/*.mp3` 等于放一堆加载不了的文件。要换音色改配方表，别加素材。
 - 打击音的材质靠 `startSwing(wp.key)` 传入的武器 key。新增武器必须同时在 `audio.js` 的 `MATERIAL` 里给材质，否则一律听成玉器。
 - BGM 的喘息压音只认 `bgm.breathe` 标志（在 `bgmTick` 里统一结算）。直接改 `bus.music` 增益会被下一帧覆盖回满。
+- **新增任何覆盖层 / 可交互界面，必须同时想手柄怎么过这一页。** `readPad()` 只在 `play` 阶段被调用，离开对局就没人读手柄 —— 失败页与通关页曾因此只能鼠标点。
+- 手柄按下沿检测必须带「启用闸」（先见到一次全部松开）。界面刚打开时那一下按键还按在手上，不设闸会当场确认掉，玩家看不到界面（模式选择页曾因此被 A 键直接跳过）。
+- 界面文案跟输入设备走：`body.pad-mode` 由「是否真有手柄连接」驱动，键盘键位与手柄键位是两套 DOM，靠类互斥切换。
+- 手柄键位以 `readPad()` 与 `ui-shell.js` 的 `PAD_ROWS` 为准（`A` 挥刀 / `X` 跳 / `B` 技能 / `Y` 拾取）。对外文档曾把 `A`/`X` 写反，改键位要连 README 与《操作与录屏说明》一起改。
 - `slice_anim.py` 生成过 `fps: 6, true, loop: true` 这类语法错误，生成后必须 `node --check`。
 - `slice_anim_extra.py` 曾写出缺冒号的 `anim-data.js` 行（`"attack-heavy"{ frames: ...`），整份数据文件当场语法错误；现已在脚本内加 `node --check` 门禁，非 0 直接退出。
 - 敌人走路动画按 `e.walk` 累计位移推进，不跟真实时间；改步频调 `enemies-assets.js` 的 `STRIDE`。
