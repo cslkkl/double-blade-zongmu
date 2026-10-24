@@ -14,11 +14,21 @@
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{width:100%;height:100%;overflow:hidden;background:#05060a;
     font-family:"Microsoft YaHei","PingFang SC","Source Han Sans SC",sans-serif;
-    -webkit-font-smoothing:antialiased;user-select:none}
-  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+    -webkit-font-smoothing:antialiased;user-select:none;
+    /* 手机上禁止双指缩放 / 双击放大 / 长按弹菜单 —— 这三个都会把游戏画面顶歪 */
+    touch-action:none;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+  /* 手机上不显示滚动条，也不许橡皮筋回弹（回弹会把 fixed 层拽出视口） */
+  html,body{overscroll-behavior:none;-webkit-overflow-scrolling:auto}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    /* 刘海 / 圆角 / home indicator：给画面留出安全区，横屏时左右尤其重要 */
+    padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px)
+            env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
   #stage{position:relative;width:1600px;height:900px;transform-origin:center center;
     overflow:hidden;background:#0a0b0e;box-shadow:0 0 140px rgba(0,0,0,.95)}
   canvas{position:absolute;inset:0;width:1600px;height:900px;display:block}
+  /* canvas 是位图，放大时会糊。低端安卓上 image-rendering:auto 由浏览器选，
+     强制 auto 是为了别让某些 ROM 默认套上 pixelated */
+  canvas{image-rendering:auto}
   #hud{position:absolute;inset:0;pointer-events:none}
 
   /* --- 玩家血条 --- */
@@ -118,6 +128,11 @@
      body 上的 dev-pad / dev-kbd 由 js/guide.js 按「谁在动」切换，
      文案本身也由它注入 —— 按键叫什么只有一份数据。 */
   body.dev-pad #keys{background:rgba(11,16,10,.72);border-color:rgba(158,222,132,.24)}
+  /* 触屏上把底部这两行提示收起来：虚拟按键本身就摆在屏幕底角，
+     这两行字会被按键压住、糊成一团（实测手机上「左半屏 ◀ ▶ 走」正好压在 ◀ ▶ 上面）。
+     触屏玩家要看完整键位有顶栏那个 ? —— 键位说明的入口没丢。 */
+  body.dev-touch #keys,
+  body.dev-touch #pad{display:none}
   body.dev-pad #keys b{color:#9ede84}
   #pad{position:absolute;right:28px;bottom:22px;font-size:14px;letter-spacing:.06em;
     color:#b6a883;text-align:right;line-height:2.1;padding:12px 18px;border-radius:3px;
@@ -367,10 +382,10 @@
 <script src="js/fx.js"></script>
 <script src="js/guide.js"></script>
 <script src="js/rumble.js"></script>
+<script src="js/touch.js"></script>
 <script src="js/ui-shell.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/intro-video.js"></script>
-<script src="js/rumble.js"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -396,11 +411,64 @@ var cv = document.getElementById("cv");
 var ctx = cv.getContext("2d");
 var $stage = document.getElementById("stage");
 
+/* ---------------- 画面缩放 ----------------
+   桌面：等比缩到视口里，四周留黑边（16:9 的显示器基本刚好铺满）。
+
+   手机：这里有三件事桌面不用管 ——
+   ① 地址栏收起 / 展开会改 innerHeight，用 visualViewport 才是真可见区；
+      直接用 innerHeight 会在地址栏收起时算出过大的 scale，画面下缘被切掉。
+   ② 横屏时刘海在左右，安全区要扣掉，否则血条压在刘海里。
+   ③ 竖屏时 1600×900 会被压成一条窄带（scale ≈ 0.24），角色只有 43px 高，
+      根本看不清 —— 这种情况由 js/touch.js 的「请横过来」整屏提示接管，
+      这里仍然照常缩放，保证即使玩家不转屏也能看到画面（而不是白屏）。
+
+   缩放用 transform 而不是改 canvas 的 width/height：canvas 内部分辨率必须
+   保持 1600×900，所有绘制坐标、碰撞盒、判定半径都是以它为单位写的。
+   改内部分辨率等于把整个游戏的坐标系缩掉，那是重写，不是适配。 */
+var fitScale = 1;
 function fit(){
-  var s = Math.min(window.innerWidth/W, window.innerHeight/H);
-  $stage.style.transform = "scale("+s+")";
+  var vw, vh;
+  var vv = window.visualViewport;
+  if(vv && vv.width > 0 && vv.height > 0){
+    /* visualViewport 是 CSS 像素的可见区，已经排除了地址栏与软键盘 */
+    vw = vv.width; vh = vv.height;
+  } else {
+    vw = window.innerWidth; vh = window.innerHeight;
+  }
+  /* 安全区：用 getComputedStyle 读 #wrap 的 padding（CSS 里已按 env() 设好）。
+     读不到就当 0 —— 老浏览器没有 env()，本来也没有刘海。 */
+  var padL = 0, padR = 0, padT = 0, padB = 0;
+  try{
+    var cs = window.getComputedStyle($stage.parentNode || document.body);
+    padL = parseFloat(cs.paddingLeft) || 0;
+    padR = parseFloat(cs.paddingRight) || 0;
+    padT = parseFloat(cs.paddingTop) || 0;
+    padB = parseFloat(cs.paddingBottom) || 0;
+  }catch(e){ /* 忽略：按 0 处理 */ }
+
+  var availW = Math.max(1, vw - padL - padR);
+  var availH = Math.max(1, vh - padT - padB);
+
+  var s = Math.min(availW / W, availH / H);
+  /* 兜底：视口还没量出来（0 或极小）时给一个安全值，别把画面缩成看不见的点 */
+  if(!(s > 0.01) || !isFinite(s)) s = 0.3;
+  fitScale = s;
+
+  /* translateZ(0) 把 #stage 提到独立合成层：手机上这一条能省掉每帧的
+     重排（1600×900 的图层重排在中端机上是 5~10ms，够掉一半帧）。 */
+  $stage.style.transform = "scale(" + s + ") translateZ(0)";
+
+  /* 触屏按键的尺寸与位置也跟着重算（它走视口坐标，不跟 #stage 缩放） */
+  if(window.Touch && Touch.tick) Touch.tick();
 }
-window.addEventListener("resize", fit); fit();
+window.addEventListener("resize", fit);
+window.addEventListener("orientationchange", function(){ setTimeout(fit, 80); });
+/* 地址栏收展、软键盘弹出都只改 visualViewport，不触发 window.resize */
+if(window.visualViewport){
+  window.visualViewport.addEventListener("resize", fit);
+  window.visualViewport.addEventListener("scroll", fit);
+}
+fit();
 
 /* ---------------- 音效 ----------------
    发声本体在 js/audio.js（window.SND）：总线路由 + 压缩器 + 复音节流
@@ -820,6 +888,9 @@ var STORY = [
 
 function startGame(mode){
   G.mode = mode || G.mode || "duo";
+  /* 触屏按键的摆法跟模式走：单人两个拇指分家、双人各占半屏。
+     在 Player 创建之前设，这样第一帧的按键布局就是对的。 */
+  if(window.Touch && Touch.setMode) Touch.setMode(G.mode);
   G.p1 = new Player(560, 1,
     {l:["KeyA"], r:["KeyD"], j:["KeyW","Space"], a:["KeyF","KeyJ"], act:["KeyG"],
      drop:["KeyE"], give:["KeyR"]}, "p1");
@@ -1079,9 +1150,18 @@ function introSyncHint(){
   if(!e.key) return;
   var pad = PADS[0] || PADS[1];
   var padActive = !!(window.Guide && window.Guide.device === "pad");
-  /* 文案跟设备走：手柄版写 A / Start，键盘版写空格。
-     两套不同时出现（与 guide.js 的 dev-pad / dev-kbd 同一口径）。 */
-  e.key.textContent = (padActive && pad) ? "A / Start" : "空格";
+  var touchOn = !!(window.Touch && Touch.active && Touch.active());
+  /* 文案跟设备走：手柄版写 A / Start，触屏版写「按住屏幕」，键盘版写空格。
+     三套不同时出现（与 guide.js 的 dev-pad / dev-kbd 同一口径）。 */
+  if(touchOn && !pad){
+    e.key.textContent = "按住屏幕";
+    /* 触屏上那个「长按此处跳过」的提示块由 js/touch.js 的 .tch-skip 提供，
+       右下角这一块就重复了 —— 收起来，只留触屏自己那块。 */
+    if(e.skip) e.skip.style.display = "none";
+  } else {
+    e.key.textContent = (padActive && pad) ? "A / Start" : "空格";
+    if(e.skip) e.skip.style.display = "";
+  }
 }
 
 function introSetHoldUI(on, pct){
@@ -1146,13 +1226,15 @@ function introPadHeld(){
   return false;
 }
 
-/* 每帧：推进长按计时。键盘记按下的时刻，手柄每帧看仍按着的面键。 */
+/* 每帧：推进长按计时。键盘记按下的时刻，手柄每帧看仍按着的面键，
+   触屏看「有没有手指按在跳过区上」（js/touch.js 转达）。 */
 function introTick(dt){
   if(!introRunning) return;
 
   /* 键盘：任一继续键按住（introKeyDownAt 由 keydown 写入、keyup 归零） */
   var kb = (introKeyDownAt > 0);
-  var on = kb || introPadHeld();
+  var touchHold = !!(window.Touch && Touch.skipHeld && Touch.skipHeld());
+  var on = kb || touchHold || introPadHeld();
 
   if(on){
     introHoldT += dt;
@@ -1521,7 +1603,11 @@ var KEY_LABEL = {
   p2: { drop:".", give:"'", atk:"/", open:";" }
 };
 var PAD_LABEL = { drop:"十字下", give:"十字上", atk:"A", open:"Y", skill:"B", jump:"X" };
+/* 触屏文案：手指没有「键名」，只能写屏幕上的字。这几个词与 js/touch.js
+   里按键的 label 逐字一致 —— 玩家看到气泡写「按 拾」，屏幕上就真有一个「拾」。 */
+var TOUCH_LABEL = { drop:"丢", give:"递", atk:"刀", open:"拾", skill:"技", jump:"跳" };
 function keyLabel(p, which){
+  if(p && p.touchActive) return TOUCH_LABEL[which] || which;
   if(p && p.padActive) return PAD_LABEL[which] || which;
   var t = KEY_LABEL[(p && p.padTag) || "p1"];
   return (t && t[which]) || KEY_LABEL.p1[which];
@@ -2232,33 +2318,43 @@ function update(dt){
 
     var pad1 = readPad(PADS[0], "p1");
     var pad2 = readPad(PADS[1], "p2");
+    /* 触屏虚拟键：手机上唯一的输入源。模块缺席 / 没手指动过时返回共享空对象，
+       与下面的 || 合并天然 no-op —— 桌面玩家的这条路径一行代码都没变。 */
+    var tch1 = (window.Touch && Touch.state) ? Touch.state("p1") : null;
+    var tch2 = (window.Touch && Touch.state) ? Touch.state("p2") : null;
 
-    /* 气泡文案跟着「这个人的实际输入源」走：有专属手柄就用手柄键名，否则用键盘键名。
+    /* 气泡文案跟着「这个人的实际输入源」走：有专属手柄就用手柄键名，
+       在触屏上就用手指图标，都没有才用键盘键名。
        padActive 此前只有读（keyLabel）没有写，插着手柄的人一直被告知按键盘键。
        这里按「谁真的在用手柄」赋值，与上面 pad1/pad2 的取源一一对应。 */
-    if(G.p1) G.p1.padActive = !!PADS[0];
-    if(G.p2) G.p2.padActive = !!PADS[1];
+    var touchOn = !!(window.Touch && Touch.active && Touch.active());
+    if(G.p1){ G.p1.padActive = !!PADS[0]; G.p1.touchActive = touchOn && !PADS[0]; }
+    if(G.p2){ G.p2.padActive = !!PADS[1]; G.p2.touchActive = touchOn && !PADS[1]; }
 
     var in1 = {
-      left:  keyDown(G.p1.keys.l) || pad1.left,
-      right: keyDown(G.p1.keys.r) || pad1.right,
-      jump:  keyPressed(G.p1.keys.j) || pad1.jump,
-      atk:   keyPressed(G.p1.keys.a) || pad1.atk,
+      left:  keyDown(G.p1.keys.l) || pad1.left || (tch1 && tch1.left),
+      right: keyDown(G.p1.keys.r) || pad1.right || (tch1 && tch1.right),
+      jump:  keyPressed(G.p1.keys.j) || pad1.jump || (tch1 && tch1.jump),
+      atk:   keyPressed(G.p1.keys.a) || pad1.atk || (tch1 && tch1.atk),
       /* 拾取 / 开箱走独立键：键盘 act（P1 G / P2 ;）或手柄 Y。
          与攻击键分开是硬要求 —— 同一个键既挥刀又捡东西时，站在掉落物旁一按就会
          先捡、把这一刀吃掉，玩家读到的是「乱拾取」。 */
-      act:   (G.p1.keys.act && keyPressed(G.p1.keys.act)) || pad1.act,
-      drop: pad1.drop, give: pad1.give, skill: pad1.skill
+      act:   (G.p1.keys.act && keyPressed(G.p1.keys.act)) || pad1.act || (tch1 && tch1.act),
+      drop:  pad1.drop || (tch1 && tch1.drop),
+      give:  pad1.give || (tch1 && tch1.give),
+      skill: pad1.skill || (tch1 && tch1.skill)
     };
     var in2 = null;
     if(G.p2){
       in2 = {
-        left:  keyDown(G.p2.keys.l) || pad2.left,
-        right: keyDown(G.p2.keys.r) || pad2.right,
-        jump:  keyPressed(G.p2.keys.j) || pad2.jump,
-        atk:   keyPressed(G.p2.keys.a) || pad2.atk,
-        act:   (G.p2.keys.act && keyPressed(G.p2.keys.act)) || pad2.act,
-        drop: pad2.drop, give: pad2.give, skill: pad2.skill
+        left:  keyDown(G.p2.keys.l) || pad2.left || (tch2 && tch2.left),
+        right: keyDown(G.p2.keys.r) || pad2.right || (tch2 && tch2.right),
+        jump:  keyPressed(G.p2.keys.j) || pad2.jump || (tch2 && tch2.jump),
+        atk:   keyPressed(G.p2.keys.a) || pad2.atk || (tch2 && tch2.atk),
+        act:   (G.p2.keys.act && keyPressed(G.p2.keys.act)) || pad2.act || (tch2 && tch2.act),
+        drop:  pad2.drop || (tch2 && tch2.drop),
+        give:  pad2.give || (tch2 && tch2.give),
+        skill: pad2.skill || (tch2 && tch2.skill)
       };
       /* 单手柄时两人共用移动 */
       if(PADS[0] && !PADS[1]){
@@ -4019,6 +4115,11 @@ var lastT = 0;
 function loop(ts){
   var dt = Math.min(0.045, (ts - lastT)/1000 || 0.016);
   lastT = ts;
+  /* 触屏虚拟键：每帧同步一次显示状态（只在真的变化时动 class）。
+     放在这里而不是 loop 里，是因为 loop 在暂停 / 短片时走别的分支 ——
+     而虚拟键恰恰在那些分支里最需要更新（短片要亮「长按跳过」）。 */
+  if(window.Touch && Touch.tick) Touch.tick();
+
   /* 开场短片是独立子状态，不是暂停：模拟冻住，但 render 照跑（世界在后面）
      并且要推进长按计时。放在 paused 之前判 —— 短片期间按 Esc 不该开暂停页。 */
   if(G.intro){
@@ -4048,6 +4149,13 @@ if(window.Guide){
 /* 手柄震动：事件驱动，不轮询；init 幂等，手柄晚插也没关系 */
 if(window.Rumble){
   Rumble.init();
+}
+
+/* 触屏虚拟键：只有真有触屏时才挂载（桌面零成本）。
+   顺序放在 Guide / Rumble 之后 —— 它要读 Guide.padCount() 决定「插了手柄就不显示」，
+   而 Guide.mount() 会起轮询、把 PADS 填上。 */
+if(window.Touch && Touch.init){
+  Touch.init();
 }
 
 /* UI 覆盖层：按键说明只挂载，用 H 开关（由 ui-shell 自己监听） */

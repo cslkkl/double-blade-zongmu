@@ -79,6 +79,27 @@
     '<b>Start</b> 暂停 · <b>H</b> 键位说明 · <b>M</b> 静音'
   ];
 
+  /* 触屏图列：手机上屏幕就那几个圆钮，按键名直接写钮上的字。
+     与 js/touch.js 的 label 逐字一致 —— 文案说「按 拾」，屏幕上就真有「拾」。
+     触屏没有「双人同键」这回事（两人各占半屏，各自一套钮），所以不写 p2 列。 */
+  var TOUCH_LEGEND = [
+    { keys: ["◀", "▶"], act: "移动" },
+    { keys: ["跳"],      act: "跳跃" },
+    { keys: ["刀"],      act: "挥刀 · 连按三连击" },
+    { keys: ["技"],      act: "旋风斩 · 能量满时" },
+    { keys: ["拾"],      act: "拾取 / 开箱" },
+    { keys: ["丢"],      act: "丢弃手上武器" },
+    { keys: ["递"],      act: "递给队友" },
+    { keys: ["❚❚"],     act: "暂停" },
+    { keys: ["?"],       act: "键位说明" }
+  ];
+
+  var HINT_TOUCH = [
+    '左半屏 <b>◀ ▶</b> 走 · <b>跳</b> 跳 · 右半屏 <b>刀</b> 挥刀 · <b>技</b> 旋风斩',
+    '<b>拾</b> 拾取/开箱 · <b>丢</b> 丢弃 · <b>递</b> 递队友',
+    '屏幕上方 <b>❚❚</b> 暂停 · <b>?</b> 键位说明'
+  ];
+
   /* =======================================================================
      二、样式（一次性注入，类名统一 gd- 前缀）
      ======================================================================= */
@@ -211,6 +232,46 @@
       '</svg>';
   }
 
+  /* 手机示意图：横置的手机外框，把屏幕上的按键位置照实摆一遍。
+     画它是为了让「触屏键位说明」有图可看 —— 只有一张文字表的话，
+     玩家读完还是不知道哪个钮在哪。坐标按 js/touch.js 的实际布局取近似值：
+     左半屏 ◀ ▶ 贴底、跳在中间抬起，右半屏刀在内、技在外。 */
+  function phoneSvg() {
+    var btn = function (cx, cy, r, label, big) {
+      return '<circle class="gd-ring" cx="' + cx + '" cy="' + cy + '" r="' + r + '"/>' +
+        '<text class="gd-face-t" x="' + cx + '" y="' + (cy + r * 0.34) + '" ' +
+        'text-anchor="middle" font-size="' + (big ? r * 0.86 : r * 0.78) + '">' + label + '</text>';
+    };
+    return '' +
+      '<svg class="gd-pad" viewBox="0 0 420 240" xmlns="http://www.w3.org/2000/svg" ' +
+      'role="img" aria-label="手机横屏按键分布">' +
+      /* 机身：横屏，宽高比接近 16:9 */
+      '<rect class="gd-body" x="14" y="42" width="392" height="164" rx="16"/>' +
+      /* 屏幕：比机身内缩一圈，示意「游戏画面在这里」 */
+      '<rect x="26" y="54" width="368" height="140" rx="6" ' +
+      'fill="rgba(0,0,0,.34)" stroke="rgba(217,180,94,.22)" stroke-width="1"/>' +
+
+      /* 左半屏：◀ ▶ 贴底，跳在两者中间抬起 */
+      btn(58, 168, 17, "◀") +
+      btn(104, 168, 17, "▶") +
+      btn(81, 128, 17, "跳") +
+
+      /* 右半屏：刀最大在内侧、技在外、拾在刀上方、丢 / 递缩成小钮 */
+      btn(306, 170, 22, "刀", true) +
+      btn(356, 146, 17, "技") +
+      btn(256, 146, 17, "拾") +
+      btn(330, 110, 13, "丢") +
+      btn(374, 96, 13, "递") +
+
+      /* 顶部系统键 */
+      '<rect class="gd-pill" x="186" y="62" width="26" height="14" rx="7"/>' +
+      '<text class="gd-pill-t" x="199" y="72.5" text-anchor="middle" font-size="9">❚❚</text>' +
+      '<rect class="gd-pill" x="218" y="62" width="26" height="14" rx="7"/>' +
+      '<text class="gd-pill-t" x="231" y="72.5" text-anchor="middle" font-size="9">?</text>' +
+
+      '</svg>';
+  }
+
   /* =======================================================================
      四、渲染
      ======================================================================= */
@@ -280,17 +341,36 @@
     }
   }
 
+  /* 触屏图例：单列，按键就是屏幕上的圆钮字形 */
+  function legendTouch() {
+    var html = '<div class="gd-legend">';
+    for (var i = 0; i < TOUCH_LEGEND.length; i++) {
+      var r = TOUCH_LEGEND[i];
+      html += '<div class="gd-row">' +
+        '<span class="gd-k' + (r.keys.join("").length > 3 ? " gd-k--wide" : "") + '">' +
+        esc(r.keys.join(" ")) + '</span>' +
+        '<em>' + esc(r.act) + '</em></div>';
+    }
+    return html + '</div>';
+  }
+
   /* 把当前设备的图渲染进 el。kind 省略时用当前设备。 */
   function renderInto(el, kind) {
     if (!el) return false;
-    var k = (kind === "kbd" || kind === "pad") ? kind : device;
-    el.innerHTML = '<div class="gd-host">' +
-      (k === "pad"
-        ? '<div class="gd-fig">' + padSvg() + '</div>' + legendPad()
-        : '<div class="gd-fig" style="display:none"></div>' + legendKbd()) +
-      '</div>';
+    var k = (kind === "kbd" || kind === "pad" || kind === "touch") ? kind : device;
+    var body;
+    if (k === "pad") {
+      body = '<div class="gd-fig">' + padSvg() + '</div>' + legendPad();
+    } else if (k === "touch") {
+      /* 触屏没有「手柄示意图」可画 —— 画一张手机外框，把按键摆上去，
+         比留白更像回事，也让玩家一眼知道这是手机版 */
+      body = '<div class="gd-fig">' + phoneSvg() + '</div>' + legendTouch();
+    } else {
+      body = '<div class="gd-fig" style="display:none"></div>' + legendKbd();
+    }
+    el.innerHTML = '<div class="gd-host">' + body + '</div>';
     /* 去掉空的占位，避免 flex 里多一个零宽元素 */
-    if (k !== "pad") {
+    if (k === "kbd") {
       var ph = el.querySelector(".gd-fig");
       if (ph && ph.parentNode) ph.parentNode.removeChild(ph);
     }
@@ -327,6 +407,7 @@
     if (!cl) return;
     cl.toggle("dev-pad", device === "pad");
     cl.toggle("dev-kbd", device === "kbd");
+    cl.toggle("dev-touch", device === "touch");
   }
 
   function hintEls() {
@@ -339,22 +420,30 @@
   function paintHints() {
     var els = hintEls();
     if (els.keys) {
-      var lines = (device === "pad") ? HINT_PAD : HINT_KBD;
+      var lines = (device === "pad") ? HINT_PAD
+                : (device === "touch") ? HINT_TOUCH
+                : HINT_KBD;
       els.keys.innerHTML = lines.join("<br>");
-      els.keys.style.color = (device === "pad") ? "#a8c49a" : "";
+      els.keys.style.color = (device === "pad") ? "#a8c49a"
+                           : (device === "touch") ? "#c9a765"
+                           : "";
     }
     if (els.pad) {
       var n = PADS.length;
       els.pad.innerHTML = (device === "pad")
         ? (n > 0 ? ("手柄已连接 ×" + n + " · <b>H</b> 看完整键位")
                  : ("手柄 · <b>H</b> 看完整键位"))
-        : ("键盘 · <b>H</b> 看完整键位");
-      els.pad.style.color = (device === "pad") ? "#7fa86f" : "";
+        : (device === "touch")
+          ? ("触屏 · <b>?</b> 看完整键位")
+          : ("键盘 · <b>H</b> 看完整键位");
+      els.pad.style.color = (device === "pad") ? "#7fa86f"
+                          : (device === "touch") ? "#c9a765"
+                          : "";
     }
   }
 
   function setDevice(d) {
-    if (d !== "kbd" && d !== "pad") return device;
+    if (d !== "kbd" && d !== "pad" && d !== "touch") return device;
     if (d === device) return device;
     device = d;
     applyBodyClass();
@@ -377,6 +466,18 @@
   /* 键盘：任何一次按键都算「正在用键盘」 */
   function onKeyDown() {
     if (device !== "kbd") setDevice("kbd");
+  }
+
+  /* 触屏：手指真的落下才算「正在用手指」。
+     判据取自 js/touch.js 的 active() —— 它已经处理了「触屏笔记本用键盘玩」
+     与「插了手柄就用不着虚拟键」这两种情况，这里不重复造一套规则。
+     模块缺席时永远 false，桌面玩家的行为一点没变。 */
+  function touchActive() {
+    try {
+      return !!(global.Touch && global.Touch.active && global.Touch.active());
+    } catch (e) {
+      return false;
+    }
   }
 
   /* 手柄：任何按钮按下或摇杆推离死区都算「正在用手柄」 */
@@ -455,8 +556,13 @@
     var pads = scanPads();
     var first = pads[0] || null;
 
+    /* 优先级：手柄 > 触屏 > 键盘。
+       手柄在前是因为插着手柄的人多半在用摇杆；触屏在键盘前是因为手机上
+       根本不会有键盘事件，而桌面有触屏的机器手指落下就是明确信号。 */
     if (first && padActive(first)) {
       if (device !== "pad") setDevice("pad");
+    } else if (touchActive()) {
+      if (device !== "touch") setDevice("touch");
     }
 
     /* 连接数变化时才刷新右侧那行提示（热插拔时立刻反映，平时零开销） */
@@ -506,6 +612,7 @@
     hintHtml: function () { return ((device === "pad") ? HINT_PAD : HINT_KBD).join("<br>"); },
     refreshHints: paintHints,
     PAD_LEGEND: PAD_LEGEND,
-    KBD_LEGEND: KBD_LEGEND
+    KBD_LEGEND: KBD_LEGEND,
+    TOUCH_LEGEND: TOUCH_LEGEND
   };
 })(window, document);
