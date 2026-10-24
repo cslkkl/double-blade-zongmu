@@ -46,6 +46,26 @@
     animation:hplow .7s infinite}
   @keyframes hplow{0%,100%{opacity:1}50%{opacity:.72}}
 
+  /* --- 背包条：武器名之下的 4 格 --- */
+  /* 纯 DOM + CSS，由 syncHUD() 更新；不在 frame 里重建节点。
+     空格只留深色描边方框，有武器时 canvas 里画图标（没图则方块 + 名字首字）。 */
+  .bag{display:flex;gap:7px;margin-top:10px}
+  .pbar.p2 .bag{justify-content:flex-end}
+  .slot{position:relative;width:34px;height:34px;border-radius:4px;overflow:hidden;
+    border:1px solid rgba(120,104,64,.9);
+    background:linear-gradient(180deg,rgba(0,0,0,.58),rgba(0,0,0,.34));
+    box-shadow:inset 0 1px 4px rgba(0,0,0,.85);
+    transition:border-color .12s,box-shadow .12s}
+  .slot canvas{position:absolute;left:1px;top:1px;width:30px;height:30px;display:block}
+  /* 耐久：格子底部一条细条（投掷物走弹数） */
+  .slot > i{position:absolute;left:3px;right:3px;bottom:2px;height:2px;border-radius:2px;
+    background:rgba(0,0,0,.82);overflow:hidden}
+  .slot > i > b{display:block;height:100%;width:0%;border-radius:2px;
+    background:linear-gradient(90deg,#8a6120,#e8c26a,#fff0bc);transition:width .18s}
+  /* 当前选中格：金色高亮边框 */
+  .slot.sel{border-color:#f5d98e;
+    box-shadow:0 0 10px rgba(245,217,142,.62),inset 0 0 8px rgba(245,217,142,.22)}
+
   /* 武器 + 能量 */
   .wpn{display:flex;align-items:center;gap:10px;margin-top:11px}
   .wpn.right{justify-content:flex-end}
@@ -155,19 +175,21 @@
       <div class="pname">玩家一 <em>纵目 · 执</em></div>
       <div class="hpwrap" id="hp1"></div>
       <div class="wpn"><canvas class="wico" id="wi1" width="24" height="24"></canvas><span class="wname" id="wp1">短剑</span><span class="wenergy" id="en1"><i></i></span></div>
+      <div class="bag" id="bag1"></div>
     </div>
     <div class="pbar p2">
       <div class="pname"><em>执 · 纵目</em> 玩家二</div>
       <div class="hpwrap" id="hp2"></div>
       <div class="wpn right"><canvas class="wico" id="wi2" width="24" height="24"></canvas><span class="wname" id="wp2">短剑</span><span class="wenergy" id="en2"><i></i></span></div>
+      <div class="bag" id="bag2"></div>
     </div>
     <div id="center">
       <div id="combo"></div>
       <div id="wave">第 1 阵</div>
     </div>
     <div id="keys">
-      <b>玩家一</b> A D 走 · W/空格 跳 · F/J 挥刀（连按三连）<br>
-      <b>玩家二</b> ← → 走 · ↑/右Shift 跳 · / 或小键盘0 挥刀
+      <b>玩家一</b> A D 走 · W/空格 跳 · F/J 挥刀（连按三连） · <b>Q</b> 换格 · <b>E</b> 丢弃 · <b>R</b> 递队友<br>
+      <b>玩家二</b> ← → 走 · ↑/右Shift 跳 · / 或小键盘0 挥刀 · <b>,</b> 换格 · <b>.</b> 丢弃 · <b>'</b> 递队友
     </div>
     <div id="pad">手柄：左摇杆走 · A 跳 · X / □ 挥刀 · <b>H 看完整键位</b></div>
   </div>
@@ -192,12 +214,14 @@
         <div class="row"><span>A D</span>左右移动</div>
         <div class="row"><span>W / 空格</span>跳起</div>
         <div class="row"><span>F / J</span>挥刀 · 连按三连</div>
+        <div class="row"><span>Q / E / R</span>换格 / 丢弃 / 递队友</div>
       </div>
       <div class="cl">
         <h4>玩家二</h4>
         <div class="row"><span>← →</span>左右移动</div>
         <div class="row"><span>↑ / 右Shift</span>跳起</div>
         <div class="row"><span>/ 或小键盘0</span>挥刀 · 连按三连</div>
+        <div class="row"><span>, . '</span>换格 / 丢弃 / 递队友</div>
       </div>
       <div class="cl">
         <h4>手柄</h4>
@@ -253,6 +277,7 @@
 <script src="js/enemies-assets.js"></script>
 <script src="js/fx.js"></script>
 <script src="js/ui-shell.js"></script>
+<script src="js/audio.js"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -279,14 +304,25 @@ function fit(){
 }
 window.addEventListener("resize", fit); fit();
 
-/* ---------------- 音效 ---------------- */
+/* ---------------- 音效 ----------------
+   发声本体在 js/audio.js（window.SND）：总线路由 + 压缩器 + 复音节流
+   + 材质配方 + 程序化 BGM。这里的函数只是转发壳，所以全文件几十个调用点
+   一个字都不用改；js/audio.js 缺席时自动退回老的单振荡器实现。
+
+   打击音的材质跟着手上的刀走：startSwing 把武器 key 交给 recentSwing，
+   hitEnemy / explodeProjectile 再把它传给 SND，玉、骨、青铜、锤才各有音色。 */
+var S = window.SND || null;
 var AC = null;
+
 function ac(){
+  if(S){ return S.ctx(); }
   if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ AC=null; } }
   if(AC && AC.state==="suspended") AC.resume();
   return AC;
 }
-function tone(f, dur, type, gain, to){
+
+/* ---- 降级：js/audio.js 未加载时的老实现，保证不静音 ---- */
+function _toneOld(f, dur, type, gain, to){
   var a = ac(); if(!a) return;
   var o = a.createOscillator(), g = a.createGain();
   o.type = type||"sine";
@@ -298,7 +334,7 @@ function tone(f, dur, type, gain, to){
   o.connect(g); g.connect(a.destination);
   o.start(); o.stop(a.currentTime+dur+0.02);
 }
-function noise(dur, gain, hp){
+function _noiseOld(dur, gain, hp){
   var a = ac(); if(!a) return;
   var n = Math.floor(a.sampleRate*dur), buf = a.createBuffer(1,n,a.sampleRate);
   var d = buf.getChannelData(0);
@@ -308,15 +344,56 @@ function noise(dur, gain, hp){
   var g = a.createGain(); g.gain.value = gain||0.1;
   s.connect(f); f.connect(g); g.connect(a.destination); s.start();
 }
-function sfxSwing(){ noise(0.11, 0.11, 2200); }
-function sfxHit(){ tone(190,0.10,"square",0.06,110); noise(0.07,0.09,600); }
-function sfxCrit(){ tone(120,0.22,"sawtooth",0.09,55); noise(0.14,0.12,400); }
-function sfxJump(){ tone(430,0.08,"sine",0.04,640); }
-function sfxHurt(){ tone(150,0.24,"sawtooth",0.08,68); }
-function sfxDie(){ tone(200,0.3,"triangle",0.06,60); noise(0.2,0.07,300); }
-function sfxWave(){ [392,523,659].forEach(function(f,i){ setTimeout(function(){ tone(f,.4,"sine",.05); }, i*110); }); }
-function sfxWin(){ [523,659,784,1047,1319].forEach(function(f,i){ setTimeout(function(){ tone(f,.6,"sine",.055); }, i*150); }); }
-function sfxLose(){ [330,262,208,165].forEach(function(f,i){ setTimeout(function(){ tone(f,.5,"triangle",.06); }, i*180); }); }
+
+/* 通用转发：散落在全文件里的 tone() / noise() 一并吃到总线与限幅 */
+function tone(f, dur, type, gain, to){
+  if(S){ S.tone(f, dur, type, gain, to); return; }
+  _toneOld(f, dur, type, gain, to);
+}
+function noise(dur, gain, hp){
+  if(S){ S.noise(dur, gain, hp); return; }
+  _noiseOld(dur, gain, hp);
+}
+
+var recentSwing = "jade";          /* 本次挥砍的材质，空手起步 */
+function sfxSwing(key){
+  if(key && S){ recentSwing = S.setMaterial(key); }
+  if(S){ S.swing(); return; }
+  _noiseOld(0.11, 0.11, 2200);
+}
+/* mat 省略时用 recentSwing，刀砍下去的声音跟着手上那把刀走 */
+function sfxHit(mat, big, weak){
+  if(S){ S.hit({ mat: mat || recentSwing, big: !!big, weak: !!weak }); return; }
+  _toneOld(190,0.10,"square",0.06,110); _noiseOld(0.07,0.09,600);
+}
+function sfxCrit(){
+  if(S){ S.hit({ big: true }); return; }
+  _toneOld(120,0.22,"sawtooth",0.09,55); _noiseOld(0.14,0.12,400);
+}
+function sfxJump(){
+  if(S){ S.jump(); return; }
+  _toneOld(430,0.08,"sine",0.04,640);
+}
+function sfxHurt(){
+  if(S){ S.hurt(); return; }
+  _toneOld(150,0.24,"sawtooth",0.08,68);
+}
+function sfxDie(){
+  if(S){ S.die(); return; }
+  _toneOld(200,0.3,"triangle",0.06,60); _noiseOld(0.2,0.07,300);
+}
+function sfxWave(){
+  if(S){ S.wave(); return; }
+  [392,523,659].forEach(function(f,i){ setTimeout(function(){ tone(f,.4,"sine",.05); }, i*110); });
+}
+function sfxWin(){
+  if(S){ S.win(); return; }
+  [523,659,784,1047,1319].forEach(function(f,i){ setTimeout(function(){ tone(f,.6,"sine",.055); }, i*150); });
+}
+function sfxLose(){
+  if(S){ S.lose(); return; }
+  [330,262,208,165].forEach(function(f,i){ setTimeout(function(){ tone(f,.5,"triangle",.06); }, i*180); });
+}
 
 /* ---------------- 工具 ---------------- */
 function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
@@ -439,6 +516,22 @@ function wpIconKey(key){ return WP_ICON[key] || null; }
    bow / hammer 是唯二的两把稀有货，别把其它 key 加进来 */
 function isRareWeapon(key){ return key === "bow" || key === "hammer"; }
 
+/* 攻击动作 → clip 名（挂到 p.__forceClip，由 char-rig 读）
+   重武器（axe / hammer）双手劈砍 attack-heavy；
+   快武器（spear / dagger / short）长柄突刺 attack-thrust；
+   sword / 空手 / 投掷 / 弓沿用原 attack。
+   clip 数据在 js/anim-data.js，这里只做「武器 → clip 名」的映射，不碰绘制。 */
+var ATTACK_CLIP = {
+  axe:    "attack-heavy",
+  hammer: "attack-heavy",
+  spear:  "attack-thrust",
+  dagger: "attack-thrust",
+  short:  "attack-thrust"
+};
+function attackClipOf(wp){
+  return ATTACK_CLIP[wp && wp.key] || "attack";
+}
+
 /* 掉落物图标统一长边尺寸（世界坐标像素） */
 var DROP_ICON_SIZE = 56;
 
@@ -474,6 +567,13 @@ function Player(x, facing, keys, padTag){
   this.weapon = newWeapon("short");
   this.pickLock = 0;
   this.throwT = 0;          // 投掷/拉弓动作
+  /* ---- 4 格背包 ----
+     weapon 是「手上正在用的」（可以是空手 fist），bag 是备用的 4 格。
+     两处都算「持有」，同款武器不重复收（见 hasWeaponKey）。 */
+  this.bag = [null, null, null, null];
+  this.bagIdx = 0;          // 当前选中格
+  this.pickupT = 0;         // 拾取动作计时（0.3s），char-rig 读它播 pickup
+  this.__forceClip = null;  // 攻击动作强制 clip（attack-heavy / attack-thrust）
 }
 Player.prototype.rect = function(){
   return { x:this.x-30, y:this.y-150, w:60, h:150 };
@@ -524,13 +624,13 @@ var G = {
 function buildWaves(){
   return [
     { name:"第一阵", sub:"锈蚀试探", mech:"heal", chests:2,
-      list:["walker","walker","walker","walker","fast","fast"] },
+      list:["walker","walker","walker","walker","walker","fast","fast","fast"] },
     { name:"第二阵", sub:"它们跑起来了", mech:"rush", chests:2,
-      list:["walker","fast","walker","fast","walker","fast","walker","fast","walker","fast"] },
+      list:["walker","fast","walker","fast","walker","fast","walker","fast","walker","fast","walker","fast"] },
     { name:"第三阵", sub:"厚甲压上来", mech:"heal", chests:2,
-      list:["walker","fast","brute","walker","fast","walker","brute","fast","walker","fast","brute","walker","fast"] },
+      list:["walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute"] },
     { name:"第四阵", sub:"坑壁塌了", mech:"rush", chests:2,
-      list:["walker","fast","brute","walker","fast","brute","walker","fast","walker","brute","fast","walker","brute","fast","walker","brute"] },
+      list:["walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute"] },
     { name:"第五阵", sub:"它们数着我的名字", mech:"heal", chests:2,
       list:["walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute","walker","fast","brute"] },
     { name:"器心 · 纵目之主", sub:"锈蚀的源头", mech:null, chests:2,
@@ -564,10 +664,12 @@ var STORY = [
 function startGame(mode){
   G.mode = mode || G.mode || "duo";
   G.p1 = new Player(560, 1,
-    {l:["KeyA"], r:["KeyD"], j:["KeyW","Space"], a:["KeyF","KeyJ"]}, "p1");
+    {l:["KeyA"], r:["KeyD"], j:["KeyW","Space"], a:["KeyF","KeyJ"],
+     bag:["KeyQ"], drop:["KeyE"], give:["KeyR"]}, "p1");
   G.p2 = (G.mode === "solo") ? null
        : new Player(700, -1,
-           {l:["ArrowLeft"], r:["ArrowRight"], j:["ArrowUp","ShiftRight"], a:["Slash","Numpad0","KeyK"]}, "p2");
+           {l:["ArrowLeft"], r:["ArrowRight"], j:["ArrowUp","ShiftRight"], a:["Slash","Numpad0","KeyK"],
+            bag:["Comma"], drop:["Period"], give:["Quote"]}, "p2");
   G.enemies = []; G.particles = []; G.slashes = []; G.drops = []; G.texts = []; G.projectiles = []; G.hits = [];
   G.chests = []; G.mechanisms = []; G.pickups = [];
   G.breatherT = 0; G.mechSpawned = false; G.mechSkipBreather = false;
@@ -723,6 +825,8 @@ function syncHUD(){
       en.firstChild.style.width = clamp(pr[1].energy,0,100)+"%";
       en.className = "wenergy" + (pr[1].energy >= 100 ? " full" : "");
     }
+    /* 4 格背包条：在 .pbar 内部，solo 模式下跟着 p2 整块收起 */
+    syncBag(pr[1], pr[0] === "hp1" ? "p1" : "p2");
   });
   var c = document.getElementById("combo");
   if(G.comboT > 0 && G.combo >= 2){
@@ -769,6 +873,109 @@ function drawHudWeaponIcon(cv, iconKey){
   }
 }
 
+/* ---------------- HUD 背包条（4 格）----------------
+   纯 DOM + CSS：buildBags() 只建一次节点，syncHUD() 按「状态签名」更新，
+   签名不变就直接返回，不在每帧重建 DOM、也不重画 canvas。
+   格子内容：有图 → 画图标；没图（未就绪 / 加载失败）→ 方块 + 名字首字，
+   保证任何一张 wp* 素材缺失都不留空框、不白屏。 */
+var BAG_CV_S = 30;                       /* 格内 canvas 边长（格子 34px，留 2px 给耐久条） */
+var bagDom = {};                         /* "p1"/"p2" -> { slots:[{box,cv,fill}], sig:"" } */
+
+function buildBags(){
+  [["bag1","p1"],["bag2","p2"]].forEach(function(pair){
+    var root = document.getElementById(pair[0]);
+    if(!root) return;
+    root.innerHTML = "";
+    var rec = { slots:[], sig:"" };
+    for(var i=0;i<BAG_SIZE;i++){
+      var box = document.createElement("div");
+      box.className = "slot";
+      var cv = document.createElement("canvas");
+      cv.width = BAG_CV_S;
+      cv.height = BAG_CV_S;
+      var track = document.createElement("i");     /* 耐久槽 */
+      var fill = document.createElement("b");      /* 耐久填充 */
+      track.appendChild(fill);
+      box.appendChild(cv);
+      box.appendChild(track);
+      root.appendChild(box);
+      rec.slots.push({ box:box, cv:cv, fill:fill });
+    }
+    bagDom[pair[1]] = rec;
+  });
+}
+
+/* 耐久比值：近战用 dur/max，投掷物用 ammo/ammoMax（它的「耐久」是弹数） */
+function bagDuraRatio(w){
+  if(!w) return 0;
+  if(w.type === "throw") return clamp((w.ammo|0) / Math.max(1, w.ammoMax|0), 0, 1);
+  return clamp((w.dur|0) / Math.max(1, w.max|0), 0, 1);
+}
+function bagSigOf(p){
+  var s = "" + (p.bagIdx|0);
+  for(var i=0;i<BAG_SIZE;i++){
+    var w = p.bag[i];
+    if(!w){ s += "|-"; continue; }
+    s += "|" + w.key + "@" + (w.type === "throw" ? (w.ammo|0) : (w.dur|0));
+  }
+  return s;
+}
+
+/* 画一格：图标优先，没图回落「方块 + 名字首字」 */
+function drawBagSlot(cv, wp){
+  if(!cv || !cv.getContext) return;
+  var g = cv.getContext("2d");
+  if(!g) return;
+  var S = BAG_CV_S;
+  g.clearRect(0, 0, S, S);
+  if(!wp) return;                       /* 空格：只留 CSS 的深色描边方框 */
+
+  var drew = false;
+  var iconKey = wpIconKey(wp.key);
+  if(iconKey && imgReady(iconKey)){
+    var im = window.IMG[iconKey];
+    var nw = im.naturalWidth || im.width || 0;
+    var nh = im.naturalHeight || im.height || 0;
+    if(nw > 0 && nh > 0){
+      var sc = (S - 4) / Math.max(nw, nh);
+      var dw = nw*sc, dh = nh*sc;
+      try{ g.drawImage(im, (S-dw)/2, (S-dh)/2, dw, dh); drew = true; }
+      catch(e){ drew = false; g.clearRect(0, 0, S, S); }
+    }
+  }
+  if(drew) return;
+
+  /* 纯代码降级：色块当武器柄身，叠名字首字，读一眼就知道是哪一把 */
+  g.fillStyle = wp.col || "#c9b78c";
+  g.fillRect(4, 4, S-8, S-8);
+  g.strokeStyle = "rgba(20,16,10,.75)";
+  g.lineWidth = 1.5;
+  g.strokeRect(4.5, 4.5, S-9, S-9);
+  var ch = (wp.name || "？").charAt(0);
+  g.font = "700 15px 'Microsoft YaHei',sans-serif";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.fillStyle = "rgba(22,16,8,.92)";
+  g.fillText(ch, S/2, S/2 + 1);
+}
+
+/* 按签名更新一条背包条；签名没变不做任何事 */
+function syncBag(p, tag){
+  var rec = bagDom[tag];
+  if(!rec || !p || !p.bag) return;
+  var sig = bagSigOf(p);
+  if(sig === rec.sig) return;
+  rec.sig = sig;
+  for(var i=0;i<BAG_SIZE && i<rec.slots.length;i++){
+    var sl = rec.slots[i];
+    var w = p.bag[i] || null;
+    if(i === (p.bagIdx|0)) sl.box.classList.add("sel");
+    else sl.box.classList.remove("sel");
+    drawBagSlot(sl.cv, w);
+    sl.fill.style.width = (bagDuraRatio(w)*100).toFixed(0) + "%";
+  }
+}
+
 /* ---------------- 粒子 / 刀光 ---------------- */
 function burst(x,y,n,col,spd){
   for(var i=0;i<n;i++){
@@ -803,6 +1010,7 @@ function updatePlayer(p, dt, inp, other){
   if(p.hurtT>0) p.hurtT -= dt;
   if(p.swingCd>0) p.swingCd -= dt;
   if(p.pickLock>0) p.pickLock -= dt;
+  if(p.pickupT>0) p.pickupT -= dt;          /* 拾取动作计时（char-rig 据此播 pickup） */
   if(p.energy < 100) p.energy = Math.min(100, p.energy);
 
   /* ---- 旋风斩进行中 ---- */
@@ -847,6 +1055,20 @@ function updatePlayer(p, dt, inp, other){
 
   if(Math.abs(p.vx)>50 && p.onGround) p.walk += Math.abs(p.vx)*dt*0.024;
   else p.walk *= (1-7*dt);
+
+  /* ---- 背包动作：Q 换格 / E 丢弃 / R 递队友（P2 为 , . '）----
+     三个都是「按下瞬间」触发，与攻击键一样走 keyPressed 的一次性标记；
+     标记无条件吃掉，动作只在能动（未挥砍 / 未受击）时执行，避免攒着延后触发。 */
+  if(p.keys && p.keys.bag){
+    var wantBag  = keyPressed(p.keys.bag);
+    var wantDrop = keyPressed(p.keys.drop);
+    var wantGive = keyPressed(p.keys.give);
+    if((wantBag || wantDrop || wantGive) && canAct && p.pickLock<=0){
+      if(wantBag) bagCycle(p);
+      else if(wantDrop) bagDrop(p);
+      else bagGive(p, other);
+    }
+  }
 
   /* ---- 旋风斩发动：能量满 + 攻击与跳同按 ---- */
   if(p.energy >= 100 && inp.atk && inp.jump && p.whirlT<=0){
@@ -900,34 +1122,166 @@ function updatePlayer(p, dt, inp, other){
         p.swingQueued = false;
         p.swingIdx = 0;
         p.swingCd = 0.16;
+        p.__forceClip = null;        /* 收招即清，别让下一次非攻击状态读到旧 clip */
       }
     }
   }
 }
 
-/* 拾取：同类武器不能叠着拿（原作规则） */
+/* ---------------- 背包（4 格）----------------
+   模型：p.weapon = 手上正在用的（可以是空手 fist）；p.bag = 4 格备用。
+   规则：
+     · 拾取 → 放进第一个空位；满 → 提示；手 / 背包已有同款 → 不重复收
+     · Q(,) → 选中格右移一格，该格有武器就自动装备，原手上的回到那一格
+     · E(.) → 丢当前格（当前格空则丢手上）
+     · R(') → 当前格（当前格空则手上）递给队友空位，距离 160px 内
+   三个键与现有键位不冲突：P1 用 A/D/W/空格/F/J，P2 用方向键/右Shift///小键盘0/K，
+   ui-shell 只认 1/2/H/Esc。 */
+
+var BAG_SIZE = 4;
+var GIVE_RANGE = 160;              /* 递给队友的距离上限（世界像素） */
+var KEY_LABEL = {
+  p1: { bag:"Q", drop:"E", give:"R" },
+  p2: { bag:",", drop:".", give:"'" }
+};
+function keyLabel(p, which){
+  var t = KEY_LABEL[(p && p.padTag) || "p1"];
+  return (t && t[which]) || KEY_LABEL.p1[which];
+}
+
+function bagFirstEmpty(p){
+  for(var i=0;i<BAG_SIZE;i++){ if(!p.bag[i]) return i; }
+  return -1;
+}
+function bagHasKey(p, key){
+  for(var i=0;i<BAG_SIZE;i++){ if(p.bag[i] && p.bag[i].key === key) return true; }
+  return false;
+}
+/* 手 + 背包 都算持有：同款武器散落在地上也不重复收 */
+function hasWeaponKey(p, key){
+  if(p.weapon && p.weapon.type !== "fist" && p.weapon.key === key) return true;
+  return bagHasKey(p, key);
+}
+/* 收进背包第一个空位；返回落位下标，满则 -1 */
+function stowWeapon(p, wp){
+  var i = bagFirstEmpty(p);
+  if(i < 0) return -1;
+  p.bag[i] = wp;
+  return i;
+}
+/* 装备背包某格：手上有真武器就换回该格，空手则这一格清空 */
+function equipBagSlot(p, i){
+  var w = p.bag[i];
+  if(!w) return false;
+  var old = p.weapon;
+  p.bag[i] = (old && old.type !== "fist") ? old : null;
+  p.weapon = w;
+  p.bagIdx = i;
+  return true;
+}
+/* Q / , —— 选中格右移，格里有武器就自动装备 */
+function bagCycle(p){
+  p.bagIdx = (p.bagIdx + 1) % BAG_SIZE;
+  if(p.bag[p.bagIdx]){
+    equipBagSlot(p, p.bagIdx);
+    tone(560, 0.07, "square", 0.04, 760);
+    burst(p.x, p.y-120, 6, "#f0d99c", 160);
+  }
+  p.pickLock = 0.14;
+  syncHUD();
+}
+/* E / . —— 丢当前格；当前格空则丢手上 */
+function bagDrop(p){
+  var i = p.bagIdx, w = p.bag[i];
+  if(w){
+    p.bag[i] = null;
+  } else if(p.weapon && p.weapon.type !== "fist" && p.weapon.dur > 0){
+    w = p.weapon;
+    p.weapon = newWeapon("fist");
+  } else {
+    showHitText(p.x, p.y-190, "这一格是空的");
+    p.pickLock = 0.4;
+    return false;
+  }
+  dropWeapon(p.x, p.y, w);
+  p.pickLock = 0.24;
+  burst(p.x, p.y-90, 8, "#c9b78c", 200);
+  tone(300, 0.10, "square", 0.05, 190);
+  syncHUD();
+  return true;
+}
+/* R / ' —— 递给队友：当前格 → 队友背包空位，两只手都空就给手上的 */
+function bagGive(p, other){
+  if(!other || other.dead){
+    showHitText(p.x, p.y-190, "没有队友");
+    p.pickLock = 0.5;
+    return false;
+  }
+  if(Math.abs(other.x - p.x) >= GIVE_RANGE){
+    showHitText(p.x, p.y-190, "队友太远了");
+    p.pickLock = 0.5;
+    return false;
+  }
+  var fromSlot = true;
+  var w = p.bag[p.bagIdx];
+  if(!w){
+    if(p.weapon && p.weapon.type !== "fist" && p.weapon.dur > 0){ w = p.weapon; fromSlot = false; }
+  }
+  if(!w){
+    showHitText(p.x, p.y-190, "这一格是空的");
+    p.pickLock = 0.5;
+    return false;
+  }
+  var slot = bagFirstEmpty(other);
+  if(slot < 0){
+    showHitText(p.x, p.y-190, "队友背包已满");
+    p.pickLock = 0.5;
+    return false;
+  }
+  other.bag[slot] = w;
+  if(fromSlot) p.bag[p.bagIdx] = null;
+  else p.weapon = newWeapon("fist");
+
+  /* 交接：看向对手、短促一声、袖口一点光 */
+  p.facing = (other.x >= p.x) ? 1 : -1;
+  other.facing = -p.facing;
+  p.pickLock = 0.24;
+  sfxHit();
+  tone(920, 0.09, "triangle", 0.05, 1180);
+  burst((p.x + other.x)/2, p.y-120, 10, "#a8e6c6", 220);
+  showHitText(other.x, other.y-190, "得 " + w.name);
+  syncHUD();
+  return true;
+}
+
+/* 拾取：同类武器不能叠着拿（原作规则），收到背包第一个空位 */
 function tryPickup(p){
   for(var i=0;i<G.drops.length;i++){
     var d = G.drops[i];
     if(d.taken) continue;
     if(Math.abs(d.x - p.x) < 80 && Math.abs(d.y - p.y) < 140){
-      /* 投掷物残骸：同款补一发，不同款当成 1 发的同名武器换手 */
+      /* 投掷物残骸：同款补一发，不同款当成 1 发的同名武器进背包 */
       if(d.residue) return pickResidue(p, d);
-      /* 手上已是同一种 → 不捡，提示走开 */
-      if(p.weapon && p.weapon.key === d.weapon.key && p.weapon.type !== "fist"){
+      /* 手 / 背包已是同一种 → 不捡，提示走开 */
+      if(hasWeaponKey(p, d.weapon.key)){
         if(p.pickLock <= 0){
           showHitText(p.x, p.y-190, "同款武器，先扔掉");
           p.pickLock = 0.6;
         }
         return false;
       }
-      /* 旧武器（除空手）掉回地上 */
-      if(p.weapon && p.weapon.type !== "fist" && p.weapon.dur > 0){
-        dropWeapon(p.x, p.y, p.weapon);
+      /* 背包满 → 不捡 */
+      if(bagFirstEmpty(p) < 0){
+        if(p.pickLock <= 0){
+          showHitText(p.x, p.y-190, "背包已满，按 " + keyLabel(p, "drop") + " 丢弃");
+          p.pickLock = 0.7;
+        }
+        return false;
       }
-      p.weapon = d.weapon;
+      stowWeapon(p, d.weapon);
       d.taken = true;
       p.pickLock = 0.26;
+      p.pickupT = 0.30;                       /* 播 pickup 动作 */
       burst(d.x, d.y-40, 10, "#fff0c0", 240);
       tone(660, 0.12, "square", 0.05, 880);
       syncHUD();
@@ -966,10 +1320,18 @@ function pickResidue(p, d){
   }
   var wp = newWeapon(d.wkey);
   wp.ammo = 1;
-  if(p.weapon && p.weapon.type !== "fist" && p.weapon.dur > 0) dropWeapon(p.x, p.y, p.weapon);
-  p.weapon = wp;
+  /* 异款残骸 → 拼成 1 发的同名武器收进背包第一个空位 */
+  if(bagFirstEmpty(p) < 0){
+    if(p.pickLock <= 0){
+      showHitText(p.x, p.y-190, "背包已满，按 " + keyLabel(p, "drop") + " 丢弃");
+      p.pickLock = 0.6;
+    }
+    return false;
+  }
+  stowWeapon(p, wp);
   d.taken = true;
   p.pickLock = 0.26;
+  p.pickupT = 0.30;
   burst(d.x, d.y-30, 10, "#fff0c0", 240);
   tone(660, 0.12, "square", 0.05, 880);
   showHitText(p.x, p.y-190, wp.name+" ×1");
@@ -1164,7 +1526,7 @@ function nearestDrop(p, blocked){
       if(dx < bd){ bd = dx; best = d; }
       continue;
     }
-    if(p.weapon && p.weapon.key === d.weapon.key && p.weapon.type !== "fist"){
+    if(hasWeaponKey(p, d.weapon.key)){        /* 手 / 背包已有同款 → 不算可捡 */
       if(dx < sd){ sd = dx; same = d; }      /* 同款 → 记下来，仍可提示「先扔掉」 */
       continue;
     }
@@ -1205,6 +1567,7 @@ function updatePickupHint(dt){
 
   /* P2 的攻击键是 / ，提示里用它自己的键名 */
   var keyName = (p === G.p1) ? "F" : "/";
+  var dropKey = keyLabel(p, "drop");
   var text, hintY;
 
   if(it){
@@ -1217,8 +1580,12 @@ function updatePickupHint(dt){
     return;
   } else {
     var pickLabel = pick ? (pick.residue ? pick.name : pick.weapon.name) : "";
-    text = pick ? ("按 " + keyName + " 拾取 · " + pickLabel)
-                : "同款武器，先扔掉";
+    if(pick && bagFirstEmpty(pickP) < 0){
+      text = "背包已满 · 按 " + dropKey + " 丢弃";   /* 满格时提前告知，别等按了才提示 */
+    } else {
+      text = pick ? ("按 " + keyName + " 拾取 · " + pickLabel)
+                  : "同款武器，先扔掉";
+    }
 
     hintY = target.y - 150;
   }
@@ -1239,6 +1606,7 @@ function breakWeapon(p, wp){
   burst(p.x + p.facing*60, p.y-100, 14, wp.col, 320);
   tone(240,0.18,"square",0.06,110);
   p.weapon = newWeapon("fist");
+  p.__forceClip = null;                 /* 空手回到原 attack */
   syncHUD();
 }
 
@@ -1310,6 +1678,9 @@ function startSwing(p, idx){
   p.swingDur = idx===2 ? wp.swing*1.5 : wp.swing;
   p.swingT = p.swingDur;
   p.hitSet = [];
+  /* 攻击动作按武器分流：重武器劈砍 / 快武器突刺 / 其余沿用 attack。
+     只挂状态字段，clip 名与帧映射归 char-rig 管（它读 p.__forceClip）。 */
+  p.__forceClip = attackClipOf(wp);
   sfxSwing();
   if(wp.type !== "fist") addSlash(p, idx);
   /* 耐久（空手不掉） */
@@ -2768,6 +3139,19 @@ function drawChests(){
     var key = c.opened ? "chestOpen" : "chestClosed";
     var drew = false;
 
+    /* 未开启：脚下一圈呼吸金光。先画、垫在箱子下面——
+       画在上面会把箱体洗成半透明的一团 */
+    if(!c.opened){
+      var pulse = 0.26 + 0.16*Math.sin(G.time*3.2 + c.bob);
+      var gr = ctx.createRadialGradient(c.x, c.y-18, 8, c.x, c.y-18, 130);
+      gr.addColorStop(0, "rgba(255,226,150," + pulse.toFixed(3) + ")");
+      gr.addColorStop(1, "rgba(255,226,150,0)");
+      ctx.save();
+      ctx.fillStyle = gr;
+      ctx.beginPath(); ctx.ellipse(c.x, c.y-18, 130, 78, 0, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+
     if(imgReady(key)){
       var h = spriteH(key, INTERACT_W, INTERACT_W*0.78);
       try{
@@ -2776,18 +3160,6 @@ function drawChests(){
       }catch(e){ drew = false; }
     }
     if(!drew) drawChestFallback(c, yb, INTERACT_W);
-
-    /* 未开启：脚下一圈呼吸金光，隔着屏幕也能看见 */
-    if(!c.opened){
-      var pulse = 0.30 + 0.18*Math.sin(G.time*3.2 + c.bob);
-      var gr = ctx.createRadialGradient(c.x, c.y-34, 6, c.x, c.y-34, 120);
-      gr.addColorStop(0, "rgba(255,232,164," + pulse.toFixed(3) + ")");
-      gr.addColorStop(1, "rgba(255,232,164,0)");
-      ctx.save();
-      ctx.fillStyle = gr;
-      ctx.beginPath(); ctx.arc(c.x, c.y-34, 120, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-    }
   }
 }
 
@@ -3296,6 +3668,7 @@ function loop(ts){
   requestAnimationFrame(loop);
 }
 
+buildBags();
 buildHearts();
 syncHUD();
 requestAnimationFrame(loop);

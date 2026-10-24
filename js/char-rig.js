@@ -17,6 +17,12 @@
    可选字段：p.__alphaMul（数值，缺省 1）—— 调用方用它做前景遮挡淡出，
         本模块把该因子乘进自身的 alpha（外层的 ctx.globalAlpha 会被覆盖，
         所以必须在这里乘）。
+
+   可选字段（均缺省 0 / null，不影响老调用方）：
+     p.pickupT     > 0 时播 pickup（拾取动作，调用方置 0.3 秒后自己倒数）
+     p.__forceClip 攻击态里的替代 clip 名（attack-heavy / attack-thrust），
+                   只认 ANIM 里真实存在的 clip，不存在则回落 attack；
+                   调用方收招时清空，本模块只在 swingT > 0 时读它。
    ===================================================================== */
 (function () {
   "use strict";
@@ -29,7 +35,8 @@
   var PIVOT_X = 300 / SRC_W;       // 身体中线（不含斜出的刀）
 
   /* ---------- 动画 clip 清单（预热用）---------- */
-  var CLIPS = ["dead", "whirl", "bow", "throw", "hurt", "jump", "attack", "walk", "idle"];
+  var CLIPS = ["dead", "whirl", "bow", "throw", "hurt", "jump",
+               "attack", "attack-heavy", "attack-thrust", "pickup", "walk", "idle"];
 
   /* ---------- 帧图缓存：clip -> [Image] ---------- */
   var frameCache = {};             // 只在 warm() 里建 Image，draw 热路径只读
@@ -112,8 +119,15 @@
     if (p.throwT > 0 && wt === "bow") return "bow";
     if (p.throwT > 0 && wt === "throw") return "throw";
     if (p.hurtT > 0) return "hurt";
+    /* 可选字段 p.pickupT（缺省 0）：拾取动作，调用方置 0.3 秒 */
+    if (p.pickupT > 0) return "pickup";
     if (!p.onGround) return "jump";
-    if (p.swingT > 0) return "attack";
+    if (p.swingT > 0) {
+      /* 可选字段 p.__forceClip（缺省 null）：重武器劈砍 / 快武器突刺，
+         只认数据里真实存在的 clip，否则沿用 attack */
+      var f = p.__forceClip;
+      return (f && clipDef(f)) ? f : "attack";
+    }
     if (Math.abs(p.vx) > 60) return "walk";
     return "idle";
   }
@@ -139,7 +153,12 @@
     return s;
   }
 
-  /* attack 的进度跟 p.swingT 挂钩：swingT/swingDur 从 1 → 0 */
+  /* attack 的进度跟 p.swingT 挂钩：swingT/swingDur 从 1 → 0。
+     重击 / 突刺同属攻击族，帧号一样由判定推导，不按 fps 自由播放。 */
+  function isAttackClip(name) {
+    return name === "attack" || name === "attack-heavy" || name === "attack-thrust";
+  }
+
   function attackFrame(p, n) {
     if (!(p.swingT > 0) || !(p.swingDur > 0)) return -1;
     var prog = 1 - p.swingT / p.swingDur;
@@ -155,7 +174,7 @@
     var n = def.files.length;
     if (n <= 1) return 0;
 
-    if (name === "attack") {
+    if (isAttackClip(name)) {
       var af = attackFrame(p, n);
       if (af >= 0) return af;            // 与判定同步
     }
