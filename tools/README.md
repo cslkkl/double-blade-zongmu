@@ -115,9 +115,22 @@
 - 门禁：写完数据文件跑 `node --check js/anim-data.js`，非 0 直接退出；末尾逐张打印洋红残留计数。
 - 验收：`node --check` 通过；腰带到脚底的屏幕长度与 idle 相差 ≤ 2%；洋红残留为 0 或个位数。
 
+## slice_weapon_seq.py — 武器出招四帧序列
+
+- 做什么：把每把武器的 4 帧出招条带切成 `atk-<key>-<i>.webp`，并就地写 `window.WEAPON_ATTACK_CLIP`。抠图 / 头冠锚 / 去洋红全部复用 `slice_weapon_assets.py`，不重写一套。
+- 何时跑：重出武器出招动画、改帧数时。
+- 输入（`sanxingdui-weapon-seq/`）：`seq-{short,dagger,sword,axe,hammer,spear,bow,rock,blade,jar}.png`，每张横向 4 格；`bell` 复用 `jar`，不出图。
+- 输出：40 张 `assets/anim/atk-<key>-<0..3>.webp` + `window.WEAPON_ATTACK_CLIP`。
+- **同一把武器的 4 帧必须共用同一张画布**：取 4 格内容包围盒的并集、外扩 4px、等比缩到长边 ≤ 560。画布尺寸不一致，播放时人物就会每秒抖四次 —— 这是本脚本最容易被改坏的地方。
+- `scaleFix` **每把武器一个**（4 帧共用），用头冠锚取 4 格中位数；逐帧各算会让角色在连击里忽大忽小。
+- `anchorX` **逐帧一个**（数组）：挥砍时身体轴线前后移，逐帧取才不漂；偏离 4 帧中位数 > 8% 判误检并用中位数替换，报告里标出是哪一帧。
+- 幂等：只替换自己那 40 个文件与该数据块，不碰另外五个数据块。
+- 门禁：写完 `node --check js/anim-data.js`；末尾打印每张的洋红残留（目标 ≤ 200）。
+- 验收：每把武器 4 帧的「头冠→脚底」屏幕高度极差 ≤ 3%；4 个文件尺寸完全一致；与单帧 `atk-<key>.webp` 的屏幕身高差 ≤ 4%。
+
 ## selftest_weapons.mjs — 武器视觉自检
 
-- 做什么：node + mock canvas 跑 `char-rig.js` 与 `fx.js`，校验三件事：每把武器都能拿到「站立帧 / 出招姿态 / 专属刀光」三件套；缺键时能逐级落回（动画 clip → 通用 slash-1..3 → 纯代码弧光）而不抛异常；`WEAPON_FX` 的 `file` 在磁盘上真实存在。
+- 做什么：node + mock canvas 跑 `char-rig.js` 与 `fx.js`，校验四件事：出招序列的字段约束（4 帧共用画布与 `scaleFix`、`anchorX` 是逐帧数组）；每把武器都能拿到「站立帧 / 出招图 / 专属刀光」三件套；挥砍过程中真的播到了多个不同帧；缺键能逐级落回（序列 → 单帧 → 动画 clip；专属刀光 → 通用 slash-1..3 → 纯代码弧光）而不抛异常。
 - 何时跑：改 `char-rig.js`、`fx.js`、`anim-data.js` 的武器相关数据块，或新增武器后。
 - 输入：`js/anim-data.js`、`js/char-rig.js`、`js/fx.js`、`assets/` 目录。
 - 输出：stdout 报表；退出码 0 = 通过，1 = 有失败项。

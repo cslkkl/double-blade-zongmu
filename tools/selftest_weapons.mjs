@@ -146,6 +146,7 @@ vm.runInContext(fxSrc, S);
 const ANIM = S.window.ANIM || {};
 const HOLD = S.window.ANIM_HOLD || {};
 const ATK = S.window.WEAPON_ATTACK || {};
+const ATKC = S.window.WEAPON_ATTACK_CLIP || {};
 const WFX = S.window.WEAPON_FX || {};
 const HITM = S.window.HIT_MATERIAL || {};
 const CharArt = S.window.CharArt;
@@ -192,23 +193,44 @@ const HIT_MATS = ["jade", "bronze", "blunt", "airy"];
 
 console.log("=== 1. 数据块覆盖 ===");
 console.log(
-  "ANIM_HOLD %d 键 / WEAPON_ATTACK %d 键 / WEAPON_FX %d 键 / HIT_MATERIAL %d 键",
-  Object.keys(HOLD).length, Object.keys(ATK).length,
+  "ANIM_HOLD %d 键 / WEAPON_ATTACK %d 键 / WEAPON_ATTACK_CLIP %d 键 / WEAPON_FX %d 键 / HIT_MATERIAL %d 键",
+  Object.keys(HOLD).length, Object.keys(ATK).length, Object.keys(ATKC).length,
   Object.keys(WFX).length, Object.keys(HITM).length
 );
 
 const missHold = WEAPON_KEYS.filter((k) => !HOLD[k]);
-const missAtk = ATK_KEYS.filter((k) => !ATK[k]);
+const missAtk = ATK_KEYS.filter((k) => !ATK[k] && !ATKC[k]);
 const missFxc = WEAPON_KEYS.filter((k) => !WFX[k]);
 const missHit = HIT_MATS.filter((k) => !HITM[k]);
 
 ok(!missHold.length, "每把武器都有站立帧（缺：" + missHold.join(",") + "）");
-ok(!missAtk.length, "每把武器都有出招姿态（缺：" + missAtk.join(",") + "）");
+ok(!missAtk.length, "每把武器都有出招姿态或出招序列（缺：" + missAtk.join(",") + "）");
 ok(!missFxc.length, "每把武器都有专属特效（缺：" + missFxc.join(",") + "）");
 ok(!missHit.length, "四种打击材质都有图（缺：" + missHit.join(",") + "）");
 
+/* 出招序列的字段约束：4 帧共用画布与 scaleFix，anchorX 逐帧给 */
+console.log("=== 1b. 出招序列字段 ===");
+for (const k of ATK_KEYS) {
+  const c = ATKC[k];
+  if (!c) continue;
+  const n = (c.files || []).length;
+  ok(c.frames === n, k + " frames 与 files 长度一致（" + c.frames + " vs " + n + "）");
+  ok(typeof c.w === "number" && c.w > 0 && typeof c.h === "number" && c.h > 0,
+     k + " 有画布 w/h");
+  ok(typeof c.scaleFix === "number", k + " 有 scaleFix（序列共用一个数）");
+  ok(Array.isArray(c.anchorX) && c.anchorX.length === n,
+     k + " anchorX 是逐帧数组且长度 = 帧数");
+  if (Array.isArray(c.anchorX)) {
+    for (let i = 0; i < c.anchorX.length; i++) {
+      ok(typeof c.anchorX[i] === "number" && c.anchorX[i] > 0 && c.anchorX[i] < 1,
+         k + " anchorX[" + i + "] 在 (0,1) 内");
+    }
+  }
+}
+console.log("  序列键：" + Object.keys(ATKC).join(", "));
+
 console.log("=== 2. 素材文件落盘 ===");
-console.log(row("key", "hold", "atk") + pad("fx", 26));
+console.log(row("key", "hold", "atk") + pad("序列帧", 26) + pad("fx", 26));
 for (const k of WEAPON_KEYS) {
   const h = HOLD[k] && HOLD[k].file;
   const a = ATK[k] && ATK[k].file;
@@ -216,13 +238,18 @@ for (const k of WEAPON_KEYS) {
   const hOk = h ? onDisk(h) : false;
   const aOk = a ? onDisk(a) : false;
   const fOk = f ? onDisk(f) : false;
+  const c = ATKC[k];
+  const cfiles = c ? c.files : [];
+  const cOk = cfiles.length ? cfiles.every(onDisk) : false;
+  const cTxt = cfiles.length ? (cOk ? "ok ×" + cfiles.length : "MISSING") : "-";
   console.log(row(
     k,
     h ? (hOk ? "ok" : "MISSING " + h) : "(复用 idle)",
     a ? (aOk ? "ok" : "MISSING " + a) : "(复用 attack 族)"
-  ) + pad(f ? (fOk ? "ok" : "MISSING " + f) : "-", 26));
+  ) + pad(cTxt, 26) + pad(f ? (fOk ? "ok" : "MISSING " + f) : "-", 26));
   if (h && !hOk) ok(false, k + " 站立帧文件不存在：" + h);
   if (a && !aOk) ok(false, k + " 出招帧文件不存在：" + a);
+  if (cfiles.length && !cOk) ok(false, k + " 出招序列有帧图不存在");
   if (f && !fOk) ok(false, k + " 专属特效文件不存在：" + f);
 }
 for (const m of HIT_MATS) {
@@ -254,9 +281,10 @@ for (const k of ["short", "sword", "axe", "bow"]) {
   rows.push(["stand", k, hit ? "hold-" + k : "-"]);
 }
 
-/* 挥砍：应画 atk-<key>，且不再画 hold-<key> */
+/* 挥砍：应画出该武器的出招图 —— 序列优先（atk-<key>-<i>.webp），
+   没有序列才画单帧（atk-<key>.webp）。两者都算通过，但必须有一个 */
 for (const k of ATK_KEYS) {
-  if (!ATK[k]) continue;
+  if (!ATK[k] && !ATKC[k]) continue;
   clear();
   const wp = { key: k, type: "melee", swing: 0.3 };
   let err = null;
@@ -264,10 +292,32 @@ for (const k of ATK_KEYS) {
     CharArt.draw(makeCtx(), player({ weapon: wp, swingT: 0.22, swingDur: 0.3, swingIdx: 0 }), 2.0);
   } catch (e) { err = e; }
   ok(!err, k + " 挥砍不抛异常 (" + (err && err.message) + ")");
-  const hit = drawnPng("atk-" + k + ".webp");
-  ok(!!hit, k + " 挥砍应画 atk-" + k);
+  const seq = drawnPng(new RegExp("atk-" + k + "-\\d\\.webp$"));
+  const one = drawnPng(new RegExp("atk-" + k + "\\.webp$"));
+  ok(!!(seq || one), k + " 挥砍应画出 atk-" + k + "（序列或单帧）");
   ok(!drawnPng("hold-" + k + ".webp"), k + " 挥砍不该再画站立帧");
-  rows.push(["swing", k, hit ? "atk-" + k : "-"]);
+  rows.push(["swing", k, seq ? "atk-" + k + "-N" : (one ? "atk-" + k : "-")]);
+}
+
+/* 连击三段：帧号应随 swingT 推进（第 1 段与第 3 段的帧号不同） */
+{
+  const k = Object.keys(ATKC)[0];
+  if (k) {
+    const n = ATKC[k].files.length;
+    const seen = new Set();
+    for (const prog of [0.05, 0.35, 0.65, 0.95]) {
+      clear();
+      const dur = 0.3;
+      CharArt.draw(makeCtx(), player({
+        weapon: { key: k, type: "melee" },
+        swingT: dur * (1 - prog), swingDur: dur, swingIdx: 0
+      }), 2.0 + prog);
+      const c = drawnPng(new RegExp("atk-" + k + "-(\\d)\\.webp$"));
+      if (c) seen.add(String(c.src).match(/-(\d)\.webp$/)[1]);
+    }
+    ok(seen.size >= 2, k + " 挥砍过程中应播到至少 2 个不同帧（实际 " + [...seen].join(",") + "，共 " + n + " 帧）");
+    console.log("  " + pad(k, 8) + " 连击中播到帧：" + [...seen].sort().join(",") + "（共 " + n + " 帧）");
+  }
 }
 
 /* 走路：不该画 hold-*（那会变成滑步） */
@@ -299,10 +349,12 @@ for (const r of rows) console.log(row(r[0], r[1], r[2]));
 /* ---------------------------------------------------------------- 4. 缺键降级 */
 console.log("=== 4. 缺键逐级落回 ===");
 
-/* 4a. 删掉某把武器的出招姿态 → 回到 attack 族 clip，不抛异常 */
+/* 4a. 删掉某把武器的出招姿态与序列 → 回到 attack 族 clip，不抛异常 */
 {
-  const saved = ATK.dagger;
+  const savedAtk = ATK.dagger;
+  const savedClip = ATKC.dagger;
   delete ATK.dagger;
+  delete ATKC.dagger;
   clear();
   let err = null;
   try {
@@ -314,8 +366,28 @@ console.log("=== 4. 缺键逐级落回 ===");
   ok(!err, "缺出招姿态时不抛异常 (" + (err && err.message) + ")");
   const fb = drawnPng("attack-thrust-") || drawnPng("attack-");
   ok(!!fb, "缺出招姿态应回落攻击 clip");
-  console.log("  dagger 无 WEAPON_ATTACK → 画 " + (fb ? "attack 族" : "无"));
-  if (saved) ATK.dagger = saved;
+  console.log("  dagger 无 WEAPON_ATTACK / CLIP → 画 " + (fb ? "attack 族" : "无"));
+  if (savedAtk) ATK.dagger = savedAtk;
+  if (savedClip) ATKC.dagger = savedClip;
+}
+
+/* 4a2. 只有序列被删、单帧还在 → 应回落到单帧，而不是攻击 clip */
+{
+  const savedClip = ATKC.sword;
+  delete ATKC.sword;
+  clear();
+  let err = null;
+  try {
+    CharArt.draw(makeCtx(), player({
+      weapon: { key: "sword", type: "melee" },
+      swingT: 0.2, swingDur: 0.3
+    }), 6.5);
+  } catch (e) { err = e; }
+  ok(!err, "缺序列时不抛异常 (" + (err && err.message) + ")");
+  const one = drawnPng(new RegExp("atk-sword\\.webp$"));
+  ok(!!one, "缺序列应回落到单帧 atk-sword");
+  console.log("  sword 无 WEAPON_ATTACK_CLIP → 画 " + (one ? "单帧 atk-sword" : "无"));
+  if (savedClip) ATKC.sword = savedClip;
 }
 
 /* 4b. 武器 key 完全未知 → 不抛异常，走动画 */
