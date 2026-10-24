@@ -64,16 +64,18 @@
 
 ## char-rig.js
 
-- 职责：玩家逐帧播放器 + 两级降级。
+- 职责：玩家逐帧播放器 + 武器专属姿态（站立 / 出招） + 两级降级。
 - 关键导出：`window.CharArt = { draw(ctx, p, t), ready(), HEIGHT: 252 }`。
-- 依赖谁：`window.ANIM`、`window.IMG.pose0`（降级）。
+- 依赖谁：`window.ANIM`、`window.ANIM_HOLD`（站立持械）、`window.WEAPON_ATTACK`（出招姿态）、`window.IMG.pose0`（降级）。
 - 被谁依赖：`index.html` 的 `drawPlayer()`；`ready()` 为假则回落到内联 `drawFighter()`。
-- 关键约束：`pickClip()` 的状态优先级不能乱（`dead → whirl → bow/throw → hurt → pickup → jump → attack 族 → walk → idle`）；攻击族三个 clip 的帧号都由 `swingT / swingDur` 推导，不按 fps 自由播放；`tint` 与 `frameCache` 只在预热与首次用时建。
-- 关键约束：`CLIPS` 预热名单是 12 个 clip，新增动作必须同时加进这份名单，否则首帧会闪一下降级画面。
+- 关键约束：绘制优先级固定为 **武器出招姿态 → 持械站立 → 动画 clip → 降级精灵**。出招姿态必须盖在 attack 族之前，否则换武器时手上仍是老模型。
+- 关键约束：`pickClip()` 的状态优先级不能乱（`dead → whirl → bow/throw → hurt → pickup → jump → attack 族 → walk → idle`）；出招姿态与持械站立都只在「不属于更高优先级状态」时才接管 —— 旋风 / 投掷 / 受击 / 拾取 / 死亡一律走动画。
+- 关键约束：攻击族三个 clip 的帧号都由 `swingT / swingDur` 推导，不按 fps 自由播放；武器出招姿态同样只用一条 `swingT` 时间轴（前 35% 蓄力、之后前冲），不走帧序列。
+- 关键约束：`CLIPS` 预热名单是 12 个 clip，新增动作必须同时加进这份名单，否则首帧会闪一下降级画面。`warmHold()` / `warmAtk()` 各自独立预热，`ANIM` 缺席时也照建。
 - 关键约束：可选字段 `p.pickupT`（缺省 0）大于 0 时播 `pickup`，调用方置 0.3 秒后自己倒数。
-- 关键约束：可选字段 `p.__forceClip`（缺省 `null`）是攻击态里的替代 clip 名，只在 `swingT > 0` 时读；且只认 `ANIM` 里真实存在的 clip，不存在则回落 `attack`。调用方收招即清空，别让下一次非攻击状态读到旧值。
+- 关键约束：可选字段 `p.__forceClip`（缺省 `null`）是攻击态里的替代 clip 名，只在 `swingT > 0` 时读；且只认 `ANIM` 里真实存在的 clip，不存在则回落 `attack`。调用方收招即清空，别让下一次非攻击状态读到旧值。**该武器有 `WEAPON_ATTACK` 时优先用姿态，`__forceClip` 只是没有姿态时的兜底。**
 - 关键约束：可选字段 `p.__alphaMul`（缺省 1）是前景遮挡淡出的通道 —— 本模块会绝对赋值 `globalAlpha`，外层包一层无效，因子必须在这里乘进 `alpha`；`index.html` 的 `drawPlayer()` 设置后要立刻复位成 1。
-- 改后必测：`pickClip` 十二种状态的映射、三个攻击 clip 与判定同步、帧图缺失时是否落到 `pose0` 再到纯代码、`__alphaMul` 在帧图与降级两条路径上都生效、各 clip 屏幕身高是否仍落在 178~181px。
+- 改后必测：`pickClip` 十二种状态的映射、三个攻击 clip 与判定同步、`WEAPON_ATTACK` / `ANIM_HOLD` 某个键缺失时是否落回动画、帧图缺失时是否落到 `pose0` 再到纯代码、`__alphaMul` 在四条路径上都生效、各 clip 屏幕身高是否仍落在 178~181px。
 
 ## enemies-assets.js
 
@@ -86,12 +88,15 @@
 
 ## fx.js
 
-- 职责：刀光、打击火花、旋风环、HUD 底板、受伤渐晕。
-- 关键导出：`window.FX = { drawSlash, drawHit, drawWhirl, drawHudPanel, drawHurtVignette, ready }`。
-- 依赖谁：`window.IMG`（`slash1..3`、`hit1..3`、`whirlRing`、`jadeTablet`）。
-- 被谁依赖：`index.html` 的刀光、火花、渐晕三处；`drawWhirl` 与 `drawHudPanel` 目前无调用方。
-- 关键约束：`ready()` 只判 `slash1..3` 与 `jadeTablet`，新增依赖要同步；图没就绪必须走纯代码弧形光。
-- 改后必测：`ready()` 名单与图形依赖一致；三段刀光/三档火花的档位映射（`seg` / `big` / `mid`）。
+- 职责：刀光（通用三档 + 每把武器专属）、打击火花（通用三档 + 四种材质）、弹道痕、旋风环、HUD 底板、受伤渐晕。
+- 关键导出：`window.FX = { drawSlash, drawHit, drawWhirl, drawProjFx, drawHudPanel, drawHurtVignette, weaponFxReady, matHitReady, ready }`。
+- 依赖谁：`window.IMG`（`slash1..3`、`hit1..3`、`whirlRing`、`jadeTablet`），以及**不在清单里、自建 Image 缓存**的 `window.WEAPON_FX`（武器 key → `{file, scale, r, arc}`）与 `window.HIT_MATERIAL`（`jade / bronze / blunt / airy` → 图路径）。
+- 被谁依赖：`index.html` 的刀光、火花、投掷物弹道、渐晕四处；`drawWhirl` 由 `drawWhirlAsset` 调；`drawHudPanel` 目前无调用方。
+- 关键约束：`ready()` 只判 `slash1..3` 与 `jadeTablet`，**武器专属特效不进这个名单** —— 它们靠 `weaponFxReady()` / `matHitReady()` 逐把判，缺图时 `drawSlash` / `drawHit` 自动落回通用三档，再落回纯代码弧形光。
+- 关键约束：`fxImg(file)` 是唯一的建图入口，**只在首次用到时 new Image 一次**，`draw` 热路径只读缓存；不得在绘制里建图或建 canvas。
+- 关键约束：`NO_ARC`（`bow / rock / blade / jar / bell`）不出手上弧光 —— 它们的特效走弹道（`drawProjFx`），在手里凭空炸一道月牙是错的。
+- 关键约束：`drawSlash(s)` 的 `s.wkey` 决定用哪张专属弧光；`drawHit(s)` 的 `s.mat` 决定用哪张材质火花。两个字段都缺省，缺省即回到老行为。
+- 改后必测：`ready()` 名单与图形依赖一致；三段刀光 / 三档火花的档位映射（`seg` / `big` / `mid`）；`WEAPON_FX` 缺某个键时是否落回通用档而不报错。
 
 ## ui-shell.js
 
@@ -123,12 +128,12 @@
 
 | 改动位置 | 必须同步检查 |
 |---|---|
-| `anim-data.js` | `char-rig` 的 `CLIPS`、`enemies-assets` 的 `KINDS`、`scaleFix` 是否仍按内容高反算、各 clip 屏幕身高是否仍在 178~181px |
+| `anim-data.js` | `char-rig` 的 `CLIPS` / `ANIM_HOLD` / `WEAPON_ATTACK` 键集合、`enemies-assets` 的 `KINDS`、`fx` 的 `WEAPON_FX` / `HIT_MATERIAL`、`scaleFix` 是否仍按内容高反算、各 clip 屏幕身高是否仍在 178~181px |
 | `assets.js` | `background` 的 `PROPS`/`CORE_KEYS`/`PROP_KEYS`、`fx` 的 `ready()` 名单、`char-rig` 的 `pose0` 降级、`index.html` 的 `WP_ICON` 与宝箱 / 机关 / 拾取物键名 |
 | `background.js` | `index.html` 的 `Background.ready()` 守卫、`drawFront()` 的调用位置（必须在角色之后）、内联 `drawBG()` 兜底常量、`OCCLUDERS` 的 `w/h` 是否仍与素材比例配准 |
 | `char-rig.js` | `index.html` 的 `drawPlayer()` 守卫、`__alphaMul` 是否仍被乘进 `alpha`、`__forceClip` 是否仍在收招时清空、`Player` 字段（`swingT / swingDur / throwT / whirlT / hurtT / pickupT / onGround`）是否改名 |
 | `enemies-assets.js` | 跑 `selftest_enemies.mjs`；`Enemy` 的 `kind / scale / w / h / maxHp / state` 字段是否改名 |
-| `fx.js` | `index.html` 三处 `FX.*` 调用与 `FX.ready()` 守卫 |
+| `fx.js` | `index.html` 四处 `FX.*` 调用与 `FX.ready()` 守卫；`drawSlash` 的 `wkey`、`drawHit` 的 `mat`、`drawProjFx` 的 `kind` 是否都有人传；新增武器要在 `WEAPON_FX` 与 `HIT_MATERIAL` 的表里都有落点 |
 | `ui-shell.js` | `index.html` 四个调用点、`body.solo` 样式、`UIShell` 未加载时的降级分支、`padFrame` 的启用闸、模式页底部文案 |
 | `audio.js` | 跑 `selftest_audio.mjs`；`index.html` 的 `sfx*()` 包装层是否仍能退回旧实现；新增武器要在 `MATERIAL` 表里给材质，否则一律落到 `jade`；`SND.bgm.*` 的调用点（开局 `start` / 换阵 `setWave` / 通关 `stop`） |
 
