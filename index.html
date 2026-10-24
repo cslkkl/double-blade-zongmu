@@ -250,6 +250,7 @@
         <div class="row"><span>A D</span>左右移动</div>
         <div class="row"><span>W / 空格</span>跳起</div>
         <div class="row"><span>F / J</span>挥刀 · 连按三连</div>
+        <div class="row"><span>G</span>拾取 / 开箱</div>
         <div class="row"><span>Q / E / R</span>换格 / 丢弃 / 递队友</div>
       </div>
       <div class="cl cl-kbd">
@@ -257,6 +258,7 @@
         <div class="row"><span>← →</span>左右移动</div>
         <div class="row"><span>↑ / 右Shift</span>跳起</div>
         <div class="row"><span>/ 或小键盘0</span>挥刀 · 连按三连</div>
+        <div class="row"><span>;</span>拾取 / 开箱</div>
         <div class="row"><span>, . '</span>换格 / 丢弃 / 递队友</div>
       </div>
       <div class="cl cl-pad">
@@ -760,11 +762,11 @@ var STORY = [
 function startGame(mode){
   G.mode = mode || G.mode || "duo";
   G.p1 = new Player(560, 1,
-    {l:["KeyA"], r:["KeyD"], j:["KeyW","Space"], a:["KeyF","KeyJ"],
+    {l:["KeyA"], r:["KeyD"], j:["KeyW","Space"], a:["KeyF","KeyJ"], act:["KeyG"],
      bag:["KeyQ"], bagPrev:["Tab"], drop:["KeyE"], give:["KeyR"]}, "p1");
   G.p2 = (G.mode === "solo") ? null
        : new Player(700, -1,
-           {l:["ArrowLeft"], r:["ArrowRight"], j:["ArrowUp","ShiftRight"], a:["Slash","Numpad0","KeyK"],
+           {l:["ArrowLeft"], r:["ArrowRight"], j:["ArrowUp","ShiftRight"], a:["Slash","Numpad0","KeyK"], act:["Semicolon"],
             bag:["Comma"], bagPrev:["Backslash"], drop:["Period"], give:["Quote"]}, "p2");
   G.enemies = []; G.particles = []; G.slashes = []; G.drops = []; G.texts = []; G.projectiles = []; G.hits = [];
   G.chests = []; G.mechanisms = []; G.pickups = [];
@@ -1329,8 +1331,10 @@ function updatePlayer(p, dt, inp, other){
     return;
   }
 
-  /* ---- 宝箱 / 机关：攻击键（或手柄 Y）优先开箱，开箱就吃掉这次挥砍 ---- */
-  if((inp.atk || inp.act) && p.pickLock<=0 && canAct){
+  /* ---- 宝箱 / 机关：只认拾取键（手柄 Y / 键盘 见 KEYS.act），开箱就吃掉这次输入 ----
+     拾取键与攻击键分家：同一个键既挥刀又开箱时，站在掉落物旁边一按就先捡、把这一刀吃掉，
+     玩家读到的是「乱拾取」。攻击键从此只负责攻击。 */
+  if(inp.act && p.pickLock<=0 && canAct){
     if(tryOpenInteract(p)){
       p.pickLock = 0.22;
       hidePickupHint();
@@ -1338,8 +1342,8 @@ function updatePlayer(p, dt, inp, other){
     }
   }
 
-  /* ---- 拾取武器（攻击键或手柄 Y 都能拾取）---- */
-  if((inp.atk || inp.act) && p.pickLock<=0 && canAct){
+  /* ---- 拾取武器（只认拾取键）---- */
+  if(inp.act && p.pickLock<=0 && canAct){
     var got = tryPickup(p);
     if(got) return;
   }
@@ -1382,10 +1386,11 @@ function updatePlayer(p, dt, inp, other){
    模型：p.weapon = 手上正在用的（可以是空手 fist）；p.bag = 4 格备用。
    规则：
      · 拾取 → 放进第一个空位；满 → 提示；手 / 背包已有同款 → 不重复收
+       （拾取走独立的 act 键，与攻击键分开，见 updatePlayer 里那两道闸）
      · Q(,) → 换到下一件有武器的格并装备它，原手上的回到被换下的那一格
      · E(.) → 丢当前格（当前格空则丢手上）
      · R(') → 当前格（当前格空则手上）递给队友空位，距离 160px 内
-   三个键与现有键位不冲突：P1 用 A/D/W/空格/F/J，P2 用方向键/右Shift///小键盘0/K，
+   这几个键与现有键位不冲突：P1 用 A/D/W/空格/F/J/G，P2 用方向键/右Shift///小键盘0/K/;，
    ui-shell 只认 1/2/H/Esc。 */
 
 var BAG_SIZE = 4;
@@ -1394,8 +1399,8 @@ var GIVE_RANGE = 160;              /* 递给队友的距离上限（世界像素
    会让人下意识去找键盘，所以同一套文案要按「这个人当前用的是什么」切换。
    Xbox 与 PS 的键位编号相同、刻字不同，这里取两者都认的记法。 */
 var KEY_LABEL = {
-  p1: { bag:"Q", bagPrev:"Tab", drop:"E", give:"R", atk:"F", open:"F" },
-  p2: { bag:",", bagPrev:"\\", drop:".", give:"'", atk:"/", open:"/" }
+  p1: { bag:"Q", bagPrev:"Tab", drop:"E", give:"R", atk:"F", open:"G" },
+  p2: { bag:",", bagPrev:"\\", drop:".", give:"'", atk:"/", open:";" }
 };
 var PAD_LABEL = { bag:"RB", bagPrev:"LB", drop:"十字下", give:"十字上", atk:"A", open:"Y", skill:"B", jump:"X" };
 function keyLabel(p, which){
@@ -1573,7 +1578,7 @@ function dropWeapon(x, y, wp){
   G.drops.push({ x:x, y:GROUND, vy:-420, weapon:wp, taken:false, life:DROP_LIFE, bob:rnd(0,6) });
 }
 
-/* 投掷物残骸回收（走上去按攻击键）
+/* 投掷物残骸回收（走上去按拾取键）
    手里就是同款投掷武器 → 弹数 +1（上限 AMMO_MAX）；
    否则拼回 1 发的同名武器换手 —— 扔光之后靠这条路径把玩法续上。 */
 function pickResidue(p, d){
@@ -1647,7 +1652,7 @@ function addMechanism(x, mode){
   });
 }
 
-/* 攻击键优先开箱：命中返回 true，调用方据此吃掉这一帧的挥砍 */
+/* 拾取键优先开箱：命中返回 true，调用方据此吃掉这一帧的拾取输入 */
 function tryOpenInteract(p){
   var i, o;
   for(i=0;i<G.chests.length;i++){
@@ -1845,7 +1850,7 @@ function updatePickupHint(dt){
   var target = pick || blocked;
   var p = pick ? pickP : blockedP;
 
-  /* 顺序与按键行为一致：tryOpenInteract 先吃攻击键，提示也就先报宝箱 / 机关；
+  /* 顺序与按键行为一致：tryOpenInteract 先吃拾取键，提示也就先报宝箱 / 机关；
      开完了或走远了才轮到地面武器的拾取气泡。 */
   var it = nearestInteract();
   if(it){
@@ -2179,13 +2184,23 @@ function update(dt){
     var pad1 = readPad(PADS[0], "p1");
     var pad2 = readPad(PADS[1], "p2");
 
+    /* 气泡文案跟着「这个人的实际输入源」走：有专属手柄就用手柄键名，否则用键盘键名。
+       padActive 此前只有读（keyLabel）没有写，插着手柄的人一直被告知按键盘键。
+       这里按「谁真的在用手柄」赋值，与上面 pad1/pad2 的取源一一对应。 */
+    if(G.p1) G.p1.padActive = !!PADS[0];
+    if(G.p2) G.p2.padActive = !!PADS[1];
+
     var in1 = {
       left:  keyDown(G.p1.keys.l) || pad1.left,
       right: keyDown(G.p1.keys.r) || pad1.right,
       jump:  keyPressed(G.p1.keys.j) || pad1.jump,
       atk:   keyPressed(G.p1.keys.a) || pad1.atk,
+      /* 拾取 / 开箱走独立键：键盘 act（P1 G / P2 ;）或手柄 Y。
+         与攻击键分开是硬要求 —— 同一个键既挥刀又捡东西时，站在掉落物旁一按就会
+         先捡、把这一刀吃掉，玩家读到的是「乱拾取」。 */
+      act:   (G.p1.keys.act && keyPressed(G.p1.keys.act)) || pad1.act,
       bagNext: pad1.bagNext, bagPrev: pad1.bagPrev,
-      drop: pad1.drop, give: pad1.give, skill: pad1.skill, act: pad1.act
+      drop: pad1.drop, give: pad1.give, skill: pad1.skill
     };
     var in2 = null;
     if(G.p2){
@@ -2194,8 +2209,9 @@ function update(dt){
         right: keyDown(G.p2.keys.r) || pad2.right,
         jump:  keyPressed(G.p2.keys.j) || pad2.jump,
         atk:   keyPressed(G.p2.keys.a) || pad2.atk,
+        act:   (G.p2.keys.act && keyPressed(G.p2.keys.act)) || pad2.act,
         bagNext: pad2.bagNext, bagPrev: pad2.bagPrev,
-        drop: pad2.drop, give: pad2.give, skill: pad2.skill, act: pad2.act
+        drop: pad2.drop, give: pad2.give, skill: pad2.skill
       };
       /* 单手柄时两人共用移动 */
       if(PADS[0] && !PADS[1]){
