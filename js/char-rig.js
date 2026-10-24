@@ -559,9 +559,9 @@
      weapon.key 每次现读，不缓存 —— equipBagSlot / stowWeapon 换手后
      下一帧立刻换成新武器，不需要任何失效通知。
 
-     walking = true 时（在地面上且真的在走）额外加一层位移驱动的步行变换：
-     上下浮沉 + 顺向轻微前后倾 + 极小的横向压伸。这不是帧动画，但能让
-     「拿着武器走过去」读成走路而不是滑步 —— 手上那把武器不会因为迈步消失。 */
+     walking = true 时（在地面上且真的在走、但该武器没有行走序列）额外加一层
+     极轻的呼吸起伏。刻意做得很小（±2px 量级、无倾斜无压伸）——单帧图配大幅度
+     上下晃会被读成「在抖」，比滑步更假。真正的步伐交给 WEAPON_WALK_CLIP。 */
   function drawHold(ctx, p, t, walking) {
     var def = holdDef(p.weapon && p.weapon.key);
     if (!def) return false;                 // 该武器没有持械帧（fist 空手）
@@ -599,23 +599,15 @@
     ctx.globalAlpha = alpha;
     ctx.translate(p.x, p.y);
 
-    /* 步行变换：位移驱动（p.walk 由 vx 累加，与 walk clip 同一相位源），
-       不是时间驱动 —— 站着不动时不会自己晃。 */
-    var bob = 0, tilt = 0, sx = 1, sy = 1;
+    /* 呼吸起伏：位移驱动（p.walk 由 vx 累加），幅度刻意压到 ±2px。
+       没有行走序列时才走这里；有序列的武器在 drawWalkFrames 就返回了。 */
+    var bob = 0;
     if (walking) {
-      var ph = p.walk;
-      bob = Math.abs(Math.sin(ph * 2)) * -5;
-      tilt = Math.sin(ph * 2) * 0.035;
-      sx = 1 + Math.sin(ph * 4) * 0.022;
-      sy = 1 - Math.sin(ph * 4) * 0.022;
+      bob = Math.sin((p.walk || 0) * 6.0) * 2.0;
     }
 
     ctx.scale(p.facing < 0 ? -1 : 1, 1);
-    if (bob || tilt || sx !== 1 || sy !== 1) {
-      ctx.translate(0, bob);
-      if (tilt) ctx.rotate(tilt);
-      if (sx !== 1 || sy !== 1) ctx.scale(sx, sy);
-    }
+    if (bob) ctx.translate(0, bob);
     ctx.drawImage(art, dx, dy, w, h);
 
     /* 受击闪白（idle 态正常情况下 hurtT 已归零，留着与动画路径保持一致） */
@@ -1077,15 +1069,18 @@
        idle 帧整个缺失（name === null）时，只要状态本身还是 idle，持械帧照样顶用
        —— 它不依赖 idle 的帧图。 */
     /* 持械：站定与走路都走持械图。
-       优先序：行走序列（逐帧，手里有武器）→ 行走静帧（有 hold 没序列）→ 通用 walk clip。
+       优先序：行走序列（逐帧，手里有武器）→ 行走静帧 → 通用 walk clip。
        走路必须接管，是为了「连续性」—— 手里拿着锤子迈步时不该突然变回空手。
        跳跃不接管（离地时腿是收起来的，站姿会穿帮）；旋风 / 投掷 / 拾取 / 死亡
-       不会落到 "walk" 这个名字上，所以也不会被这里截走。 */
+       不会落到 "walk" 这个名字上，所以也不会被这里截走。
+
+       静帧这一级不叠浮沉：单帧上下晃会被读成「在抖」，比滑步更假。
+       bob 只做极轻的呼吸式起伏（±1px 量级），真正的步伐交给行走序列。 */
     var standing = (name === "idle") || (name === null && pickClip(p) === "idle");
     var walkingNow = (name === "walk");
     if (walkingNow && drawWalkFrames(ctx, p, t)) return;
     if (holdDef(p.weapon && p.weapon.key)) {
-      if (walkingNow && drawHold(ctx, p, t, true)) return;
+      if (walkingNow && drawHold(ctx, p, t, false)) return;
       if (standing && drawHold(ctx, p, t, false)) return;
     }
 

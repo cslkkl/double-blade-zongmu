@@ -4,6 +4,7 @@ _shots/
 _archive/
 _video/
 .playwright-mcp/
+_refs/
 
 # 本地临时校验与切片调试暂存（不出现在仓库里）
 tmp/

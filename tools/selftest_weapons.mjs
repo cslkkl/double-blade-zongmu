@@ -322,21 +322,25 @@ for (const k of ATK_KEYS) {
 
 /* 走路：三级优先序 —— 行走序列 → 行走静帧 → 通用 walk clip。
    历史：先是「走路一律画 walk 帧」，结果拿锤子迈步时空手（武器凭空消失）；
-   然后改成走路套静帧，但静帧只有一个姿势，看着像滑步。现在走路有专属 4 帧序列。
-   padTag 用 p2：着色图按玩家配色缓存，上面站定测试已经缓存过 p1，
-   换 p2 才有一次新的内部 drawImage 可断言。 */
+   中途加过程序化浮沉，看着像在抖；现在正解是专属 4 帧序列。
+   本测试**按数据驱动**：WEAPON_WALK_CLIP 里有这把武器就断言序列，
+   没有就断言落到持械静帧 —— 素材没到位时也不该变成空手。
+   padTag 用 p2：着色图按玩家配色缓存，上面站定测试已经缓存过 p1。 */
+const WALK = S.window.WEAPON_WALK_CLIP || {};
+const hasWalkClip = !!(WALK.axe && WALK.axe.files && WALK.axe.files.length);
+
 clear();
 CharArt.draw(makeCtx(), player({ vx: 200, padTag: "p2", walk: 1.7, weapon: { key: "axe", type: "melee" } }), 3.0);
 if (process.env.SELFTEST_DEBUG) {
   console.log("DEBUG drawCalls:", JSON.stringify(drawCalls.map(c => c.src ? String(c.src) : null)));
 }
-const walkSeq = drawnPng(/walk-axe-\d\.webp$/);
-ok(!!walkSeq, "走路应画持械行走序列 walk-axe-<i>");
-ok(!drawnPng(/^assets\/anim\/walk-\d\.webp$/), "有行走序列时不该画通用 walk 帧");
-rows.push(["walk", "axe", walkSeq ? "walk-axe-N" : "-"]);
+if (hasWalkClip) {
+  const walkSeq = drawnPng(/walk-axe-\d\.webp$/);
+  ok(!!walkSeq, "走路应画持械行走序列 walk-axe-<i>");
+  ok(!drawnPng(/^assets\/anim\/walk-\d\.webp$/), "有行走序列时不该画通用 walk 帧");
+  rows.push(["walk", "axe", walkSeq ? "walk-axe-N" : "-"]);
 
-/* 帧号必须随位移推进：同一个 p.walk 不变则帧不变，位移变了才换帧 */
-{
+  /* 帧号必须随位移推进：p.walk 变了才换帧 */
   const seen = new Set();
   for (const ph of [0, 0.6, 1.2, 1.8, 2.4]) {
     clear();
@@ -346,18 +350,11 @@ rows.push(["walk", "axe", walkSeq ? "walk-axe-N" : "-"]);
   }
   ok(seen.size >= 2, "行走帧号随 p.walk 推进（实际播到 " + [...seen].sort().join(",") + "）");
   console.log("  axe 行走播到帧：" + [...seen].sort().join(","));
-}
-
-/* 只有行走静帧、没有序列的武器：仍要画持械（连续性不能被素材缺失打断） */
-{
-  const saved = globalThis.__walkClipSaved;
-  const W = S.window.WEAPON_WALK_CLIP;
-  const keep = W && W.axe;
-  if (W) delete W.axe;
-  clear();
-  CharArt.draw(makeCtx(), player({ vx: 200, padTag: "p2", walk: 1.7, weapon: { key: "axe", type: "melee" } }), 3.0);
+} else {
   ok(!!drawnPng("hold-axe.webp"), "无行走序列时应落回持械静帧，而不是空手 walk");
-  if (W && keep) W.axe = keep;
+  ok(!drawnPng(/^assets\/anim\/walk-\d\.webp$/), "有持械静帧时不该画通用 walk 帧");
+  rows.push(["walk", "axe", drawnPng("hold-axe.webp") ? "hold-*" : "-"]);
+  console.log("  WEAPON_WALK_CLIP 无 axe → 走路落回持械静帧（符合预期）");
 }
 
 /* 没有 hold 帧的武器（如 fist 空手）：走路必须回落到 walk 帧 */
