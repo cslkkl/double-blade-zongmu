@@ -4179,9 +4179,13 @@ function render(){
   drawMechanisms();
   drawDrops();
   drawPickups();
-  /* 敌人 */
+  /* 敌人。
+     EnemyArt.ready() 提到循环外面 —— 它内部要遍历整张帧表（4 类 × 14 帧）
+     判断素材是否就绪，写在循环体里就是满屏 7 敌 = 每帧 7 次全表遍历。
+     就绪状态整帧不变，判一次就够。 */
+  var eaReady = !!(window.EnemyArt && window.EnemyArt.ready());
   for(var i=0;i<G.enemies.length;i++){
-    if(window.EnemyArt && window.EnemyArt.ready()){
+    if(eaReady){
       window.EnemyArt.draw(ctx, G.enemies[i], G.time);
     } else {
       drawEnemy(G.enemies[i]);
