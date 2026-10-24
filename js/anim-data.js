@@ -40,3 +40,22 @@ window.ENEMY_ANIM = {
   boss:   { frames: 2, fps: 3,  loop: true, w: 400, h: 270, anchorX: 0.5162, footY: 1.0,
             files: ["assets/anim/enemy-boss-0.webp", "assets/anim/enemy-boss-1.webp"] }
 };
+
+/* 手持不同武器的站立姿态：换武器时替换 idle 帧。
+   scaleFix 已按 idle 的内容高反算，屏幕身高一致，不会跳变。 */
+window.ANIM_HOLD = {
+  axe     : { w: 543, h: 560, anchorX: 0.5212, footY: 1.0, scaleFix: 0.708,
+            file: "assets/anim/hold-axe.webp" },
+  hammer  : { w: 545, h: 560, anchorX: 0.4376, footY: 1.0, scaleFix: 0.709,
+            file: "assets/anim/hold-hammer.webp" },
+  sword   : { w: 435, h: 560, anchorX: 0.4057, footY: 1.0, scaleFix: 0.71,
+            file: "assets/anim/hold-sword.webp" },
+  dagger  : { w: 465, h: 560, anchorX: 0.5527, footY: 1.0, scaleFix: 0.71,
+            file: "assets/anim/hold-dagger.webp" },
+  spear   : { w: 348, h: 560, anchorX: 0.5029, footY: 1.0, scaleFix: 0.708,
+            file: "assets/anim/hold-spear.webp" },
+  bow     : { w: 560, h: 545, anchorX: 0.6357, footY: 1.0, scaleFix: 0.709,
+            file: "assets/anim/hold-bow.webp" },
+  rock    : { w: 558, h: 560, anchorX: 0.457, footY: 1.0, scaleFix: 0.709,
+            file: "assets/anim/hold-rock.webp" }
+};
