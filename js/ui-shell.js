@@ -32,6 +32,8 @@
     helpBuilt: false,
     helpOpen: false,
 
+    uiProbed: false,        /* 六张 UI 位图是否已探测过 */
+
     pickupBuilt: false,
     pickupTimer: 0,
     pickupKillTimer: 0
@@ -75,6 +77,17 @@
   opacity:0;visibility:hidden;pointer-events:none;
   transition:opacity .32s ease,visibility 0s linear .32s;
 }
+/* 封面位图：探到才挂。图在渐变底之上，暗角压在图上保证文字可读。
+   缺图时这一整块不生效，退回上面的纯渐变底。 */
+.uis-ok-titleBg .uis-mode{
+  background:
+    radial-gradient(ellipse 46% 40% at 50% 40%,
+      rgba(0,0,0,.52) 0%,rgba(0,0,0,.34) 55%,rgba(0,0,0,0) 100%),
+    radial-gradient(ellipse 120% 90% at 50% 50%,
+      rgba(0,0,0,0) 44%,rgba(0,0,0,.62) 100%),
+    url("assets/ui/title-bg.webp") center/cover no-repeat,
+    rgba(8,9,11,.94);
+}
 .uis-mode.uis-on{
   opacity:1;visibility:visible;pointer-events:auto;
   transition:opacity .36s ease,visibility 0s;
@@ -89,6 +102,18 @@
   transition:transform .44s cubic-bezier(.2,.8,.25,1);
 }
 .uis-mode.uis-on .uis-card{transform:none}
+/* 有面板图时：卡片读作一块青铜牌盖在封面上。
+   fill 内腔是半透明的，让封面透上来 —— 纯黑底会把辛辛苦苦生的背景挡死。 */
+.uis-ok-panel .uis-card{
+  border:46px solid transparent;
+  border-image:url("assets/ui/panel-frame.webp") 140 97 66 97 fill stretch;
+  border-radius:0;
+  background:rgba(9,10,13,.40);
+  padding:10px 44px 18px;
+  box-shadow:0 34px 110px rgba(0,0,0,.70);
+}
+.uis-ok-panel .uis-card::before,
+.uis-ok-panel .uis-card::after{display:none}
 .uis-card::before,.uis-card::after{
   content:"";position:absolute;left:13%;right:13%;height:1px;
   background:linear-gradient(90deg,transparent,rgba(217,180,94,.55),transparent);
@@ -121,7 +146,7 @@
 
 /* 两个大按钮 */
 .uis-modebtns{display:flex;gap:20px;justify-content:center;margin-top:32px}
-.uis-modebtn{
+.uis-layer .uis-modebtn{
   position:relative;flex:1 1 0;max-width:302px;padding:24px 16px 21px;
   border:1px solid rgba(217,180,94,.30);border-radius:2px;
   background:linear-gradient(180deg,rgba(217,180,94,.085),rgba(217,180,94,.015));
@@ -132,9 +157,9 @@
     background .24s ease;
   will-change:transform;
 }
-.uis-modebtn:hover,
-.uis-modebtn:focus-visible,
-.uis-modebtn.uis-pick{
+.uis-layer .uis-modebtn:hover,
+.uis-layer .uis-modebtn:focus-visible,
+.uis-layer .uis-modebtn.uis-pick{
   transform:translateY(-4px);
   border-color:var(--uis-gold-hi);
   background:linear-gradient(180deg,rgba(245,217,142,.16),rgba(217,180,94,.05));
@@ -145,16 +170,16 @@
     inset 0 1px 0 rgba(255,246,220,.22);
   outline:none;
 }
-.uis-modebtn:active{transform:translateY(-1px)}
-.uis-modebtn-key{
+.uis-layer .uis-modebtn:active{transform:translateY(-1px)}
+.uis-layer .uis-modebtn-key{
   position:absolute;top:9px;right:9px;min-width:19px;height:19px;line-height:17px;
   font-size:10.5px;color:#a8997a;text-align:center;
   border:1px solid rgba(217,180,94,.26);border-radius:3px;background:rgba(0,0,0,.4);
   transition:color .24s ease,border-color .24s ease;
 }
-.uis-modebtn:hover .uis-modebtn-key,
-.uis-modebtn:focus-visible .uis-modebtn-key,
-.uis-modebtn.uis-pick .uis-modebtn-key{
+.uis-layer .uis-modebtn:hover .uis-modebtn-key,
+.uis-layer .uis-modebtn:focus-visible .uis-modebtn-key,
+.uis-layer .uis-modebtn.uis-pick .uis-modebtn-key{
   color:var(--uis-gold-hi);border-color:rgba(245,217,142,.62);
 }
 .uis-mbtn-name{
@@ -165,8 +190,46 @@
   display:block;margin-top:10px;font-size:11.5px;letter-spacing:.16em;text-indent:.16em;
   color:#837969;
 }
-.uis-modebtn:hover .uis-mbtn-desc,
-.uis-modebtn.uis-pick .uis-mbtn-desc{color:#a99b82}
+.uis-layer .uis-modebtn:hover .uis-mbtn-desc,
+.uis-layer .uis-modebtn.uis-pick .uis-mbtn-desc{color:#a99b82}
+
+/* 按钮位图：364×144 四态，等比撑满（2.53:1）。
+   图自带青铜边框与内腔，所以把 CSS 的 border 与渐变底撤掉；
+   文字仍压在图上，靠 text-shadow + 内腔安全区保证可读。
+   安全区实测 x 70~298 / y 29~112，左右两侧 x30~62 与 x302~334 是方形铜钮，别放字。 */
+.uis-layer.uis-ok-btnOn .uis-modebtn{
+  border:0;border-radius:0;
+  background:url("assets/ui/btn-normal.webp") center/100% 100% no-repeat;
+  /* 图是 364×144（2.53:1），显式比例避免拉伸。
+     padding 必须用 px —— 百分比 padding 按容器宽度解析，内容区会被压成负值、文字被挤成竖排。 */
+  aspect-ratio:364/144;
+  max-width:340px;
+  padding:0 76px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  filter:drop-shadow(0 10px 26px rgba(0,0,0,.58));
+}
+.uis-layer.uis-ok-btnOn .uis-modebtn:hover,
+.uis-layer.uis-ok-btnOn .uis-modebtn:focus-visible,
+.uis-layer.uis-ok-btnOn .uis-modebtn.uis-pick{
+  background-image:url("assets/ui/btn-hover.webp");
+  border:0;
+  filter:drop-shadow(0 14px 34px rgba(0,0,0,.66)) drop-shadow(0 0 22px rgba(245,217,142,.34));
+}
+.uis-layer.uis-ok-btnOn .uis-modebtn:active{
+  background-image:url("assets/ui/btn-press.webp");
+  filter:drop-shadow(0 4px 12px rgba(0,0,0,.62));
+}
+.uis-layer.uis-ok-btnOn .uis-modebtn.uis-off,
+.uis-layer.uis-ok-btnOn .uis-modebtn:disabled{
+  background-image:url("assets/ui/btn-disabled.webp");
+  filter:drop-shadow(0 6px 16px rgba(0,0,0,.45));
+  cursor:default;
+}
+.uis-layer.uis-ok-btnOn .uis-modebtn .uis-mbtn-name,
+.uis-layer.uis-ok-btnOn .uis-modebtn .uis-mbtn-desc,
+.uis-layer.uis-ok-btnOn .uis-modebtn .uis-modebtn-key{
+  text-shadow:0 1px 3px rgba(0,0,0,.92),0 0 12px rgba(0,0,0,.7);
+}
 
 .uis-modefoot{
   margin-top:26px;font-size:10.5px;letter-spacing:.24em;text-indent:.24em;
@@ -199,6 +262,21 @@
 .uis-help.uis-on .uis-help-panel{transform:none;pointer-events:auto}
 .uis-help-panel::-webkit-scrollbar{width:6px}
 .uis-help-panel::-webkit-scrollbar-thumb{background:rgba(217,180,94,.22);border-radius:3px}
+
+/* 说明抽屉的青铜边框：面板图 1448×466 很适合当「竖向长条」的边饰。
+   这里只取它的左右云雷纹与上下边框做 border-image，内腔用 fill 保深色底。
+   slice 取 140 / 97 / 66 / 97 —— 上 140 是为了把顶中央纵目纹整块留在角片里，
+   顶边中段走 stretch 只会拉伸云纹之间的平直铜条，不会把纵目纹拉变形。 */
+.uis-ok-panel .uis-help-panel{
+  background:
+    linear-gradient(180deg,rgba(15,16,20,.93) 0%,rgba(9,10,13,.96) 100%);
+  border:0;border-left:0;
+  border-image:url("assets/ui/panel-frame.webp") 140 97 66 97 fill stretch;
+  border-image-outset:0;
+  padding:56px 46px 40px;
+  box-shadow:-28px 0 80px rgba(0,0,0,.62);
+}
+.uis-ok-panel .uis-help-panel::before{display:none}
 
 .uis-help-head{
   display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
@@ -327,6 +405,17 @@
     inset 0 1px 0 rgba(255,240,200,.14);
 }
 
+/* 拾取气泡也用面板图的边饰，和说明抽屉同一套材质。
+   气泡小，slice 按比例收小，避免云雷纹把文字挤出去。 */
+.uis-ok-panel .uis-pickup-body{
+  border:16px solid transparent;
+  border-image:url("assets/ui/panel-frame.webp") 90 62 44 62 fill stretch;
+  border-radius:0;
+  padding:2px 6px 4px;
+  background:rgba(9,9,7,.94);
+  box-shadow:0 6px 18px rgba(0,0,0,.62);
+}
+
 /* ---------- 少动效偏好 ---------- */
 @media (prefers-reduced-motion: reduce){
   .uis-mode,.uis-card,.uis-modebtn,.uis-help-panel,.uis-help-scrim,.uis-pickup{
@@ -406,7 +495,62 @@
     host.appendChild(layer);
 
     D.layer = layer;
+    probeUI(layer);
     return layer;
+  }
+
+  /* =======================================================================
+     UI 位图：封面 / 面板 / 按钮四态
+     六张图各自 new Image() 探一次，成功才给根节点挂 .uis-img-ok，
+     CSS 里所有位图规则都写在 .uis-img-ok 下 —— 缺图就只剩渐变底，不白屏。
+     不 await、不阻塞首帧：探测是异步的，图到了下一帧样式自动生效。
+     ======================================================================= */
+  var UI_IMG = {
+    titleBg: "assets/ui/title-bg.webp",
+    panel:   "assets/ui/panel-frame.webp",
+    btnOn:   "assets/ui/btn-normal.webp",
+    btnHover:"assets/ui/btn-hover.webp",
+    btnPress:"assets/ui/btn-press.webp",
+    btnOff:  "assets/ui/btn-disabled.webp"
+  };
+
+  function probeUI(layer) {
+    if (!layer || S.uiProbed) return;
+    S.uiProbed = true;
+
+    var keys = [];
+    for (var k in UI_IMG) { if (UI_IMG.hasOwnProperty(k)) keys.push(k); }
+
+    if (typeof global.Image !== "function") return;   /* 无 Image 构造器：保持纯渐变 */
+
+    var ok = {};
+    var done = 0;
+
+    function settle() {
+      done++;
+      if (done < keys.length) return;
+      /* 逐项挂 class：某张失败不影响其它张 */
+      for (var i = 0; i < keys.length; i++) {
+        if (ok[keys[i]]) layer.classList.add("uis-ok-" + keys[i]);
+      }
+      /* 组合开关：样式段按「哪一组图可用」生效，单张失败只影响自己那一处 */
+      if (ok.panel) layer.classList.add("uis-ok-panel");
+      if (ok.btnOn) layer.classList.add("uis-ok-btnOn");
+    }
+
+    for (var i = 0; i < keys.length; i++) {
+      (function (key) {
+        var im = new global.Image();
+        im.onload = function () {
+          if (im.naturalWidth > 0) ok[key] = true;
+          settle();
+        };
+        im.onerror = function () { settle(); };
+        im.src = UI_IMG[key];
+        /* 已经在缓存里（第二次进模式页）也不会漏：complete 且宽高有效就直接判成功 */
+        if (im.complete && im.naturalWidth > 0) { ok[key] = true; }
+      })(keys[i]);
+    }
   }
 
   /* 把焦点从覆盖层按钮上摘掉，避免空格/回车误触按钮 */
