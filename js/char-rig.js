@@ -11,11 +11,20 @@
      }
      window.IMG.pose0  ← window.ANIM 缺失（或帧图全部不可用）时的降级素材
      window.ANIM_HOLD  ← 手持不同武器的单帧站立图（可选，缺省不影响老行为）：
-       { axe | hammer | sword | dagger | spear | bow | rock :
+       { short | dagger | sword | axe | hammer | spear | bow | rock | blade | jar | bell :
          { w, h, anchorX, footY, scaleFix, file } }
-       只在「站定」这一档替换 idle；走/跳/攻击/受伤/旋风/死亡一律沿用动画。
+       只在「站定」这一档替换 idle；走/跳/受伤/旋风/死亡一律沿用动画。
        键靠 p.weapon.key 实时查表、不缓存 —— 换手后下一帧就换图；
        该武器没有持械帧 / 图还没就绪 → 落回 idle 动画，不白屏。
+
+     window.WEAPON_ATTACK ← 每把武器专属的出招姿态（可选，缺省不影响老行为）：
+       { short | dagger | sword | axe | hammer | spear | bow | rock | blade | jar :
+         { w, h, anchorX, footY, scaleFix, file } }
+       字段语义与 ANIM_HOLD 完全一致，是同一条流水线切出来的单帧。
+       只在「挥砍中」这一档替换 attack / attack-heavy / attack-thrust：
+       attack 族那三套帧不管手上拿什么都长同一副样子，这正是「换了武器、
+       手上还是老模型」的根因。有专属姿态就画专属姿态，没有才回落动画 clip。
+       挥动感由 swingT / swingDur 推导（前冲 + 轻微拉伸与旋转），不走帧序列。
 
    降级：ANIM 不存在 / 该 clip 不存在 / 帧图全没加载完 → 回落到旧的
         「单张精灵 + 变换动画」，不报错、不白屏。
@@ -51,6 +60,10 @@
   /* ---------- 持械站立帧缓存：weapon.key -> Image ---------- */
   var holdCache = {};              // 只在 warmHold() 里建 Image，draw 热路径只读
   var holdWarmed = false;          // 持械帧独立就位标记（ANIM 缺席也照样试着建）
+
+  /* ---------- 武器专属出招帧缓存：weapon.key -> Image ---------- */
+  var atkCache = {};
+  var atkWarmed = false;
 
   var pollTimer = 0;
   var pollTries = 0;
@@ -94,6 +107,16 @@
     return d;
   }
 
+  /* 武器专属出招：某把武器的一张出招姿态；没有则返回 null */
+  function atkDef(key) {
+    if (!key) return null;
+    var A = window.WEAPON_ATTACK;
+    if (!A) return null;
+    var d = A[key];
+    if (!d || !d.file) return null;
+    return d;
+  }
+
   /* 建所有持械帧的 Image（只执行一次；不放在 draw 热路径里）。
      某个 key 缺失只跳过该 key，不影响其它 —— 逐张可用性由 imageOk 判。 */
   function warmHold() {
@@ -114,9 +137,29 @@
     return true;
   }
 
+  /* 武器专属出招帧的 Image（同 warmHold 的规矩：一次、不在热路径里建） */
+  function warmAtk() {
+    if (atkWarmed) return true;
+    var A = window.WEAPON_ATTACK;
+    if (!A) return false;
+    atkWarmed = true;
+    if (typeof Image !== "function") return true;
+    for (var k in A) {
+      if (!Object.prototype.hasOwnProperty.call(A, k)) continue;
+      var d = A[k];
+      if (!d || !d.file) continue;
+      if (atkCache[k]) continue;
+      var im = new Image();
+      im.src = d.file;
+      atkCache[k] = im;
+    }
+    return true;
+  }
+
   /* 建立所有帧的 Image（只执行一次；不放在 draw 热路径里） */
   function warm() {
     warmHold();                       // 持械帧自带 flag，ANIM 缺席也照建
+    warmAtk();                        // 出招帧同理
     if (warmed) return;
     var A = animData();
     if (!A) return;
@@ -138,7 +181,7 @@
 
   /* anim-data.js 可能后于本文件就位：轻量轮询补一次预热 */
   function armPoll() {
-    if ((warmed && holdWarmed) || pollTimer) return;
+    if ((warmed && holdWarmed && atkWarmed) || pollTimer) return;
     if (typeof setTimeout !== "function") return;   // 非浏览器宿主：只做同步预热
     pollTries = 0;
     pollTimer = setTimeout(pollTick, 0);
@@ -146,8 +189,8 @@
 
   function pollTick() {
     pollTimer = 0;
-    warm();                           // 内部含 warmHold()
-    if (warmed && holdWarmed) return;
+    warm();                           // 内部含 warmHold() / warmAtk()
+    if (warmed && holdWarmed && atkWarmed) return;
     if (pollTries++ < 120) pollTimer = setTimeout(pollTick, 60);
   }
 
@@ -410,7 +453,7 @@
      下一帧立刻换成新武器，不需要任何失效通知。 */
   function drawHold(ctx, p, t) {
     var def = holdDef(p.weapon && p.weapon.key);
-    if (!def) return false;                 // 该武器没有持械帧（fist/short/blade/jar/bell）
+    if (!def) return false;                 // 该武器没有持械帧（fist 空手）
     var img = holdCache[p.weapon.key];
     if (!imageOk(img)) return false;        // 图还在加载 / 已失败 → 落回 idle 动画
 
@@ -462,8 +505,95 @@
     return true;
   }
 
-  function legacyTinted(img, color, amt) {
-    var cacheKey = "p|" + color + "|" + amt;
+  /* ================================================================== */
+  /*  武器专属出招：单帧姿态 + 由 swingT 推导的挥动变换                  */
+  /* ================================================================== */
+
+  /* 与 drawHold 同一套几何（锚点 / 镜像 / 三档 alpha / 受击闪白），
+     区别只在于这里按挥砍进度做前冲、旋转与轻微拉伸 —— 攻击是一瞬间，
+     不需要帧序列，需要的是「这一刀往哪儿去」的方向感。
+
+     挥动曲线：前 35% 蓄力（略后仰），35%~100% 出刀（前冲 + 顺方向甩），
+     第 2 段横甩多转一点，第 3 段重击冲得更远、压得更低，靠 swingIdx 分流。
+     这些只是绘制变换，判定仍只认 index.html 里的数字框。 */
+  function drawWeaponAtk(ctx, p, t) {
+    var wkey = p.weapon && p.weapon.key;
+    var def = atkDef(wkey);
+    if (!def) return false;
+    var img = atkCache[wkey];
+    if (!imageOk(img)) return false;
+
+    var srcW = def.w > 0 ? def.w : (img.naturalWidth || 1);
+    var srcH = def.h > 0 ? def.h : (img.naturalHeight || 1);
+    var fix = (typeof def.scaleFix === "number") ? def.scaleFix : 1;
+    var sc = (TARGET_H / srcH) * fix;
+    var w = srcW * sc;
+    var h = srcH * sc;
+
+    var ax = typeof def.anchorX === "number" ? def.anchorX : 0.5;
+    var fy = typeof def.footY === "number" ? def.footY : 1.0;
+    var dx = -ax * w;
+    var dy = -fy * h;
+
+    /* 挥砍进度 0→1；swingDur 为 0 时当作刚出手 */
+    var prog = 0;
+    if (p.swingT > 0 && p.swingDur > 0) {
+      prog = 1 - p.swingT / p.swingDur;
+      if (prog < 0) prog = 0;
+      if (prog > 1) prog = 1;
+    }
+    var idx = p.swingIdx | 0;
+    /* 蓄力段：轻微后仰；出刀段：快速前冲并顺向甩开 */
+    var windup = prog < 0.35 ? (1 - prog / 0.35) : 0;          // 1→0
+    var strike = prog < 0.35 ? 0 : (prog - 0.35) / 0.65;       // 0→1
+    if (strike > 1) strike = 1;
+
+    var reach = idx === 2 ? 34 : (idx === 1 ? 22 : 16);
+    var ox = -windup * 7 + strike * reach;
+    var oy = windup * 3 - strike * (idx === 2 ? 6 : 3);
+    var rot = -windup * (idx === 2 ? 0.10 : 0.06)
+            + strike * (idx === 1 ? -0.13 : (idx === 2 ? 0.16 : 0.09));
+    var sx = 1 + strike * 0.05 - windup * 0.03;
+    var sy = 1 - strike * 0.035 + windup * 0.02;
+
+    var alpha = 1;
+    if (p.dead) alpha = 0.5;
+    else if (p.inv > 0 && Math.floor(p.inv * 20) % 2 === 0) alpha = 0.55;
+    alpha *= alphaMul(p);
+
+    /* 与动画路径共用时钟：切回 clip 时 dt 不会突然变大 */
+    stateOf(p).last = t;
+
+    drawShadow(ctx, p);
+
+    var color = (p.padTag || "") === "p1" ? "#ffcf6a" : "#6fd8c0";
+    var art = tintedFrame(img, "atk#" + wkey, 0, w, h, color, 0.10) || img;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(p.x, p.y);
+    ctx.scale(p.facing < 0 ? -1 : 1, 1);
+    ctx.translate(ox, oy);
+    ctx.rotate(rot);
+    ctx.scale(sx, sy);
+    ctx.drawImage(art, dx, dy, w, h);
+
+    /* 受击闪白：与其它路径保持一致（出招时被反击也会闪） */
+    if (p.hurtT > 0) {
+      var k = p.hurtT / 0.28;
+      if (k > 1) k = 1;
+      if (k > 0) {
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = 0.45 * k * alpha;
+        ctx.drawImage(img, dx, dy, w, h);
+        ctx.globalCompositeOperation = "source-over";
+      }
+    }
+    ctx.restore();
+    return true;
+  }
+
+  function legacyTinted(img, color, amt) {    var cacheKey = "p|" + color + "|" + amt;
     if (legacyTint[cacheKey]) return legacyTint[cacheKey];
 
     var cv = document.createElement("canvas");
@@ -622,9 +752,20 @@
     if (typeof t !== "number" || !isFinite(t)) t = 0;
 
     var name = resolveClip(p);
+
+    /* 优先级：武器专属出招 → 持械站立 → 动画 clip → 降级精灵。
+       出招那一档必须盖在动画族之前：attack / attack-heavy / attack-thrust
+       不管手上拿什么都长同一副样子，正是「换武器还是老模型」的根因。
+       判据只看状态字段（这些字段在这里都非 0 才算「在出招」），
+       与 pickClip 的优先级一致：旋风 / 投掷 / 受击 / 拾取 时不出招姿态。 */
+    if (p.swingT > 0 && !p.dead && !(p.whirlT > 0) && !(p.throwT > 0)
+        && !(p.hurtT > 0) && !(p.pickupT > 0)) {
+      if (drawWeaponAtk(ctx, p, t)) return;
+    }
+
     /* 持械站立：优先级插在 idle 之前、其余动作之后。
        resolveClip 落到 "idle" 就等于「站定不动」（dead / whirl / throw / hurt /
-       pickup / 离地 / 挥砍 / 走路 都不返回 "idle"），所以走、跳、攻击、受伤、
+       pickup / 离地 / 挥砍 / 走路 都不返回 "idle"），所以走、跳、受伤、
        旋风、死亡一律保持原动画，不会变成站姿滑步。
        idle 帧整个缺失（name === null）时，只要状态本身还是 idle，持械帧照样顶用
        —— 它不依赖 idle 的帧图。 */
@@ -651,6 +792,11 @@
     for (var h in holdCache) {
       if (!Object.prototype.hasOwnProperty.call(holdCache, h)) continue;
       if (imageOk(holdCache[h])) { anyReady = true; return true; }
+    }
+
+    for (var w in atkCache) {
+      if (!Object.prototype.hasOwnProperty.call(atkCache, w)) continue;
+      if (imageOk(atkCache[w])) { anyReady = true; return true; }
     }
 
     var leg = window.IMG && window.IMG.pose0;
