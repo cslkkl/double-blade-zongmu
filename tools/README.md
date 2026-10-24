@@ -126,6 +126,19 @@
 - `anchorX` **逐帧一个**（数组）：挥砍时身体轴线前后移，逐帧取才不漂；偏离 4 帧中位数 > 8% 判误检并用中位数替换，报告里标出是哪一帧。
 - 幂等：只替换自己那 40 个文件与该数据块，不碰另外五个数据块。
 - 门禁：写完 `node --check js/anim-data.js`；末尾打印每张的洋红残留（目标 ≤ 200）。
+
+## slice_weapon_walk.py — 武器持械行走四帧序列
+
+- 做什么：把每把武器的 4 帧行走条带切成 `walk-<key>-<i>.webp`，并就地写 `window.WEAPON_WALK_CLIP`。
+- 何时跑：重出持械行走动画、改帧数时。
+- 输入（用 `--src` 指定，不写死 SRC）：`walk-{short,dagger,sword,axe,hammer,spear,bow,rock,blade,jar,bell}.png`，每张横向 4 格。
+- 输出：44 张 `assets/anim/walk-<key>-<0..3>.webp` + `window.WEAPON_WALK_CLIP`。
+- **为什么走路要单独一套**：走路原先落回通用 walk clip（所有角色共用、手上没武器），于是「站着有武器、一走就空手」—— 连续性断在最常发生的那一帧。程序化浮沉只是权宜，逐帧才是解法。
+- **身高锚有兜底**：`slice_weapon_assets.detect_head` 认的是原画那顶**金色**头冠（`R>=180 G>=145 B<=160`）。AI 新出的青铜面具素材金冠条件不成立，11 把里 8 把检测失败，所以本脚本先用它、失败再走 `body_top()`（肩线以上、轮廓中心 ±0.30 宽的竖带里第一个有内容的行）。举过头顶的锤 / 钺通常偏在一侧，落在竖带外，不计入身高。
+- `scaleFix` 每把武器一个（4 帧共用）；`anchorX` 逐帧一个。口径与 `slice_weapon_seq.py` 完全一致。
+- `--src` / `--only` / `--debug` 三个参数；产物路径显式指到仓库内，不复用 `slice_anim` 的 `OUT_IMG`（那个是相对硬编码 `SRC` 拼的，换机器就没有该目录）。
+- 幂等：只替换自己那 44 个文件与 `WEAPON_WALK_CLIP` 数据块。
+- 门禁：写完 `node --check js/anim-data.js`，再跑 `node tools/selftest_weapons.mjs`。
 - 验收：每把武器 4 帧的「头冠→脚底」屏幕高度极差 ≤ 3%；4 个文件尺寸完全一致；与单帧 `atk-<key>.webp` 的屏幕身高差 ≤ 4%。
 
 ## selftest_weapons.mjs — 武器视觉自检
