@@ -52,8 +52,9 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 
 - 2026-10-24（武器视觉）：`check-inline` 通过（内联脚本 123915 字符）；`selftest_enemies` 0 失败；`selftest_audio` 0 失败；`selftest_weapons` 0 失败；`node --check` 8/8 通过。
 - 2026-10-24（上一版）：`check-inline` 通过（内联脚本 121802 字符）；`selftest_enemies` 0 失败；`selftest_audio` 0 失败；`node --check` 8/8 通过；链接校验 65 链接 0 错误。
-- 规模：`index.html` 3903 行 / 155186 字节；`js/` 8 个模块；`assets/` 173 个文件（`assets/fx/` 新增 13 张、出招序列 40 张）。
-- 素材分布：`anim/` 111（新增 10 张单帧 `atk-*` + 40 张序列帧 `atk-*-<i>` + 4 张 `hold-*`）、`fx/` 13、`icons/` 16、`interact/` 6、`props/` 8、`char/` 5、`assets/` 根 12。
+- 规模：`index.html` 3903 行 / 155186 字节；`js/` 8 个模块；`assets/` 194 个文件 5.96 MB（`assets/fx/` 新增 13 张、出招序列 40 张）。
+- 素材分布：`anim/` 118（新增 10 张单帧 `atk-*` + 40 张序列帧 `atk-*-<i>` + 4 张 `hold-*`）、`fx/` 13、`icons/` 16、`icon/` 10、`ui/` 6、`interact/` 6、`props/` 8、`char/` 5、`assets/` 根 12。
+- 素材预算：单帧 ≤ 60 KB（实测最大 55.4 KB，仍达标）、总量 ≤ 8 MB（见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 的「素材流水线」，从 3 MB 上调的依据写在那里）。
 - 帧数：角色 12 个 clip 共 43 帧；敌人 4 类共 14 帧；武器站立帧 11 张、出招单帧 10 张、出招序列 10 把 × 4 帧。
 - 关卡：6 阵共 85 体。
 - 无 CI，以上为本机手工结果；改完代码重跑一遍再写结论。
