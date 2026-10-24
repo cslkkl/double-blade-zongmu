@@ -1535,7 +1535,21 @@ function drawHudWeaponIcon(cv, iconKey){
 }
 
 /* ---------------- 粒子 / 刀光 ---------------- */
+/* 粒子总量硬上限。
+   打击、死亡、旋风、宝箱都在调 burst，单个调用最多 30 个，
+   但同一帧可能被调很多次（7 个敌人同时死 + 连击 + 旋风），
+   不设上限时最坏能堆到上千个 —— 而每个粒子在 drawParticles 里是
+   3 次 fillRect（外圈 + 芯 + 拖尾），上千个就是每帧三千次绘制调用，
+   中端手机上直接掉帧。
+   600 是「满屏特效依然看得清」的经验上限；超出时丢最早的，
+   视觉上正好是「老火花先熄灭」，不会突兀。 */
+var PARTICLE_MAX = 600;
+
 function burst(x,y,n,col,spd){
+  /* 先算这一次会不会溢出，避免无谓的 push + splice */
+  var room = PARTICLE_MAX - G.particles.length;
+  if(room <= 0) return;
+  if(n > room) n = room;
   for(var i=0;i<n;i++){
     var a = rnd(0,Math.PI*2), s = rnd(spd*0.25,spd);
     G.particles.push({
