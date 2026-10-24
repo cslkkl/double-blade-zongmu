@@ -125,3 +125,42 @@ window.HIT_MATERIAL = {
   airy   : "assets/fx/hit-airy.webp"
 };
 /* <<< slice_weapon_assets: HIT_MATERIAL <<< */
+
+/* >>> slice_weapon_assets: WEAPON_ATTACK_CLIP >>> */
+/* 4 帧出招序列。与 WEAPON_ATTACK（单帧降级）并存。
+   同一把武器的 4 帧共用同一画布 w/h 与同一个 scaleFix（否则播放会跳）。
+   anchorX 逐帧一个：身体轴线随姿势前后移，逐帧取才不漂。 */
+window.WEAPON_ATTACK_CLIP = {
+  short   : { frames: 4, w: 347, h: 560, scaleFix: 0.997, footY: 1.0,
+            anchorX: [0.6268, 0.6268, 0.6268, 0.6268],
+            files: ["assets/anim/atk-short-0.webp", "assets/anim/atk-short-1.webp", "assets/anim/atk-short-2.webp", "assets/anim/atk-short-3.webp"] },
+  dagger  : { frames: 4, w: 547, h: 526, scaleFix: 0.715, footY: 1.0,
+            anchorX: [0.5622, 0.5622, 0.5622, 0.5622],
+            files: ["assets/anim/atk-dagger-0.webp", "assets/anim/atk-dagger-1.webp", "assets/anim/atk-dagger-2.webp", "assets/anim/atk-dagger-3.webp"] },
+  sword   : { frames: 4, w: 365, h: 560, scaleFix: 0.926, footY: 1.0,
+            anchorX: [0.5699, 0.5699, 0.5699, 0.5699],
+            files: ["assets/anim/atk-sword-0.webp", "assets/anim/atk-sword-1.webp", "assets/anim/atk-sword-2.webp", "assets/anim/atk-sword-3.webp"] },
+  axe     : { frames: 4, w: 327, h: 560, scaleFix: 0.951, footY: 1.0,
+            anchorX: [0.5, 0.5, 0.5107, 0.5],
+            files: ["assets/anim/atk-axe-0.webp", "assets/anim/atk-axe-1.webp", "assets/anim/atk-axe-2.webp", "assets/anim/atk-axe-3.webp"] },
+  hammer  : { frames: 4, w: 284, h: 560, scaleFix: 0.97, footY: 1.0,
+            anchorX: [0.4701, 0.4701, 0.4701, 0.4701],
+            files: ["assets/anim/atk-hammer-0.webp", "assets/anim/atk-hammer-1.webp", "assets/anim/atk-hammer-2.webp", "assets/anim/atk-hammer-3.webp"] },
+  spear   : { frames: 4, w: 559, h: 405, scaleFix: 0.718, footY: 1.0,
+            anchorX: [0.4548, 0.4658, 0.4658, 0.4767],
+            files: ["assets/anim/atk-spear-0.webp", "assets/anim/atk-spear-1.webp", "assets/anim/atk-spear-2.webp", "assets/anim/atk-spear-3.webp"] },
+  bow     : { frames: 4, w: 391, h: 560, scaleFix: 0.796, footY: 1.0,
+            anchorX: [0.4316, 0.4357, 0.4357, 0.4399],
+            files: ["assets/anim/atk-bow-0.webp", "assets/anim/atk-bow-1.webp", "assets/anim/atk-bow-2.webp", "assets/anim/atk-bow-3.webp"] },
+  rock    : { frames: 4, w: 407, h: 560, scaleFix: 0.724, footY: 1.0,
+            anchorX: [0.5461, 0.4969, 0.5215, 0.5215],
+            files: ["assets/anim/atk-rock-0.webp", "assets/anim/atk-rock-1.webp", "assets/anim/atk-rock-2.webp", "assets/anim/atk-rock-3.webp"] },
+  blade   : { frames: 4, w: 429, h: 559, scaleFix: 0.722, footY: 1.0,
+            anchorX: [0.5746, 0.5408, 0.5577, 0.5577],
+            files: ["assets/anim/atk-blade-0.webp", "assets/anim/atk-blade-1.webp", "assets/anim/atk-blade-2.webp", "assets/anim/atk-blade-3.webp"] },
+  jar     : { frames: 4, w: 378, h: 530, scaleFix: 0.745, footY: 1.0,
+            anchorX: [0.629, 0.5909, 0.5529, 0.5909],
+            files: ["assets/anim/atk-jar-0.webp", "assets/anim/atk-jar-1.webp", "assets/anim/atk-jar-2.webp", "assets/anim/atk-jar-3.webp"] }
+};
+/* <<< slice_weapon_assets: WEAPON_ATTACK_CLIP <<< */
+
