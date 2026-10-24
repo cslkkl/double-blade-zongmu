@@ -4,7 +4,11 @@ window.ANIM = {
   walk:   { frames: 6, fps: 12, loop: true,  w: 560, h: 498, anchorX: 0.5673, footY: 1.0, scaleFix: 1.49,
             files: ["assets/anim/walk-0.webp", "assets/anim/walk-1.webp", "assets/anim/walk-2.webp",
                     "assets/anim/walk-3.webp", "assets/anim/walk-4.webp", "assets/anim/walk-5.webp"] },
-  attack: { frames: 4, fps: 16, loop: false, w: 560, h: 498, anchorX: 0.5673, footY: 1.0, scaleFix: 1.16,
+  /* attack 的 scaleFix 从 1.16 调到 1.1147：实测屏幕身高 184.3px，
+     比 idle 基准 177.1px 高 7px（超出 AGENTS.md 的 178~181 验收带）。
+     attack-0 的身体主体高 314px / 画布 498 = 0.6305，1.16 × 0.6305 × 252 = 184.3。
+     反算到 177.1 得 1.1147。挥砍是高频动作，7px 的跳动能被看见。 */
+  attack: { frames: 4, fps: 16, loop: false, w: 560, h: 498, anchorX: 0.5673, footY: 1.0, scaleFix: 1.1147,
             files: ["assets/anim/attack-0.webp", "assets/anim/attack-1.webp", "assets/anim/attack-2.webp", "assets/anim/attack-3.webp"] },
   jump:   { frames: 3, fps: 10, loop: false, w: 560, h: 498, anchorX: 0.5673, footY: 1.0, scaleFix: 0.96,
             files: ["assets/anim/jump-0.webp", "assets/anim/jump-1.webp", "assets/anim/jump-2.webp"] },
