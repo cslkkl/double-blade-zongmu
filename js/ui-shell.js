@@ -703,17 +703,20 @@
   var KEY_ROWS = [
     { act: "移动",   cells: [[{ k: "A" }, { k: "D" }],
                              [{ k: "←" }, { k: "→" }]] },
-    { act: "跳跃",   cells: [[{ k: "W" }, { o: "/" }, { k: "空格" , mini: true }],
+    { act: "跳跃",   cells: [[{ k: "W" }, { o: "/" }, { k: "空格", mini: true }],
                              [{ k: "↑" }, { o: "/" }, { k: "右Shift", mini: true }]] },
     { act: "普通攻击", cells: [[{ k: "F" }, { o: "/" }, { k: "J" }],
                              [{ k: "/" }, { o: "/" }, { k: "小键盘 0", mini: true }]] },
     { act: "拾取 / 开箱", cells: [[{ k: "F" }, { o: "/" }, { k: "J" }],
                              [{ k: "/" }, { o: "/" }, { k: "小键盘 0", mini: true }]] },
-    { act: "换武器格", cells: [[{ k: "Q" }, { o: "/" }, { k: "Tab", mini: true }],
-                             [{ k: "," }, { o: "/" }, { k: "\\", mini: true }]] },
-    { act: "丢弃",   cells: [[{ k: "E" }], [{ k: "." }]] },
-    { act: "递给队友", cells: [[{ k: "R" }], [{ k: "'" }]] },
-    { act: "旋风斩", cells: [WHIRL, WHIRL] }
+    { act: "换武器格 →", cells: [[{ k: "Q" }], [{ k: ",", mini: true }]] },
+    { act: "换武器格 ←", cells: [[{ k: "Tab", mini: true }], [{ k: "\\", mini: true }]] },
+    { act: "丢弃",   cells: [[{ k: "E" }], [{ k: ".", mini: true }]] },
+    { act: "递给队友", cells: [[{ k: "R" }], [{ k: "'", mini: true }]] },
+    { act: "旋风斩", cells: [WHIRL, WHIRL] },
+    { act: "键位说明", cells: [[{ k: "H" }, { o: "/" }, { k: "Esc", mini: true }],
+                             [{ k: "H" }, { o: "/" }, { k: "Esc", mini: true }]] },
+    { act: "静音",   cells: [[{ k: "M" }], [{ k: "M" }]] }
   ];
 
   /* 面键分工定死：A 挥刀 / X 跳 / B 技能 / Y 拾取。
@@ -735,9 +738,10 @@
   ];
 
   var TIPS = [
-    "打怪掉武器，走近按攻击键捡起来",
+    "打怪掉武器，走近按攻击键捡起来；手上一把、背包四格",
     "武器有耐久，挥久了会碎，碎了只能空手打",
-    "旋风斩：HUD 上那根能量条满了才能放"
+    "旋风斩：HUD 上那根能量条满了才能放",
+    "宝箱与太阳轮机关都用攻击键开启：海贝回血、玉器充能、机关回满或提前放下一阵"
   ];
 
   function cellContent(items) {
