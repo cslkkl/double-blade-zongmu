@@ -26,6 +26,15 @@
        手上还是老模型」的根因。有专属姿态就画专属姿态，没有才回落动画 clip。
        挥动感由 swingT / swingDur 推导（前冲 + 轻微拉伸与旋转），不走帧序列。
 
+     window.WEAPON_ATTACK_CLIP ← 同一件事的多帧版本（可选，优先于单帧）：
+       { short | ... :
+         { frames, w, h, anchorX, footY, scaleFix, files: [url, ...] } }
+       与 ANIM 的 clip 同形，但 anchorX 是**数组**：挥砍时身体会前后移，
+       逐帧取中点才不会左右漂。scaleFix 是**一个数**（四帧共用同一画布），
+       逐帧各算会让角色在连击里忽大忽小。
+       帧号与 attack 族一样由 swingT / swingDur 推导，共用同一条时间轴，
+       所以「有多少帧」不影响判定时机。
+
    降级：ANIM 不存在 / 该 clip 不存在 / 帧图全没加载完 → 回落到旧的
         「单张精灵 + 变换动画」，不报错、不白屏。
 
@@ -64,6 +73,10 @@
   /* ---------- 武器专属出招帧缓存：weapon.key -> Image ---------- */
   var atkCache = {};
   var atkWarmed = false;
+
+  /* ---------- 武器出招序列缓存：weapon.key -> [Image] ---------- */
+  var atkClipCache = {};
+  var atkClipWarmed = false;
 
   var pollTimer = 0;
   var pollTries = 0;
@@ -117,6 +130,30 @@
     return d;
   }
 
+  /* 武器出招序列：某把武器的多帧出招；没有则返回 null */
+  function atkClipDef(key) {
+    if (!key) return null;
+    var C = window.WEAPON_ATTACK_CLIP;
+    if (!C) return null;
+    var d = C[key];
+    if (!d || !d.files || !d.files.length) return null;
+    return d;
+  }
+
+  /* 该帧的 anchorX：序列里它是数组（逐帧），单帧里它是数字 */
+  function anchorOf(def, idx) {
+    var a = def && def.anchorX;
+    if (typeof a === "number" && isFinite(a)) return a;
+    if (a && typeof a.length === "number") {
+      var v = a[idx];
+      if (typeof v === "number" && isFinite(v)) return v;
+      for (var i = 0; i < a.length; i++) {
+        if (typeof a[i] === "number" && isFinite(a[i])) return a[i];
+      }
+    }
+    return 0.5;
+  }
+
   /* 建所有持械帧的 Image（只执行一次；不放在 draw 热路径里）。
      某个 key 缺失只跳过该 key，不影响其它 —— 逐张可用性由 imageOk 判。 */
   function warmHold() {
@@ -156,10 +193,34 @@
     return true;
   }
 
+  /* 武器出招序列的 Image（同 warmHold 的规矩：一次、不在热路径里建） */
+  function warmAtkClip() {
+    if (atkClipWarmed) return true;
+    var C = window.WEAPON_ATTACK_CLIP;
+    if (!C) return false;
+    atkClipWarmed = true;
+    if (typeof Image !== "function") return true;
+    for (var k in C) {
+      if (!Object.prototype.hasOwnProperty.call(C, k)) continue;
+      var d = C[k];
+      if (!d || !d.files || !d.files.length) continue;
+      if (atkClipCache[k]) continue;
+      var arr = new Array(d.files.length);
+      for (var f = 0; f < d.files.length; f++) {
+        var im = new Image();
+        im.src = d.files[f];
+        arr[f] = im;
+      }
+      atkClipCache[k] = arr;
+    }
+    return true;
+  }
+
   /* 建立所有帧的 Image（只执行一次；不放在 draw 热路径里） */
   function warm() {
     warmHold();                       // 持械帧自带 flag，ANIM 缺席也照建
     warmAtk();                        // 出招帧同理
+    warmAtkClip();                    // 出招序列同理
     if (warmed) return;
     var A = animData();
     if (!A) return;
@@ -181,7 +242,7 @@
 
   /* anim-data.js 可能后于本文件就位：轻量轮询补一次预热 */
   function armPoll() {
-    if ((warmed && holdWarmed && atkWarmed) || pollTimer) return;
+    if ((warmed && holdWarmed && atkWarmed && atkClipWarmed) || pollTimer) return;
     if (typeof setTimeout !== "function") return;   // 非浏览器宿主：只做同步预热
     pollTries = 0;
     pollTimer = setTimeout(pollTick, 0);
@@ -189,8 +250,8 @@
 
   function pollTick() {
     pollTimer = 0;
-    warm();                           // 内部含 warmHold() / warmAtk()
-    if (warmed && holdWarmed && atkWarmed) return;
+    warm();                           // 内部含 warmHold() / warmAtk() / warmAtkClip()
+    if (warmed && holdWarmed && atkWarmed && atkClipWarmed) return;
     if (pollTries++ < 120) pollTimer = setTimeout(pollTick, 60);
   }
 
@@ -593,6 +654,99 @@
     return true;
   }
 
+  /* 武器出招序列：一帧一张图，帧号与 attack 族共用 swingT 时间轴。
+     与单帧版本的区别只有两点，其余（锚点 / 镜像 / 三档 alpha / 受击闪白）逐项对齐：
+       · 帧号由 attackFrame 推导，所以「有几帧」不影响判定时机
+       · 挥动变换大幅收窄 —— 动作已经在图里了，再叠前冲会让位移翻倍。
+         只留一点点前压，把连击的推进感补回来。 */
+  function drawWeaponAtkFrames(ctx, p, t) {
+    var wkey = p.weapon && p.weapon.key;
+    var def = atkClipDef(wkey);
+    if (!def) return false;
+
+    var arr = atkClipCache[wkey];
+    if (!arr || !arr.length) return false;
+
+    var n = def.files.length;
+    if (n <= 0) return false;
+
+    /* 帧号：优先与判定同步；swingT 已归零（收招那一帧）时停在第 0 帧之后的
+       常用做法是保留上一帧，这里直接走 attackFrame 的 -1 → 取第 0 帧。 */
+    var idx = attackFrame(p, n);
+    if (idx < 0) idx = 0;
+    if (idx > n - 1) idx = n - 1;
+
+    var s = stateOf(p);
+    var img = arr[idx];
+    if (!imageOk(img)) {
+      /* 该帧还没就绪：用同序列里最近的可用帧，别闪 */
+      var found = -1;
+      for (var k = 0; k < n; k++) {
+        var j = (idx - k + n) % n;
+        if (imageOk(arr[j])) { found = j; break; }
+      }
+      if (found < 0) return false;
+      idx = found;
+      img = arr[idx];
+    }
+
+    var srcW = def.w > 0 ? def.w : (img.naturalWidth || 1);
+    var srcH = def.h > 0 ? def.h : (img.naturalHeight || 1);
+    /* scaleFix 是整条序列共用的一个数：逐帧各算会让连击里忽大忽小 */
+    var fix = (typeof def.scaleFix === "number") ? def.scaleFix : 1;
+    var sc = (TARGET_H / srcH) * fix;
+    var w = srcW * sc;
+    var h = srcH * sc;
+
+    /* anchorX 逐帧取（数组），身体前后移时不漂 */
+    var ax = anchorOf(def, idx);
+    var fy = typeof def.footY === "number" ? def.footY : 1.0;
+    var dx = -ax * w;
+    var dy = -fy * h;
+
+    var prog = 0;
+    if (p.swingT > 0 && p.swingDur > 0) {
+      prog = 1 - p.swingT / p.swingDur;
+      if (prog < 0) prog = 0;
+      if (prog > 1) prog = 1;
+    }
+    var idx3 = p.swingIdx | 0;
+    var ox = prog * (idx3 === 2 ? 12 : (idx3 === 1 ? 8 : 6));
+    var oy = -prog * 2;
+
+    var alpha = 1;
+    if (p.dead) alpha = 0.5;
+    else if (p.inv > 0 && Math.floor(p.inv * 20) % 2 === 0) alpha = 0.55;
+    alpha *= alphaMul(p);
+
+    stateOf(p).last = t;
+
+    drawShadow(ctx, p);
+
+    var color = (p.padTag || "") === "p1" ? "#ffcf6a" : "#6fd8c0";
+    var art = tintedFrame(img, "atkclip#" + wkey, idx, w, h, color, 0.10) || img;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(p.x, p.y);
+    ctx.scale(p.facing < 0 ? -1 : 1, 1);
+    ctx.translate(ox, oy);
+    ctx.drawImage(art, dx, dy, w, h);
+
+    if (p.hurtT > 0) {
+      var k2 = p.hurtT / 0.28;
+      if (k2 > 1) k2 = 1;
+      if (k2 > 0) {
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = 0.45 * k2 * alpha;
+        ctx.drawImage(img, dx, dy, w, h);
+        ctx.globalCompositeOperation = "source-over";
+      }
+    }
+    ctx.restore();
+    return true;
+  }
+
   function legacyTinted(img, color, amt) {    var cacheKey = "p|" + color + "|" + amt;
     if (legacyTint[cacheKey]) return legacyTint[cacheKey];
 
@@ -753,13 +907,15 @@
 
     var name = resolveClip(p);
 
-    /* 优先级：武器专属出招 → 持械站立 → 动画 clip → 降级精灵。
-       出招那一档必须盖在动画族之前：attack / attack-heavy / attack-thrust
+    /* 优先级：武器出招序列 → 武器出招单帧 → 持械站立 → 动画 clip → 降级精灵。
+       出招那两档必须盖在动画族之前：attack / attack-heavy / attack-thrust
        不管手上拿什么都长同一副样子，正是「换武器还是老模型」的根因。
        判据只看状态字段（这些字段在这里都非 0 才算「在出招」），
-       与 pickClip 的优先级一致：旋风 / 投掷 / 受击 / 拾取 时不出招姿态。 */
+       与 pickClip 的优先级一致：旋风 / 投掷 / 受击 / 拾取 时不出招。
+       序列优先于单帧：多帧更顺，但单帧留着当降级（某把武器只出了单帧时照画）。 */
     if (p.swingT > 0 && !p.dead && !(p.whirlT > 0) && !(p.throwT > 0)
         && !(p.hurtT > 0) && !(p.pickupT > 0)) {
+      if (drawWeaponAtkFrames(ctx, p, t)) return;
       if (drawWeaponAtk(ctx, p, t)) return;
     }
 
@@ -797,6 +953,14 @@
     for (var w in atkCache) {
       if (!Object.prototype.hasOwnProperty.call(atkCache, w)) continue;
       if (imageOk(atkCache[w])) { anyReady = true; return true; }
+    }
+
+    for (var c in atkClipCache) {
+      if (!Object.prototype.hasOwnProperty.call(atkClipCache, c)) continue;
+      var seq = atkClipCache[c];
+      for (var q = 0; q < seq.length; q++) {
+        if (imageOk(seq[q])) { anyReady = true; return true; }
+      }
     }
 
     var leg = window.IMG && window.IMG.pose0;
