@@ -281,10 +281,12 @@ for (const k of ["short", "sword", "axe", "bow"]) {
   rows.push(["stand", k, hit ? "hold-" + k : "-"]);
 }
 
-/* 挥砍：应画出该武器的出招图 —— 序列优先（atk-<key>-<i>.webp），
-   没有序列才画单帧（atk-<key>.webp）。两者都算通过，但必须有一个 */
+/* 挥砍：优先 WEAPON_CLIP[key].attack（每把武器一套独立动作），
+   其次旧的 atk-<key>-<i> 序列，最后 atk-<key> 单帧。三者都算通过，但必须有一个 */
 for (const k of ATK_KEYS) {
-  if (!ATK[k] && !ATKC[k]) continue;
+  const wc = (S.window.WEAPON_CLIP || {})[k];
+  const hasNew = !!(wc && wc.attack && wc.attack.files && wc.attack.files.length);
+  if (!ATK[k] && !ATKC[k] && !hasNew) continue;
   clear();
   const wp = { key: k, type: "melee", swing: 0.3 };
   let err = null;
@@ -292,18 +294,24 @@ for (const k of ATK_KEYS) {
     CharArt.draw(makeCtx(), player({ weapon: wp, swingT: 0.22, swingDur: 0.3, swingIdx: 0 }), 2.0);
   } catch (e) { err = e; }
   ok(!err, k + " 挥砍不抛异常 (" + (err && err.message) + ")");
+
+  const neo = drawnPng(new RegExp("attack-" + k + "-\\d\\.webp$"));
   const seq = drawnPng(new RegExp("atk-" + k + "-\\d\\.webp$"));
   const one = drawnPng(new RegExp("atk-" + k + "\\.webp$"));
-  ok(!!(seq || one), k + " 挥砍应画出 atk-" + k + "（序列或单帧）");
+  ok(!!(neo || seq || one), k + " 挥砍应画出专属出招图（attack / atk 序列 / atk 单帧）");
+  if (hasNew) ok(!!neo, k + " 有 WEAPON_CLIP.attack 时应画 attack-" + k + "-<i>");
   ok(!drawnPng("hold-" + k + ".webp"), k + " 挥砍不该再画站立帧");
-  rows.push(["swing", k, seq ? "atk-" + k + "-N" : (one ? "atk-" + k : "-")]);
+  rows.push(["swing", k, neo ? "attack-" + k + "-N" : (seq ? "atk-" + k + "-N" : (one ? "atk-" + k : "-"))]);
 }
 
-/* 连击三段：帧号应随 swingT 推进（第 1 段与第 3 段的帧号不同） */
+/* 连击三段：帧号应随 swingT 推进。
+   现在优先 WEAPON_CLIP.attack（attack-<k>-<i>），没有才看旧的 atk 序列。 */
 {
-  const k = Object.keys(ATKC)[0];
+  const WC = S.window.WEAPON_CLIP || {};
+  const k = Object.keys(WC).find(x => WC[x] && WC[x].attack) || Object.keys(ATKC)[0];
   if (k) {
-    const n = ATKC[k].files.length;
+    const hasNew = !!(WC[k] && WC[k].attack);
+    const n = hasNew ? WC[k].attack.files.length : ATKC[k].files.length;
     const seen = new Set();
     for (const prog of [0.05, 0.35, 0.65, 0.95]) {
       clear();
@@ -312,7 +320,9 @@ for (const k of ATK_KEYS) {
         weapon: { key: k, type: "melee" },
         swingT: dur * (1 - prog), swingDur: dur, swingIdx: 0
       }), 2.0 + prog);
-      const c = drawnPng(new RegExp("atk-" + k + "-(\\d)\\.webp$"));
+      const c = hasNew
+        ? drawnPng(new RegExp("attack-" + k + "-(\\d)\\.webp$"))
+        : drawnPng(new RegExp("atk-" + k + "-(\\d)\\.webp$"));
       if (c) seen.add(String(c.src).match(/-(\d)\.webp$/)[1]);
     }
     ok(seen.size >= 2, k + " 挥砍过程中应播到至少 2 个不同帧（实际 " + [...seen].join(",") + "，共 " + n + " 帧）");
@@ -327,7 +337,9 @@ for (const k of ATK_KEYS) {
    没有就断言落到持械静帧 —— 素材没到位时也不该变成空手。
    padTag 用 p2：着色图按玩家配色缓存，上面站定测试已经缓存过 p1。 */
 const WALK = S.window.WEAPON_WALK_CLIP || {};
-const hasWalkClip = !!(WALK.axe && WALK.axe.files && WALK.axe.files.length);
+const WC_ALL = S.window.WEAPON_CLIP || {};
+const hasWalkClip = !!(WC_ALL.axe && WC_ALL.axe.walk)
+                 || !!(WALK.axe && WALK.axe.files && WALK.axe.files.length);
 
 clear();
 CharArt.draw(makeCtx(), player({ vx: 200, padTag: "p2", walk: 1.7, weapon: { key: "axe", type: "melee" } }), 3.0);
@@ -390,8 +402,14 @@ console.log("=== 4. 缺键逐级落回 ===");
 
 /* 4a. 删掉某把武器的出招姿态与序列 → 回到 attack 族 clip，不抛异常 */
 {
+  /* 缺键回落：把三个通道全删掉，才真能测到"回落到公共 attack 族"。
+     只删旧的 ATK/ATKC 已经不够了 —— WEAPON_CLIP 现在是第一优先级，
+     不删它的话永远走新通道，测不到降级路径。 */
+  const WC = S.window.WEAPON_CLIP;
+  const savedNew = WC && WC.dagger;
   const savedAtk = ATK.dagger;
   const savedClip = ATKC.dagger;
+  if (WC) delete WC.dagger;
   delete ATK.dagger;
   delete ATKC.dagger;
   clear();
@@ -403,16 +421,20 @@ console.log("=== 4. 缺键逐级落回 ===");
     }), 6.0);
   } catch (e) { err = e; }
   ok(!err, "缺出招姿态时不抛异常 (" + (err && err.message) + ")");
-  const fb = drawnPng("attack-thrust-") || drawnPng("attack-");
+  const fb = drawnPng("attack-thrust-") || drawnPng(/^assets\/anim\/attack-\d\.webp$/) || drawnPng(/^assets\/anim\/attack-/);
   ok(!!fb, "缺出招姿态应回落攻击 clip");
-  console.log("  dagger 无 WEAPON_ATTACK / CLIP → 画 " + (fb ? "attack 族" : "无"));
+  console.log("  dagger 无任何专属出招 → 画 " + (fb ? "公共 attack 族" : "无"));
+  if (WC && savedNew) WC.dagger = savedNew;
   if (savedAtk) ATK.dagger = savedAtk;
   if (savedClip) ATKC.dagger = savedClip;
 }
 
-/* 4a2. 只有序列被删、单帧还在 → 应回落到单帧，而不是攻击 clip */
+/* 4a2. 新通道删掉、旧序列也删掉 → 应回落到单帧 atk-sword，而不是公共 attack 族 */
 {
+  const WC = S.window.WEAPON_CLIP;
+  const savedNew = WC && WC.sword;
   const savedClip = ATKC.sword;
+  if (WC) delete WC.sword;
   delete ATKC.sword;
   clear();
   let err = null;
@@ -424,8 +446,9 @@ console.log("=== 4. 缺键逐级落回 ===");
   } catch (e) { err = e; }
   ok(!err, "缺序列时不抛异常 (" + (err && err.message) + ")");
   const one = drawnPng(new RegExp("atk-sword\\.webp$"));
-  ok(!!one, "缺序列应回落到单帧 atk-sword");
-  console.log("  sword 无 WEAPON_ATTACK_CLIP → 画 " + (one ? "单帧 atk-sword" : "无"));
+  ok(!!one, "缺新通道与序列时应回落到单帧 atk-sword");
+  console.log("  sword 只剩单帧 → 画 " + (one ? "单帧 atk-sword" : "无"));
+  if (WC && savedNew) WC.sword = savedNew;
   if (savedClip) ATKC.sword = savedClip;
 }
 

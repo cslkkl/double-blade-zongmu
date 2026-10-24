@@ -130,7 +130,11 @@
                    { delay:150, dur:150, strong:0.9, weak:0.4 },
                    { delay:150, dur:260, strong:0.8, weak:0.3 } ]); },
     /* 暂停 / 菜单确认：最轻 */
-    ui:          function(idx){ raw(idx, { dur:30, strong:0, weak:0.25 }); }
+    ui:          function(idx){ raw(idx, { dur:30, strong:0, weak:0.25 }); },
+    /* 开场短片起播：短片是静音的，这一下是唯一能确认「开始了」的触觉反馈 */
+    intro:       function(idx){ raw(idx, { dur:250, strong:0.45, weak:0.25 }); },
+    /* 短片长按跳过成功：短促确认，与起播的轻震区分开 */
+    skip:        function(idx){ raw(idx, { dur:120, strong:0.8, weak:0.6 }); }
   };
 
   function preset(padIndex, name, arg){
@@ -163,6 +167,17 @@
       try{ if(window.Guide && window.Guide.pads) window.Guide.pads(); }catch(e){}
     },
     play: play,
+    /* 掐掉残留震动：只有 actuator 实现了 reset() 才生效，
+       老实现没有这个方法就静默跳过（总比什么都不做强不了多少）。 */
+    stop: function(padIndex){
+      try{
+        var list = (padIndex === "all") ? [0, 1] : [padIndex];
+        for(var i=0; i<list.length; i++){
+          var a = actuatorOf(padAt(list[i]));
+          if(a && typeof a.reset === "function") a.reset();
+        }
+      }catch(e){ /* 静默 */ }
+    },
     /* 按玩家 tag 路由：G.p1 永远 PADS[0]、G.p2 永远 PADS[1]，
        与 index.html 的 readPad 取源一致；不认识的 tag 落到 0 号。 */
     player: function(tag, name, arg){

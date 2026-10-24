@@ -84,13 +84,15 @@
   var walkClipCache = {};
   var walkClipWarmed = false;
 
-  /* 步行每帧对应的位移：p.walk 不是秒数，是位移的缩放值 ——
-     index.html 里 `p.walk += |vx| * dt * 0.024`，也就是 1 单位 walk ≈ 41.7px。
-     一个 4 帧循环 = 两步，按每步 30px 算 = 60px 位移 ≈ 1.44 单位 walk。
-     帧号直接由「走了多远」推导：站着不动不换帧，减速步频自然降，
-     与速度解耦、与时间无关，所以不会出现「滑步」那种脚不动人在飘。
-     想改步频只改这一个数：调大 = 一步跨得远（步频慢），调小 = 碎步。 */
-  var WALK_CYCLE = 1.44;      /* 单位 walk：一个完整 4 帧循环覆盖的位移 */
+  /* 步行一个完整循环覆盖多少「引导位移」。
+     p.walk 在 index.html 里按 `+= |vx| * dt * 0.024` 累加，所以
+       1 单位 walk ≈ 41.7px 位移。
+     跑动时 vx ≈ 470 → walk 增长 ≈ 11.3 单位/秒。
+     WALK_CYCLE = 3.6 → 3.1 循环/秒 × 4 帧 ≈ 12.6 帧/秒，是眼睛能看清的步频。
+     早先取 1.44（≈31 帧/秒）时，4 帧在 1/8 秒内翻完 —— 看起来就是「没有
+     动画、人在平移」，因为根本来不及看清任何一帧。改小这个数 = 步频变快，
+     改大 = 步子变慢；它同时决定「一秒走多远算一个循环」。 */
+  var WALK_CYCLE = 3.6;
 
   var pollTimer = 0;
   var pollTries = 0;
@@ -162,6 +164,67 @@
     var d = C[key];
     if (!d || !d.files || !d.files.length) return null;
     return d;
+  }
+
+  /* ============ 每把武器一套独立动作（统一入口） ============
+     window.WEAPON_CLIP[key][state] = { frames, loop, w, h, scaleFix,
+                                        anchorX[], files[], footY }
+     state ∈ idle / walk / jump / attack / hurt / pickup
+
+     这是「武器视觉」的最终形态：早先站定走 ANIM_HOLD、行走走 WEAPON_WALK_CLIP、
+     出招走 WEAPON_ATTACK_CLIP，三条独立通道各自缺图就掉回公共 clip，导致
+     「站着有武器、一走一空手、一跳更空手」。统一成一张表之后，缺哪个状态
+     就只掉那一个状态，其余状态不受牵连。
+
+     老通道继续保留作降级：WEAPON_CLIP 缺席时行为与改动前完全一致。 */
+  var WEAPON_STATES = ["attack", "walk", "jump", "hurt", "pickup", "idle"];
+
+  function weaponClipDef(key, state) {
+    if (!key || !state) return null;
+    var W = window.WEAPON_CLIP;
+    if (!W) return null;
+    var all = W[key];
+    if (!all) return null;
+    var d = all[state];
+    if (!d || !d.files || !d.files.length) return null;
+    return d;
+  }
+
+  /* 该武器有没有这套表（有才走新路径，没有就整段跳过，不改变老行为） */
+  function hasWeaponClips(key) {
+    var W = window.WEAPON_CLIP;
+    return !!(W && key && W[key]);
+  }
+
+  /* 某 state 的 Image 缓存：state#key -> [Image] */
+  var stateCache = {};
+  var stateWarmed = false;
+
+  function warmStateClips() {
+    if (stateWarmed) return true;
+    var W = window.WEAPON_CLIP;
+    if (!W) return false;
+    stateWarmed = true;
+    if (typeof Image !== "function") return true;
+    for (var k in W) {
+      if (!Object.prototype.hasOwnProperty.call(W, k)) continue;
+      var all = W[k];
+      for (var st in all) {
+        if (!Object.prototype.hasOwnProperty.call(all, st)) continue;
+        var d = all[st];
+        if (!d || !d.files || !d.files.length) continue;
+        var ck = st + "#" + k;
+        if (stateCache[ck]) continue;
+        var arr = new Array(d.files.length);
+        for (var f = 0; f < d.files.length; f++) {
+          var im = new Image();
+          im.src = d.files[f];
+          arr[f] = im;
+        }
+        stateCache[ck] = arr;
+      }
+    }
+    return true;
   }
 
   /* 该帧的 anchorX：序列里它是数组（逐帧），单帧里它是数字 */
@@ -269,6 +332,7 @@
     warmAtk();                        // 出招帧同理
     warmAtkClip();                    // 出招序列同理
     warmWalkClip();                   // 行走序列同理
+    warmStateClips();                 // 每把武器的独立动作（WEAPON_CLIP）
     if (warmed) return;
     var A = animData();
     if (!A) return;
@@ -290,7 +354,7 @@
 
   /* anim-data.js 可能后于本文件就位：轻量轮询补一次预热 */
   function armPoll() {
-    if ((warmed && holdWarmed && atkWarmed && atkClipWarmed && walkClipWarmed) || pollTimer) return;
+    if ((warmed && holdWarmed && atkWarmed && atkClipWarmed && walkClipWarmed && stateWarmed) || pollTimer) return;
     if (typeof setTimeout !== "function") return;   // 非浏览器宿主：只做同步预热
     pollTries = 0;
     pollTimer = setTimeout(pollTick, 0);
@@ -299,7 +363,7 @@
   function pollTick() {
     pollTimer = 0;
     warm();                           // 内部含 hold / atk / atkClip / walkClip 四条预热
-    if (warmed && holdWarmed && atkWarmed && atkClipWarmed && walkClipWarmed) return;
+    if (warmed && holdWarmed && atkWarmed && atkClipWarmed && walkClipWarmed && stateWarmed) return;
     if (pollTries++ < 120) pollTimer = setTimeout(pollTick, 60);
   }
 
@@ -894,6 +958,118 @@
     return true;
   }
 
+  /* ================================================================== */
+  /*  每把武器的独立动作：统一绘制                                        */
+  /* ================================================================== */
+
+  /* 帧号来源按状态分流，这是本模块最容易被改坏的地方：
+       walk   → p.walk（累计位移）。站着不动不换帧，减速步频自然降。
+       attack → swingT（判定推着画面走）。有几帧不影响出手时机。
+       jump / hurt / pickup → 这些是「一次性动作」，没有稳定的时间轴可跟，
+                 所以按时长比例取帧（pickupT / hurtT 由调用方倒数）。
+       其它（idle）→ 固定第 0 帧。
+     帧号永远夹在 [0, n-1]，不信任调用方传进来的数值。 */
+  function stateFrame(p, state, def, n) {
+    if (n <= 1) return 0;
+    var idx = 0;
+    if (state === "walk") {
+      /* 一个 4 帧循环 = WALK_CYCLE 单位 walk 位移，与 walkClipDef 的旧路径同源 */
+      idx = Math.floor((p.walk || 0) / WALK_CYCLE * n);
+    } else if (state === "attack") {
+      idx = attackFrame(p, n);
+      if (idx < 0) idx = 0;
+    } else if (state === "hurt") {
+      var hd = 0.28;                       /* 与 index.html 的 hurtT 初值一致 */
+      var prog = 1 - ((p.hurtT || 0) / hd);
+      if (prog < 0) prog = 0;
+      if (prog > 1) prog = 1;
+      idx = Math.floor(prog * n);
+    } else if (state === "pickup") {
+      var pd = 0.3;                        /* 与 index.html 的 pickupT 初值一致 */
+      var pprog = 1 - ((p.pickupT || 0) / pd);
+      if (pprog < 0) pprog = 0;
+      if (pprog > 1) pprog = 1;
+      idx = Math.floor(pprog * n);
+    } else if (state === "jump") {
+      /* 起跳看离地高度：顶点之前第 0 帧、之后第 1 帧。没有 vy 就走第 0 帧。 */
+      idx = (p.vy > 0) ? 0 : 1;
+    }
+    if (idx < 0) idx = 0;
+    if (idx > n - 1) idx = n - 1;
+    return idx;
+  }
+
+  /* 返回 false = 这一帧画不出来（调用方继续走老通道或公共 clip） */
+  function drawWeaponState(ctx, p, t, state) {
+    var wkey = p.weapon && p.weapon.key;
+    var def = weaponClipDef(wkey, state);
+    if (!def) return false;
+
+    var ck = state + "#" + wkey;
+    var arr = stateCache[ck];
+    if (!arr || !arr.length) return false;
+
+    var n = def.files.length;
+    if (n <= 0) return false;
+
+    var idx = stateFrame(p, state, def, n);
+    var img = arr[idx];
+    if (!imageOk(img)) {
+      /* 该帧没就绪：找同序列里最近的可用帧，别闪 */
+      var found = -1;
+      for (var k = 0; k < n; k++) {
+        var j = (idx - k + n) % n;
+        if (imageOk(arr[j])) { found = j; break; }
+      }
+      if (found < 0) return false;
+      idx = found;
+      img = arr[idx];
+    }
+
+    var srcW = def.w > 0 ? def.w : (img.naturalWidth || 1);
+    var srcH = def.h > 0 ? def.h : (img.naturalHeight || 1);
+    var fix = (typeof def.scaleFix === "number") ? def.scaleFix : 1;
+    var sc = (TARGET_H / srcH) * fix;
+    var w = srcW * sc;
+    var h = srcH * sc;
+
+    var ax = anchorOf(def, idx);
+    var fy = typeof def.footY === "number" ? def.footY : 1.0;
+    var dx = -ax * w;
+    var dy = -fy * h;
+
+    var alpha = 1;
+    if (p.dead) alpha = 0.5;
+    else if (p.inv > 0 && Math.floor(p.inv * 20) % 2 === 0) alpha = 0.55;
+    alpha *= alphaMul(p);
+
+    stateOf(p).last = t;
+
+    drawShadow(ctx, p);
+
+    var color = (p.padTag || "") === "p1" ? "#ffcf6a" : "#6fd8c0";
+    var art = tintedFrame(img, "wstate#" + wkey + "#" + state, idx, w, h, color, 0.10) || img;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(p.x, p.y);
+    ctx.scale(p.facing < 0 ? -1 : 1, 1);
+    ctx.drawImage(art, dx, dy, w, h);
+
+    if (p.hurtT > 0) {
+      var k2 = p.hurtT / 0.28;
+      if (k2 > 1) k2 = 1;
+      if (k2 > 0) {
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = 0.45 * k2 * alpha;
+        ctx.drawImage(img, dx, dy, w, h);
+        ctx.globalCompositeOperation = "source-over";
+      }
+    }
+    ctx.restore();
+    return true;
+  }
+
   function legacyTinted(img, color, amt) {    var cacheKey = "p|" + color + "|" + amt;    if (legacyTint[cacheKey]) return legacyTint[cacheKey];
 
     var cv = document.createElement("canvas");
@@ -1052,6 +1228,22 @@
     if (typeof t !== "number" || !isFinite(t)) t = 0;
 
     var name = resolveClip(p);
+
+    /* ===== 第一档：每把武器的独立动作（WEAPON_CLIP）=====
+       状态名与 pickClip 的结果一一对应：attack 族统一当 attack 处理
+       （重击 / 突刺的差异在武器自己的 4 帧里，不再靠 __forceClip 切 clip）。
+       这一档有图就用，没图才往下掉 —— 掉了只影响这一个状态，其余不受牵连。
+       顺序放在最前，是因为它比旧的三条通道更完整、也更符合原画风格。 */
+    if (hasWeaponClips(p.weapon && p.weapon.key) && !p.dead) {
+      var st = null;
+      if (name === "idle") st = "idle";
+      else if (name === "walk") st = "walk";
+      else if (name === "jump") st = "jump";
+      else if (name === "hurt") st = "hurt";
+      else if (name === "pickup") st = "pickup";
+      else if (name === "attack" || name === "attack-heavy" || name === "attack-thrust") st = "attack";
+      if (st && stateCache[st + "#" + p.weapon.key] && drawWeaponState(ctx, p, t, st)) return;
+    }
 
     /* 优先级：武器出招序列 → 武器出招单帧 → 持械站立 → 动画 clip → 降级精灵。
        出招那两档必须盖在动画族之前：attack / attack-heavy / attack-thrust
