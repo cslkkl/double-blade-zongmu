@@ -2129,6 +2129,13 @@ function render(){
 
   ctx.restore();
 
+  /* ---- 前景遮挡层：必须在角色 / 刀光 / 粒子都落屏之后，
+         否则「遮挡」变成「垫在背后」。它和背景一样走屏幕坐标系
+         （内部用 camX 算视差 1.0），所以放在 world translate 之外。 ---- */
+  if(window.Background && window.Background.drawFront){
+    window.Background.drawFront(ctx, G.camX, W, H, GROUND, WORLD_W);
+  }
+
   /* 白光 */
   if(G.flash > 0){
     ctx.globalAlpha = clamp(G.flash*3,0,1);
@@ -2160,12 +2167,41 @@ function render(){
   }
 }
 
+/* ---------------- 前景遮挡淡出 ----------------
+   前景遮挡物（Background.drawFront）画在角色之上，角色走到它背后时
+   会被完全盖住看不见。这里问 Background 要遮挡物的世界里坐标，
+   命中就把角色整体压到 0.35 alpha —— 不是 0，轮廓要还看得见。 */
+var OCC_FADE_ALPHA = 0.35;      /* 被挡住时的整体透明度（不是 0，轮廓要看得见） */
+var OCC_FADE_RATIO = 0.42;      /* 判定半宽 = 遮挡物宽 × 该系数 */
+
+function playerOccluded(p){
+  var B = window.Background;
+  if(!p || !B || !B.occluders) return false;
+  var occ = B.occluders();
+  if(!occ || !occ.length) return false;
+  for(var i=0;i<occ.length;i++){
+    var o = occ[i];
+    if(!o || !(o.w > 0)) continue;
+    if(Math.abs(p.x - o.x) < o.w * OCC_FADE_RATIO) return true;
+  }
+  return false;
+}
+
 /* 玩家绘制：优先用素材精灵 */
 function drawPlayer(p){
+  var mul = playerOccluded(p) ? OCC_FADE_ALPHA : 1;
+
   if(window.CharArt && window.CharArt.ready()){
+    /* CharArt 内部会绝对赋值 globalAlpha，外层包一层是无效的，
+       所以走它约定的 p.__alphaMul（缺省 1），画完立刻复位。 */
+    p.__alphaMul = mul;
     window.CharArt.draw(ctx, p, G.time);
+    p.__alphaMul = 1;
   } else {
+    ctx.save();
+    if(mul < 1) ctx.globalAlpha = mul;
     drawFighter(p);
+    ctx.restore();
   }
   drawWhirlAsset(p);
 }
