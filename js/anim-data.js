@@ -163,3 +163,203 @@ window.WEAPON_ATTACK_CLIP = {
             files: ["assets/anim/atk-jar-0.webp", "assets/anim/atk-jar-1.webp", "assets/anim/atk-jar-2.webp", "assets/anim/atk-jar-3.webp"] }
 };
 /* <<< slice_weapon_assets: WEAPON_ATTACK_CLIP <<< */
+
+/* >>> slice_weapon_assets: WEAPON_CLIP >>> */
+/* 每把武器一套独立动作。查不到某个 state 时，渲染层逐级回落到
+   公共 clip（见 char-rig.js 的 weaponClipDef / drawWeaponState）。
+   - 同一把武器同一 state 的所有帧共用画布 w/h 与一个 scaleFix
+   - anchorX 逐帧一个：身体轴线随姿势前后移，逐帧才不漂
+   - walk 是循环（帧号跟 p.walk 位移走）；attack 跟 swingT；
+     jump / hurt / pickup 是单次播放
+   生成方式：图生图，参考 _refs/hold-png/ref-hold-<key>.png，
+   保证 11 把武器之间画风一致。 */
+window.WEAPON_CLIP = {
+  short:   {
+    walk:    { frames: 4, loop: true, fps: 10, w: 260, h: 560, scaleFix: 0.71,
+              footY: 1.0, anchorX: [0.5163, 0.5981, 0.5317, 0.5894],
+              files: ["assets/anim/walk-short-0.webp", "assets/anim/walk-short-1.webp", "assets/anim/walk-short-2.webp", "assets/anim/walk-short-3.webp"] },
+    jump:    { frames: 2, loop: false, fps: 0, w: 439, h: 560, scaleFix: 0.756,
+              footY: 1.0, anchorX: [0.8827, 0.7694],
+              files: ["assets/anim/jump-short-0.webp", "assets/anim/jump-short-1.webp"] },
+    attack:  { frames: 4, loop: false, fps: 0, w: 399, h: 560, scaleFix: 0.819,
+              footY: 1.0, anchorX: [0.5338, 0.5526, 0.5526, 0.5714],
+              files: ["assets/anim/attack-short-0.webp", "assets/anim/attack-short-1.webp", "assets/anim/attack-short-2.webp", "assets/anim/attack-short-3.webp"] },
+    hurt:    { frames: 1, loop: false, fps: 0, w: 368, h: 560, scaleFix: 0.857,
+              footY: 1.0, anchorX: [0.5238],
+              files: ["assets/anim/hurt-short.webp"] },
+    pickup:  { frames: 1, loop: false, fps: 0, w: 368, h: 560, scaleFix: 0.857,
+              footY: 1.0, anchorX: [0.5238],
+              files: ["assets/anim/pickup-short.webp"] }
+  },
+  dagger:  {
+    walk:    { frames: 4, loop: true, fps: 10, w: 299, h: 560, scaleFix: 0.707,
+              footY: 1.0, anchorX: [0.3658, 0.3658, 0.3658, 0.3658],
+              files: ["assets/anim/walk-dagger-0.webp", "assets/anim/walk-dagger-1.webp", "assets/anim/walk-dagger-2.webp", "assets/anim/walk-dagger-3.webp"] },
+    jump:    { frames: 2, loop: false, fps: 0, w: 521, h: 560, scaleFix: 0.742,
+              footY: 1.0, anchorX: [0.8263, 0.786],
+              files: ["assets/anim/jump-dagger-0.webp", "assets/anim/jump-dagger-1.webp"] },
+    attack:  { frames: 4, loop: false, fps: 0, w: 390, h: 560, scaleFix: 0.801,
+              footY: 1.0, anchorX: [0.4846, 0.4846, 0.4846, 0.4846],
+              files: ["assets/anim/attack-dagger-0.webp", "assets/anim/attack-dagger-1.webp", "assets/anim/attack-dagger-2.webp", "assets/anim/attack-dagger-3.webp"] },
+    hurt:    { frames: 1, loop: false, fps: 0, w: 398, h: 560, scaleFix: 0.851,
+              footY: 1.0, anchorX: [0.4987],
+              files: ["assets/anim/hurt-dagger.webp"] },
+    pickup:  { frames: 1, loop: false, fps: 0, w: 398, h: 560, scaleFix: 0.851,
+              footY: 1.0, anchorX: [0.4987],
+              files: ["assets/anim/pickup-dagger.webp"] }
+  },
+  sword:   {
+    walk:    { frames: 4, loop: true, fps: 10, w: 301, h: 560, scaleFix: 0.705,
+              footY: 1.0, anchorX: [0.6063, 0.6611, 0.6204, 0.6611],
+              files: ["assets/anim/walk-sword-0.webp", "assets/anim/walk-sword-1.webp", "assets/anim/walk-sword-2.webp", "assets/anim/walk-sword-3.webp"] },
+    jump:    { frames: 2, loop: false, fps: 0, w: 482, h: 560, scaleFix: 0.753,
+              footY: 1.0, anchorX: [0.8242, 0.8423],
+              files: ["assets/anim/jump-sword-0.webp", "assets/anim/jump-sword-1.webp"] },
+    attack:  { frames: 4, loop: false, fps: 0, w: 445, h: 560, scaleFix: 0.813,
+              footY: 1.0, anchorX: [0.482, 0.5292, 0.5056, 0.5056],
+              files: ["assets/anim/attack-sword-0.webp", "assets/anim/attack-sword-1.webp", "assets/anim/attack-sword-2.webp", "assets/anim/attack-sword-3.webp"] },
+    hurt:    { frames: 1, loop: false, fps: 0, w: 543, h: 560, scaleFix: 0.793,
+              footY: 1.0, anchorX: [0.4926],
+              files: ["assets/anim/hurt-sword.webp"] },
+    pickup:  { frames: 1, loop: false, fps: 0, w: 543, h: 560, scaleFix: 0.793,
+              footY: 1.0, anchorX: [0.4622],
+              files: ["assets/anim/pickup-sword.webp"] }
+  },
+  axe:     {
+    walk:    { frames: 4, loop: true, fps: 10, w: 308, h: 560, scaleFix: 0.708,
+              footY: 1.0, anchorX: [0.6473, 0.6526, 0.6453, 0.6494],
+              files: ["assets/anim/walk-axe-0.webp", "assets/anim/walk-axe-1.webp", "assets/anim/walk-axe-2.webp", "assets/anim/walk-axe-3.webp"] },
+    jump:    { frames: 2, loop: false, fps: 0, w: 457, h: 560, scaleFix: 0.749,
+              footY: 1.0, anchorX: [0.3736, 0.3736],
+              files: ["assets/anim/jump-axe-0.webp", "assets/anim/jump-axe-1.webp"] },
+    attack:  { frames: 4, loop: false, fps: 0, w: 374, h: 560, scaleFix: 0.815,
+              footY: 1.0, anchorX: [0.6718, 0.6718, 0.6718, 0.6718],
+              files: ["assets/anim/attack-axe-0.webp", "assets/anim/attack-axe-1.webp", "assets/anim/attack-axe-2.webp", "assets/anim/attack-axe-3.webp"] },
+    hurt:    { frames: 1, loop: false, fps: 0, w: 362, h: 560, scaleFix: 0.785,
+              footY: 1.0, anchorX: [0.4779],
+              files: ["assets/anim/hurt-axe.webp"] },
+    pickup:  { frames: 1, loop: false, fps: 0, w: 362, h: 560, scaleFix: 0.785,
+              footY: 1.0, anchorX: [0.4779],
+              files: ["assets/anim/pickup-axe.webp"] }
+  },
+  hammer:  {
+    walk:    { frames: 4, loop: true, fps: 10, w: 276, h: 560, scaleFix: 0.706,
+              footY: 1.0, anchorX: [0.4846, 0.5181, 0.5145, 0.5109],
+              files: ["assets/anim/walk-hammer-0.webp", "assets/anim/walk-hammer-1.webp", "assets/anim/walk-hammer-2.webp", "assets/anim/walk-hammer-3.webp"] },
+    jump:    { frames: 2, loop: false, fps: 0, w: 410, h: 560, scaleFix: 0.772,
+              footY: 1.0, anchorX: [0.8829, 0.8317],
+              files: ["assets/anim/jump-hammer-0.webp", "assets/anim/jump-hammer-1.webp"] },
+    attack:  { frames: 4, loop: false, fps: 0, w: 426, h: 560, scaleFix: 0.86,
+              footY: 1.0, anchorX: [0.5962, 0.6315, 0.561, 0.5962],
+              files: ["assets/anim/attack-hammer-0.webp", "assets/anim/attack-hammer-1.webp", "assets/anim/attack-hammer-2.webp", "assets/anim/attack-hammer-3.webp"] },
+    hurt:    { frames: 1, loop: false, fps: 0, w: 329, h: 560, scaleFix: 1.105,
+              footY: 1.0, anchorX: [0.3495],
+              files: ["assets/anim/hurt-hammer.webp"] },
+    pickup:  { frames: 1, loop: false, fps: 0, w: 329, h: 560, scaleFix: 1.105,
+              footY: 1.0, anchorX: [0.3495],
+              files: ["assets/anim/pickup-hammer.webp"] }
+  },
+  spear:   {
+    walk:    { frames: 4, loop: true, fps: 10, w: 257, h: 560, scaleFix: 0.822,
+              footY: 1.0, anchorX: [0.4295, 0.4295, 0.4295, 0.4295],
+              files: ["assets/anim/walk-spear-0.webp", "assets/anim/walk-spear-1.webp", "assets/anim/walk-spear-2.webp", "assets/anim/walk-spear-3.webp"] },
+    jump:    { frames: 2, loop: false, fps: 0, w: 330, h: 560, scaleFix: 0.935,
+              footY: 1.0, anchorX: [0.4288, 0.4652],
+              files: ["assets/anim/jump-spear-0.webp", "assets/anim/jump-spear-1.webp"] },
+    attack:  { frames: 4, loop: false, fps: 0, w: 408, h: 560, scaleFix: 0.913,
+              footY: 1.0, anchorX: [0.576, 0.5662, 0.5711, 0.5711],
+              files: ["assets/anim/attack-spear-0.webp", "assets/anim/attack-spear-1.webp", "assets/anim/attack-spear-2.webp", "assets/anim/attack-spear-3.webp"] },
+    hurt:    { frames: 1, loop: false, fps: 0, w: 291, h: 560, scaleFix: 0.945,
+              footY: 1.0, anchorX: [0.3729],
+              files: ["assets/anim/hurt-spear.webp"] },
+    pickup:  { frames: 1, loop: false, fps: 0, w: 291, h: 560, scaleFix: 0.945,
+              footY: 1.0, anchorX: [0.3729],
+              files: ["assets/anim/pickup-spear.webp"] }
+  },
+  bow:     {
+    walk:    { frames: 4, loop: true, fps: 10, w: 312, h: 560, scaleFix: 0.709,
+              footY: 1.0, anchorX: [0.4551, 0.4551, 0.4551, 0.4551],
+              files: ["assets/anim/walk-bow-0.webp", "assets/anim/walk-bow-1.webp", "assets/anim/walk-bow-2.webp", "assets/anim/walk-bow-3.webp"] },
+    jump:    { frames: 2, loop: false, fps: 0, w: 487, h: 560, scaleFix: 0.817,
+              footY: 1.0, anchorX: [0.3984, 0.3922],
+              files: ["assets/anim/jump-bow-0.webp", "assets/anim/jump-bow-1.webp"] },
+    attack:  { frames: 4, loop: false, fps: 0, w: 479, h: 548, scaleFix: 0.709,
+              footY: 1.0, anchorX: [0.4645, 0.453, 0.4744, 0.4843],
+              files: ["assets/anim/attack-bow-0.webp", "assets/anim/attack-bow-1.webp", "assets/anim/attack-bow-2.webp", "assets/anim/attack-bow-3.webp"] },
+    hurt:    { frames: 1, loop: false, fps: 0, w: 393, h: 560, scaleFix: 0.839,
+              footY: 1.0, anchorX: [0.6011],
+              files: ["assets/anim/hurt-bow.webp"] },
+    pickup:  { frames: 1, loop: false, fps: 0, w: 393, h: 560, scaleFix: 0.839,
+              footY: 1.0, anchorX: [0.6011],
+              files: ["assets/anim/pickup-bow.webp"] }
+  },
+  rock:    {
+    walk:    { frames: 4, loop: true, fps: 10, w: 309, h: 560, scaleFix: 0.709,
+              footY: 1.0, anchorX: [0.5057, 0.4782, 0.466, 0.4895],
+              files: ["assets/anim/walk-rock-0.webp", "assets/anim/walk-rock-1.webp", "assets/anim/walk-rock-2.webp", "assets/anim/walk-rock-3.webp"] },
+    jump:    { frames: 2, loop: false, fps: 0, w: 447, h: 560, scaleFix: 0.771,
+              footY: 1.0, anchorX: [0.6007, 0.5291],
+              files: ["assets/anim/jump-rock-0.webp", "assets/anim/jump-rock-1.webp"] },
+    attack:  { frames: 4, loop: false, fps: 0, w: 370, h: 560, scaleFix: 0.738,
+              footY: 1.0, anchorX: [0.5581, 0.5777, 0.5973, 0.5777],
+              files: ["assets/anim/attack-rock-0.webp", "assets/anim/attack-rock-1.webp", "assets/anim/attack-rock-2.webp", "assets/anim/attack-rock-3.webp"] },
+    hurt:    { frames: 1, loop: false, fps: 0, w: 388, h: 560, scaleFix: 0.815,
+              footY: 1.0, anchorX: [0.5206],
+              files: ["assets/anim/hurt-rock.webp"] },
+    pickup:  { frames: 1, loop: false, fps: 0, w: 388, h: 560, scaleFix: 0.815,
+              footY: 1.0, anchorX: [0.5206],
+              files: ["assets/anim/pickup-rock.webp"] }
+  },
+  blade:   {
+    walk:    { frames: 4, loop: true, fps: 10, w: 257, h: 560, scaleFix: 0.708,
+              footY: 1.0, anchorX: [0.5389, 0.6012, 0.5545, 0.6109],
+              files: ["assets/anim/walk-blade-0.webp", "assets/anim/walk-blade-1.webp", "assets/anim/walk-blade-2.webp", "assets/anim/walk-blade-3.webp"] },
+    jump:    { frames: 2, loop: false, fps: 0, w: 427, h: 560, scaleFix: 0.759,
+              footY: 1.0, anchorX: [0.8735, 0.7857],
+              files: ["assets/anim/jump-blade-0.webp", "assets/anim/jump-blade-1.webp"] },
+    attack:  { frames: 4, loop: false, fps: 0, w: 367, h: 560, scaleFix: 0.741,
+              footY: 1.0, anchorX: [0.6076, 0.579, 0.579, 0.5504],
+              files: ["assets/anim/attack-blade-0.webp", "assets/anim/attack-blade-1.webp", "assets/anim/attack-blade-2.webp", "assets/anim/attack-blade-3.webp"] },
+    hurt:    { frames: 1, loop: false, fps: 0, w: 414, h: 560, scaleFix: 0.878,
+              footY: 1.0, anchorX: [0.5211],
+              files: ["assets/anim/hurt-blade.webp"] },
+    pickup:  { frames: 1, loop: false, fps: 0, w: 414, h: 560, scaleFix: 0.878,
+              footY: 1.0, anchorX: [0.5211],
+              files: ["assets/anim/pickup-blade.webp"] }
+  },
+  jar:     {
+    walk:    { frames: 4, loop: true, fps: 10, w: 263, h: 560, scaleFix: 0.709,
+              footY: 1.0, anchorX: [0.5627, 0.5637, 0.576, 0.5684],
+              files: ["assets/anim/walk-jar-0.webp", "assets/anim/walk-jar-1.webp", "assets/anim/walk-jar-2.webp", "assets/anim/walk-jar-3.webp"] },
+    jump:    { frames: 2, loop: false, fps: 0, w: 259, h: 560, scaleFix: 0.752,
+              footY: 1.0, anchorX: [0.7625, 0.7027],
+              files: ["assets/anim/jump-jar-0.webp", "assets/anim/jump-jar-1.webp"] },
+    attack:  { frames: 4, loop: false, fps: 0, w: 402, h: 560, scaleFix: 0.704,
+              footY: 1.0, anchorX: [0.5239, 0.5239, 0.5239, 0.5239],
+              files: ["assets/anim/attack-jar-0.webp", "assets/anim/attack-jar-1.webp", "assets/anim/attack-jar-2.webp", "assets/anim/attack-jar-3.webp"] },
+    hurt:    { frames: 1, loop: false, fps: 0, w: 402, h: 560, scaleFix: 0.885,
+              footY: 1.0, anchorX: [0.4863],
+              files: ["assets/anim/hurt-jar.webp"] },
+    pickup:  { frames: 1, loop: false, fps: 0, w: 402, h: 560, scaleFix: 0.885,
+              footY: 1.0, anchorX: [0.4863],
+              files: ["assets/anim/pickup-jar.webp"] }
+  },
+  bell:    {
+    walk:    { frames: 4, loop: true, fps: 10, w: 275, h: 560, scaleFix: 0.705,
+              footY: 1.0, anchorX: [0.5709, 0.6436, 0.5555, 0.6364],
+              files: ["assets/anim/walk-bell-0.webp", "assets/anim/walk-bell-1.webp", "assets/anim/walk-bell-2.webp", "assets/anim/walk-bell-3.webp"] },
+    jump:    { frames: 2, loop: false, fps: 0, w: 439, h: 560, scaleFix: 0.774,
+              footY: 1.0, anchorX: [0.8007, 0.8007],
+              files: ["assets/anim/jump-bell-0.webp", "assets/anim/jump-bell-1.webp"] },
+    attack:  { frames: 4, loop: false, fps: 0, w: 478, h: 560, scaleFix: 0.711,
+              footY: 1.0, anchorX: [0.5005, 0.5005, 0.5005, 0.5005],
+              files: ["assets/anim/attack-bell-0.webp", "assets/anim/attack-bell-1.webp", "assets/anim/attack-bell-2.webp", "assets/anim/attack-bell-3.webp"] },
+    hurt:    { frames: 1, loop: false, fps: 0, w: 466, h: 560, scaleFix: 0.838,
+              footY: 1.0, anchorX: [0.4796],
+              files: ["assets/anim/hurt-bell.webp"] },
+    pickup:  { frames: 1, loop: false, fps: 0, w: 466, h: 560, scaleFix: 0.838,
+              footY: 1.0, anchorX: [0.4796],
+              files: ["assets/anim/pickup-bell.webp"] }
+  }
+};
+/* <<< slice_weapon_assets: WEAPON_CLIP <<< */
