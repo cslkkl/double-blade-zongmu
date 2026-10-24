@@ -449,6 +449,8 @@
   /* 主轮询：读手柄 + 判断设备 + 让图跟着按键亮。
      与游戏主循环分开，暂停时也照常工作（暂停菜单要能用手柄操作）。 */
   var polling = false;
+  var lastPadCount = -1;         /* 上一次写进 DOM 的手柄数：这一圈每帧都走，
+                                   innerHTML 不能每帧重解析，只有连接数变了才重写 */
   function tick() {
     var pads = scanPads();
     var first = pads[0] || null;
@@ -457,8 +459,11 @@
       if (device !== "pad") setDevice("pad");
     }
 
-    /* 连接数变化时刷新右侧那行提示 */
-    if (device === "pad") paintHints();
+    /* 连接数变化时才刷新右侧那行提示（热插拔时立刻反映，平时零开销） */
+    if (device === "pad" && pads.length !== lastPadCount) {
+      lastPadCount = pads.length;
+      paintHints();
+    }
 
     paintPress(device === "pad" ? first : null);
 

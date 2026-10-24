@@ -120,7 +120,9 @@
 - 关键约束：`Guide.onChange` 只注册在 `installKeyHook()` 里，设备一变就重绘抽屉，避免抽屉开着时图不跟着换。
 - 关键约束：`guide.js` 的 `PAD_LEGEND` / `KBD_LEGEND` 里都登记了「暂停」一行，值分别是 `Start` 与 `Esc`。改暂停键位要同时改三处：`index.html` 的 `togglePause` 入口、`guide.js` 的两张表、本模块的 Esc 归属判断。
 - 关键约束：**Esc 的归属权在捕获阶段解决**。本模块的 `keydown` 监听用 `true` 注册，抽屉开着时按 Esc 会 `preventDefault` + `stopPropagation` 并只关抽屉；抽屉没开时原样放行，交给游戏的 `togglePause`。不这样做的话两个监听都会收到同一个 Esc，变成「收抽屉 + 暂停」两层一起动（这个 bug 真的出现过）。
-- 改后必测：模式选择回调是否把 `solo / duo` 传进 `startGame`；气泡坐标是否夹在画面内；`H` 开关不吞游戏按键；抽屉开着按 Esc 只收抽屉不解冻；抽屉关着按 Esc 只暂停。
+- 关键约束：模式页 / 抽屉的手柄输入在 `padFrame()` 里轮询，有**启用闸** `S.padArmed`：界面刚开时必须先见到一次全部面键松开才接受输入。「按任意键进模式页」的那一下还按在手上，不设闸会当场锁定默认项，玩家看不到选择页。
+- 关键约束：模式页底部那行提示按 `hasPad()` 切换文案（手柄版 / 键盘版），不要写死成「按 1 / 按 2」。
+- 改后必测：模式选择回调是否把 `solo / duo` 传进 `startGame`；气泡坐标是否夹在画面内；`H` 开关不吞游戏按键；抽屉开着按 Esc 只收抽屉不解冻；抽屉关着按 Esc 只暂停；手柄 `A` 进选择页后是否**停留**在选择页（不跳选）。
 
 ## audio.js
 
@@ -147,7 +149,7 @@
 | `enemies-assets.js` | 跑 `selftest_enemies.mjs`；`Enemy` 的 `kind / scale / w / h / maxHp / state` 字段是否改名 |
 | `fx.js` | `index.html` 三处 `FX.*` 调用与 `FX.ready()` 守卫 |
 | `guide.js` | `index.html` 的 `scanPads()` 与 `#keys`/`#pad`、`ui-shell` 的 `.uis-help-body` 与 `Guide.onChange`；改键位只改这里的四张表，别再往 `ui-shell` 抄文案 |
-| `ui-shell.js` | `index.html` 四个调用点、`body.solo` 样式、`UIShell` 未加载时的降级分支、`Guide` 缺席时抽屉仍要能开 |
+| `ui-shell.js` | `index.html` 四个调用点、`body.solo` 样式、`UIShell` 未加载时的降级分支、`Guide` 缺席时抽屉仍要能开、`padFrame` 的启用闸、模式页底部文案 |
 | `audio.js` | 跑 `selftest_audio.mjs`；`index.html` 的 `sfx*()` 包装层是否仍能退回旧实现；新增武器要在 `MATERIAL` 表里给材质，否则一律落到 `jade`；`SND.bgm.*` 的调用点（开局 `start` / 换阵 `setWave` / 通关 `stop`） |
 
 契约变更（导出签名、字段名、`window.*` 名字）必须同一次改动内更新本页与 [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)。

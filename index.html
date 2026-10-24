@@ -120,11 +120,18 @@
     background:rgba(14,11,7,.66);border:1px solid rgba(217,180,94,.22);
     text-shadow:0 1px 3px rgba(0,0,0,.95)}
   #pad b{color:#9ede84;font-weight:600}
+  /* 标题页三列键位：接手柄时只留手柄那列，键盘两列收起。
+     判定来源是 body 上的 dev-pad / dev-kbd —— 由 js/guide.js 按「谁在动」切换，
+     和底部提示条、说明抽屉同一套开关，不再各自维护一份「插没插手柄」。 */
+  .cl-pad{display:none}
+  body.dev-pad .cl-kbd{display:none}
+  body.dev-pad .cl-pad{display:block}
+
   /* 暂停时收起底部两行提示：它们本来就该在暂停页里看 */
   body.is-paused #keys,body.is-paused #pad{display:none}
 
   /* --- 暂停页 ---
-     背景留 0.72 不透明度，冻住的世界还看得见 —— 暂停不是「离开游戏」，
+     背景留 0.80 不透明度，冻住的世界还看得见 —— 暂停不是「离开游戏」，
      是「站在原地喘一口」。所有内容压在一条中轴上，竖排，不横向撑满。 */
   .ov.pause{background:radial-gradient(ellipse 70% 66% at 50% 44%,rgba(9,11,14,.80),rgba(5,6,10,.94) 100%)}
   .pz-head{margin-bottom:26px}
@@ -238,25 +245,30 @@
       <span style="color:#c9a765">锈蚀从祭祀坑的两侧爬上来，守住它。</span>
     </div>
     <div class="ctrls">
-      <div class="cl">
+      <div class="cl cl-kbd">
         <h4>玩家一</h4>
         <div class="row"><span>A D</span>左右移动</div>
         <div class="row"><span>W / 空格</span>跳起</div>
         <div class="row"><span>F / J</span>挥刀 · 连按三连</div>
         <div class="row"><span>Q / E / R</span>换格 / 丢弃 / 递队友</div>
       </div>
-      <div class="cl">
+      <div class="cl cl-kbd">
         <h4>玩家二</h4>
         <div class="row"><span>← →</span>左右移动</div>
         <div class="row"><span>↑ / 右Shift</span>跳起</div>
         <div class="row"><span>/ 或小键盘0</span>挥刀 · 连按三连</div>
         <div class="row"><span>, . '</span>换格 / 丢弃 / 递队友</div>
       </div>
-      <div class="cl">
+      <div class="cl cl-pad">
         <h4>手柄</h4>
         <div class="row"><span>左摇杆</span>左右移动</div>
-        <div class="row"><span>A</span>跳起</div>
-        <div class="row"><span>X / □</span>挥刀</div>
+        <div class="row"><span>A</span>挥刀 · 连按三连</div>
+        <div class="row"><span>X</span>跳起</div>
+        <div class="row"><span>B</span>旋风斩（能量满）</div>
+        <div class="row"><span>Y</span>拾取 / 开箱</div>
+        <div class="row"><span>LB / RB</span>换格</div>
+        <div class="row"><span>十字 ↑ ↓</span>递给队友 / 丢弃</div>
+        <div class="row"><span>A / Start</span>结算页继续</div>
       </div>
     </div>
     <div class="go" id="btnStart"><span class="blink">●</span> 选择模式 · 开打</div>
@@ -468,6 +480,9 @@ window.addEventListener("keydown", function(e){
   KEYS[e.code] = true;
   ac();
 
+  /* H / Esc / M 归别人的监听器（按键说明、暂停、静音），不能顺手把结算页顶掉 */
+  var uiOwned = (e.code === "KeyH" || e.code === "Escape" || e.code === "KeyM");
+
   /* Esc 归暂停。说明抽屉开着时那一下由 ui-shell 在捕获阶段吃掉
      （它会 stopPropagation），所以这里只看 defaultPrevented；
      isKeyHelpOpen 是第二道保险，防止将来监听顺序被改动。 */
@@ -478,14 +493,14 @@ window.addEventListener("keydown", function(e){
   }
 
   if(G.phase==="title") openModeSelect();      /* 标题阶段：改开模式选择页，不再直接开打 */
-  else if(G.phase==="win") restartAll();
+  else if(!uiOwned && (G.phase==="win" || G.phase==="lose")) restartAll();
 });
 window.addEventListener("keyup", function(e){ KEYS[e.code] = false; });
 
 var PADS = [null,null];
-/* 手柄列表与「底部提示按哪个设备显示」都归 js/guide.js 管：
-   它自己轮询、自己判断谁在动、自己改文案。这里只取结果，
-   不再维护第二份「连接数 / pad-mode」状态。 */
+/* 手柄列表与「按哪个设备显示提示」都归 js/guide.js 管：它自己轮询、自己判断
+   谁在动、自己改文案（并且只在连接数或设备真的变了时才动 DOM —— 这一行每帧
+   都会走到，innerHTML 不能每帧重解析）。这里只取结果，不再维护第二份状态。 */
 function scanPads(){
   var list = (window.Guide && window.Guide.pads) ? window.Guide.pads() : [];
   PADS[0] = list[0] || null;
@@ -934,7 +949,48 @@ function updatePaused(dt){
 /* ---------------- 覆盖层 ---------------- */
 var OVS = ["ovTitle","ovClear","ovLose","ovWin","ovPause"];
 function hideOv(){ OVS.forEach(function(id){ document.getElementById(id).classList.remove("on"); }); }
-function showOv(id){ hideOv(); document.getElementById(id).classList.add("on"); }
+
+/* ---------------- 结算页确认输入 ----------------
+   结算页的按钮是 DOM，鼠标点得动，键盘也接上了；手柄此前只在 play 阶段被读，
+   插着手柄的人会卡在失败页 / 通关页出不去。这里补一条独立的手柄确认通道。
+
+   两道闸，缺一不可：
+     ① 必须先见过「全部松开」的一帧 —— 最后那一刀 / 那一下跳还按在手上，
+        直接看按下沿会当场把页面顶掉，玩家连死亡都看不清；
+     ② 结算页起来后至少停留 CONFIRM_ARM 秒，跟 CSS 的 0.32 秒淡入对齐。
+   按 A / B / Start 任意一个都算确认；十字与摇杆不算，避免手抖蹭过去。 */
+var CONFIRM_ARM = 0.40;
+var confirmT = 0;
+var uiPadPrev = [false,false];
+var uiPadSeenUp = [false,false];
+
+function resetConfirm(){
+  confirmT = 0;
+  uiPadPrev[0] = uiPadPrev[1] = false;
+  uiPadSeenUp[0] = uiPadSeenUp[1] = false;
+}
+function padHeld(p, i){
+  if(!p || !p.buttons) return false;
+  var b = p.buttons[i];
+  return !!(b && (b.pressed || b.value > 0.5));
+}
+function padConfirmEdge(){
+  var hit = false;
+  for(var i=0;i<2;i++){
+    var p = PADS[i];
+    var on = p ? (padHeld(p,0) || padHeld(p,1) || padHeld(p,9)) : false;   /* A / B / Start */
+    if(!on) uiPadSeenUp[i] = true;
+    if(on && uiPadSeenUp[i] && !uiPadPrev[i]){ hit = true; uiPadSeenUp[i] = false; }
+    uiPadPrev[i] = on;
+  }
+  return hit;
+}
+
+function showOv(id){
+  hideOv();
+  document.getElementById(id).classList.add("on");
+  resetConfirm();
+}
 document.getElementById("btnStart").addEventListener("click", function(e){ e.stopPropagation(); openModeSelect(); });
 document.getElementById("btnNext").addEventListener("click", function(e){ e.stopPropagation(); nextWave(); });
 document.getElementById("btnRetry").addEventListener("click", function(e){ e.stopPropagation(); startGame(); });
@@ -2214,6 +2270,13 @@ function update(dt){
   }
   else {
     hidePickupHint();     /* 过关 / 失败 / 通关时收起拾取气泡 */
+
+    /* 结算页：手柄确认。键盘走 keydown（见输入段），这里只补手柄那条腿。 */
+    confirmT += dt;
+    if(confirmT >= CONFIRM_ARM && padConfirmEdge()){
+      if(G.phase === "lose" || G.phase === "win") restartAll();
+      else if(G.phase === "clear") nextWave();
+    }
   }
 
   updateParticles(dt);
