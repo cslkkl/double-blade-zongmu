@@ -4201,18 +4201,22 @@ function render(){
     if(hv > 0) window.FX.drawHurtVignette(ctx, W, H, hv*0.8);
   }
 
-  /* 玩家阵亡标记 */
+  /* 玩家阵亡标记。
+     ⚠️ 位置不能放 y=130 —— HUD 卡片（hud-card.webp）实测 y22~199 且 100% 不透明，
+     画在那里等于没画（玩家死了一半却看不到任何提示）。
+     改到画面中上方 y=300：在 HUD 卡片下方、游戏区上方，两人都看得见，
+     也不挡角色（角色脚底 GROUND=706，头顶约 500）。 */
   if(G.p1 && G.p1.dead){
     ctx.fillStyle = "rgba(224,100,90,.9)";
     ctx.font = "700 26px 'Microsoft YaHei',sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText("玩家一倒下", 46, 130);
+    ctx.fillText("玩家一倒下", 46, 300);
   }
   if(G.p2 && G.p2.dead){
     ctx.fillStyle = "rgba(224,100,90,.9)";
     ctx.font = "700 26px 'Microsoft YaHei',sans-serif";
     ctx.textAlign = "right";
-    ctx.fillText("玩家二倒下", W-46, 130);
+    ctx.fillText("玩家二倒下", W-46, 300);
   }
 }
 
