@@ -1120,7 +1120,13 @@
     var STRIDE = { walker: 150, fast: 148, brute: 178, boss: 240 };
     var stride = STRIDE[e.kind] || 150;
     var distPx = num(e.walk, 0) * 38.46;
-    var off = hsh(Math.round(num(e.x, 0) * 0.37) + 1) * n;
+    /* 相位错开：让同屏多个同类敌人不同步（否则一排小兵齐步走，很假）。
+       必须用「生成时就定死」的种子，不能用 e.x ——
+       e.x 每帧都在变，用它算 off 等于每前进 1px 就把相位重新随机一次，
+       腿会疯狂抽搐（实测 walker 每秒换帧 32 次，应 2.93 次，放大 11 倍）。
+       __seed 在 spawn 时写一次，全程不变。 */
+    var seed = (e.__seed != null) ? e.__seed : (e.__seed = Math.floor(num(e.x, 0) * 0.37) + 1);
+    var off = hsh(seed) * n;
     var idx = Math.floor(distPx / stride * n + off) % n;
     if (idx < 0) idx += n;
     st.last = idx;

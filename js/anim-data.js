@@ -277,7 +277,7 @@ window.WEAPON_CLIP = {
     hurt:    { frames: 1, loop: false, fps: 0, w: 361, h: 560, scaleFix: 0.7091,
               footY: 1.0, anchorX: [0.4839],
               files: ["assets/anim/hurt-spear.webp"] },
-    pickup:  { frames: 1, loop: false, fps: 0, w: 361, h: 560, scaleFix: 0.7511,
+    pickup:  { frames: 1, loop: false, fps: 0, w: 361, h: 560, scaleFix: 0.6169,
               footY: 1.0, anchorX: [0.2658],
               files: ["assets/anim/pickup-spear.webp"] }
   },

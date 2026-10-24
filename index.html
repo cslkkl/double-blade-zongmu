@@ -1434,25 +1434,38 @@ function buildHearts(){
     box.appendChild(d);
   });
 }
+/* HUD 元素缓存：这些节点在整局里不会变，每帧 11 次 getElementById
+   在 60fps 下是 660 次/秒的纯浪费。首次取到就记住，之后只读缓存。
+   元素被换掉的情况不存在（buildHearts / syncHUD 都只改子节点内容，
+   不重建这些容器本身）。 */
+var HUD_EL = {};
+function hudEl(id){
+  var e = HUD_EL[id];
+  if(e) return e;
+  e = document.getElementById(id);
+  if(e) HUD_EL[id] = e;
+  return e;
+}
+
 function syncHUD(){
   if(!G.p1) return;
   [["hp1",G.p1,"wp1","en1","wi1","wd1"],["hp2",G.p2,"wp2","en2","wi2","wd2"]].forEach(function(pr){
     if(!pr[1]) return;
-    var box = document.getElementById(pr[0]);
-    var bar = box.firstChild;
+    var box = hudEl(pr[0]);
+    var bar = box && box.firstChild;
     if(bar){
       var pct = clamp(pr[1].hp / Math.max(1, pr[1].maxHp), 0, 1) * 100;
       bar.firstChild.style.width = pct + "%";
       bar.className = "hpbar" + (pct <= 25 ? " low" : "");
     }
     var wpnNow = pr[1].weapon;
-    var wn = document.getElementById(pr[2]);
+    var wn = hudEl(pr[2]);
     if(wn){
       wn.textContent = wpnNow ? wpnNow.name : "空手";
     }
     /* 武器名下面那行：近战显示剩余耐久，投掷显示剩余弹数，空手不显示。
        这是「手里这把还能撑几下」的唯一读数，所以跟着名字走、字小但不省略。 */
-    var wd = document.getElementById(pr[5]);
+    var wd = hudEl(pr[5]);
     if(wd){
       var line = "";
       if(wpnNow && wpnNow.type === "throw"){
@@ -1464,19 +1477,21 @@ function syncHUD(){
       if(wd.innerHTML !== line) wd.innerHTML = line;
     }
     /* 手持武器立绘（56px）：没图就整块 display:none，不留空方块 */
-    drawHudWeaponIcon(document.getElementById(pr[4]), wpIconKey(wpnNow ? wpnNow.key : null));
-    var en = document.getElementById(pr[3]);
-    if(en){
+    drawHudWeaponIcon(hudEl(pr[4]), wpIconKey(wpnNow ? wpnNow.key : null));
+    var en = hudEl(pr[3]);
+    if(en && en.firstChild){
       en.firstChild.style.width = clamp(pr[1].energy,0,100)+"%";
       en.className = "wenergy" + (pr[1].energy >= 100 ? " full" : "");
     }
   });
-  var c = document.getElementById("combo");
-  if(G.comboT > 0 && G.combo >= 2){
-    c.textContent = G.combo + " 连";
-    c.style.opacity = clamp(G.comboT/0.7,0,1);
-  } else {
-    c.textContent = "";
+  var c = hudEl("combo");
+  if(c){
+    if(G.comboT > 0 && G.combo >= 2){
+      c.textContent = G.combo + " 连";
+      c.style.opacity = clamp(G.comboT/0.7,0,1);
+    } else if(c.textContent !== ""){
+      c.textContent = "";
+    }
   }
 }
 
