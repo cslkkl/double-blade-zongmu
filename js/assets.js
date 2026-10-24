@@ -8,7 +8,6 @@
   var MANIFEST = {
     bgFar:       "assets/bg-far.jpg",
     bgMid:       "assets/bg-mid.webp",
-    bgFg:        "assets/bg-fg.webp",
     ground:      "assets/ground.webp",
     sacredTree:  "assets/props/sacred-tree.webp",
     maskRelief:  "assets/props/mask-relief.webp",

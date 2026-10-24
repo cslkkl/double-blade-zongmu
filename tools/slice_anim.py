@@ -402,9 +402,8 @@ def main():
 
 def run_enemy():
     """--only enemy：委托给 tools/slice_enemy_anim.py（它只覆盖 enemy-*/boss-* 帧）。"""
-    here = os.path.dirname(os.path.abspath(__file__))
-    if here not in sys.path:
-        sys.path.insert(0, here)
+    if HERE not in sys.path:
+        sys.path.insert(0, HERE)
     print("委托 tools/slice_enemy_anim.py 处理敌人帧")
     import slice_enemy_anim
     slice_enemy_anim.main()

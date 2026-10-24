@@ -2,10 +2,12 @@
    三星堆 · 多层视差背景模块（独立文件，只画背景）
    ---------------------------------------------------------------------
    对外契约：
-     window.Background.draw(ctx, camX, W, H, groundY, worldW)
+     window.Background.draw(ctx, camX, W, H, groundY, worldW)   -> bool
+     window.Background.drawFront(ctx, camX, W, H, groundY, worldW) -> bool
      window.Background.ready()  ->  bool
+     window.Background.occluders() -> [{ x, w, top }]
 
-   层次（由远及近，系数越大移动越快）：
+   draw() 画「角色之前」的层（由远及近，系数越大移动越快）：
      1. 远景 bgFar    视差 0.20   横向平铺，交替镜像
      2. 天空光晕      （叠在远景之上，lighter）
      3. 土黄雾        （远景 -> 中景之间，从地面向上淡出）
@@ -13,11 +15,17 @@
      5. 静物道具 × 11 视差 1.00   底部贴 groundY，散在世界坐标上
      6. 地面 ground   视差 1.00   顶部对齐 groundY，横向平铺，交替镜像
      7. 地面线        （深色描边 + 极淡暖金）
-     8. 前景 bgFg     视差 1.30   贴屏幕底部，横向平铺，交替镜像
-     9. 暗角          （四周压暗，中间透明）
+     8. 暗角          （四周压暗，中间透明）
 
-   调用方已经把 ctx 清空、并可能做过震屏平移；本模块只在屏幕坐标系里
-   用 camX 计算各层偏移，不做任何 translate 到世界坐标的操作。
+   drawFront() 画「角色之后」的真正前景遮挡层，必须等角色、刀光、粒子
+   全部落屏后再调用，否则起不到遮挡作用：
+     · 5 座高大遮挡物（祭旗 / 编钟 / 玉璋碑 / 铜鼎 / 神树），视差 1.00
+     · 底部贴 groundY，高度 320~366px（角色 252px，全部高于角色）
+     · 素材缺失时逐个回落到纯代码石柱，不白屏、不抛错
+
+   坐标约定：本模块只在屏幕坐标系里用 camX 计算偏移，不做 translate 到
+   世界坐标。occluders() 的 x 是世界坐标（方便和实体 p.x 直接比），
+   top 是遮挡物顶部的屏幕 y。
    所有绘制 ctx.save() / ctx.restore() 成对，颜色/合成模式不泄漏到外部。
    ===================================================================== */
 (function (global) {
@@ -26,10 +34,10 @@
   /* ------------------------------------------------------------------
      视差系数
      ------------------------------------------------------------------ */
-  var P_FAR    = 0.20;   // 远景
-  var P_MID    = 0.50;   // 中景
-  var P_GROUND = 1.00;   // 地面（与世界同速）
-  var P_FG     = 1.30;   // 前景（比世界更快，拉出纵深）
+  var P_FAR      = 0.20;   // 远景
+  var P_MID      = 0.50;   // 中景
+  var P_GROUND   = 1.00;   // 地面（与世界同速）
+  var P_OCCLUDER = 1.00;   // 前景遮挡物：与世界同速，遮挡关系才对得上 x
 
   /* ------------------------------------------------------------------
      常量 / 默认值
@@ -62,9 +70,32 @@
   ];
 
   /* 需要参与 ready() 判定的图 */
-  var CORE_KEYS = ["bgFar", "bgMid", "ground", "bgFg"];
+  var CORE_KEYS = ["bgFar", "bgMid", "ground"];
   var PROP_KEYS = ["sacredTree", "maskRelief", "brazier", "potteryJar",
                    "banner", "bellCluster", "jadeTablet"];
+
+  /* ------------------------------------------------------------------
+     前景遮挡物（drawFront 专用，画在角色之后）
+     ------------------------------------------------------------------
+     x   ：世界坐标中心（视差 1.00，所以屏幕 x = x - camX）
+     w   ：遮挡判定宽度；w * 0.42 是「角色算被挡住」的半宽
+     h   ：绘制高度，全部 >= 320px，高于角色 252px
+     w / h 按素材真实像素比例配准，所以按比例 contain 进 w × h 的框后，
+     实际绘制高度就是 h，不会被压矮：
+       banner      246×460 → 0.535
+       bellCluster 305×460 → 0.663
+       jadeTablet  452×460 → 0.983
+       brazier     460×440 → 1.045
+       sacredTree  460×364 → 1.264
+     分布刻意避开出生点 560 / 700（玩家一 560、玩家二 700）。
+     ------------------------------------------------------------------ */
+  var OCCLUDERS = [
+    { k: "banner",      x:   400, h: 350, w: 187, flip: true  },  // 祭旗
+    { k: "bellCluster", x:  1050, h: 320, w: 212, flip: false },  // 编钟
+    { k: "jadeTablet",  x:  1750, h: 366, w: 360, flip: false },  // 玉璋碑
+    { k: "brazier",     x:  2450, h: 330, w: 345, flip: true  },  // 铜鼎
+    { k: "sacredTree",  x:  3050, h: 364, w: 460, flip: false }   // 神树
+  ];
 
   /* ------------------------------------------------------------------
      图片工具
@@ -100,7 +131,7 @@
     return im.complete === true;
   }
 
-  /* 四张核心图全部可绘制才算素材背景成立 */
+  /* CORE_KEYS 全部可绘制才算素材背景成立（核心清单见顶部 CORE_KEYS） */
   function coreUsable() {
     var I = global.IMG;
     if (!I) return false;
@@ -335,17 +366,11 @@
   }
 
   /* ==================================================================
-     主绘制
+     前景遮挡层（drawFront 专用：画在角色、刀光、粒子之后）
      ================================================================== */
-  /* 返回值：true = 已完整绘制素材背景；false = 一张都没画，调用方必须回落到 drawBG()。
-     返回 false 时不会留下任何像素（判定在绘制之前），所以调用方可以直接补画。 */
-  function draw(ctx, camX, W, H, groundY, worldW) {
-    if (!ctx) return false;
 
-    /* ---- 兜底闸门：四张核心图任一不可用就整个放弃，交给纯代码背景 ---- */
-    if (!coreUsable()) return false;
-
-    /* ---- 参数归一（调用方传错也不炸） ---- */
+  /* 参数归一：draw 与 drawFront 共用，调用方传错也不炸 */
+  function normParams(camX, W, H, groundY, worldW) {
     _camX    = (typeof camX === "number" && isFinite(camX)) ? camX : 0;
     _W       = (typeof W === "number" && W > 0) ? W : DEF_W;
     _H       = (typeof H === "number" && H > 0) ? H : DEF_H;
@@ -353,6 +378,172 @@
     _worldW  = (typeof worldW === "number" && worldW > 0) ? worldW : DEF_WORLD;
     if (_groundY < 0) _groundY = 0;
     if (_groundY > _H) _groundY = _H;
+  }
+
+  /* 纯代码兜底石柱：素材缺失时也不留空洞。
+     seed 只用来做确定性微差异，不依赖随机数，同一帧重绘结果一致。 */
+  function drawStonePillar(ctx, cx, top, w, h, seed) {
+    var half = w * 0.5;
+    var wob = (seed % 3) * 3;                          // 柱身收分微差
+
+    /* 柱身：中间受光，两侧压暗 */
+    var pg = ctx.createLinearGradient(cx - half, 0, cx + half, 0);
+    pg.addColorStop(0,    "#150f09");
+    pg.addColorStop(0.34, "#3b2e1e");
+    pg.addColorStop(0.58, "#4a3a26");
+    pg.addColorStop(0.82, "#2a2015");
+    pg.addColorStop(1,    "#120d08");
+    ctx.fillStyle = pg;
+    ctx.beginPath();
+    ctx.moveTo(cx - half + wob * 0.5, top + 16);
+    ctx.lineTo(cx + half - wob * 0.5, top + 10);
+    ctx.lineTo(cx + half + wob, _groundY);
+    ctx.lineTo(cx - half - wob, _groundY);
+    ctx.closePath();
+    ctx.fill();
+
+    /* 柱头 */
+    ctx.fillStyle = "#241b12";
+    ctx.fillRect(cx - w * 0.62, top - 4, w * 1.24, 22);
+
+    /* 纵目刻纹：一对凸起的大眼，三星堆符号 */
+    var ey = top + h * 0.24;
+    var ew = Math.min(34, w * 0.26);
+    ctx.fillStyle = "#6b5731";
+    ctx.beginPath();
+    ctx.ellipse(cx, ey, ew, ew * 0.52, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1a130b";
+    ctx.beginPath();
+    ctx.ellipse(cx, ey, ew * 0.5, ew * 0.26, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    /* 横向凿痕，给柱身一点层次 */
+    ctx.strokeStyle = "rgba(10,7,4,0.55)";
+    ctx.lineWidth = 2;
+    for (var i = 1; i <= 4; i++) {
+      var ly = top + h * (0.36 + i * 0.12);
+      ctx.beginPath();
+      ctx.moveTo(cx - half * 0.7, ly);
+      ctx.lineTo(cx + half * 0.7, ly);
+      ctx.stroke();
+    }
+  }
+
+  /* 单个遮挡物：落地阴影 + 基座 + 素材（缺失则石柱） */
+  function drawOccluder(ctx, o, seed) {
+    var boxW = o.w, boxH = o.h;
+    var sx = o.x - _camX * P_OCCLUDER;                 // 世界坐标 -> 屏幕坐标
+    var halfW = Math.min(boxW, o.w) * 0.5;
+
+    /* 视口剔除：连带着一点余量，避免边缘闪现 */
+    if (sx + halfW < -120 || sx - halfW > _W + 120) return;
+
+    var top = _groundY - boxH;
+
+    /* 落地阴影 */
+    var sp = shadowSprite();
+    if (sp) {
+      var rw = Math.max(46, boxW * 0.52);
+      ctx.save();
+      ctx.globalAlpha = 0.62;
+      ctx.drawImage(sp, sx - rw, _groundY - rw * 0.28, rw * 2, rw * 0.56);
+      ctx.restore();
+    }
+
+    /* 基座：横在角色脚前，读作「近处的东西」 */
+    var pw = boxW * 1.18;
+    var pg = ctx.createLinearGradient(0, _groundY - 20, 0, _groundY + 10);
+    pg.addColorStop(0, "rgba(58,44,28,0.92)");
+    pg.addColorStop(0.62, "rgba(30,22,14,0.95)");
+    pg.addColorStop(1, "rgba(12,9,6,0.9)");
+    ctx.save();
+    ctx.fillStyle = pg;
+    ctx.beginPath();
+    ctx.moveTo(sx - pw * 0.5, _groundY - 16);
+    ctx.lineTo(sx + pw * 0.5, _groundY - 16);
+    ctx.lineTo(sx + pw * 0.42, _groundY + 10);
+    ctx.lineTo(sx - pw * 0.42, _groundY + 10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    /* 本体：素材按比例 contain 进 w × h 的框，底部贴 groundY */
+    var im = img(o.k);
+    var drawn = false;
+    if (okImg(im)) {
+      var iw = imgW(im), ih = imgH(im);
+      if (iw > 0 && ih > 0) {
+        var sc = Math.min(boxW / iw, boxH / ih);
+        var dw = iw * sc, dh = ih * sc;
+        var left = sx - dw * 0.5;
+        var dy = _groundY - dh;
+        if (o.flip) {
+          ctx.save();
+          ctx.translate(left + dw, dy);
+          ctx.scale(-1, 1);
+          ctx.drawImage(im, 0, 0, dw, dh);
+          ctx.restore();
+        } else {
+          ctx.drawImage(im, left, dy, dw, dh);
+        }
+        drawn = true;
+      }
+    }
+    if (!drawn) drawStonePillar(ctx, sx, top, boxW, boxH, seed);
+
+    /* 底部压暗：让遮挡物和地面咬合，避免「贴纸浮空」 */
+    ctx.save();
+    var gb = ctx.createLinearGradient(0, _groundY - 84, 0, _groundY + 6);
+    gb.addColorStop(0, "rgba(6,5,4,0)");
+    gb.addColorStop(1, "rgba(6,5,4,0.44)");
+    ctx.fillStyle = gb;
+    ctx.fillRect(sx - pw * 0.55, _groundY - 84, pw * 1.1, 90);
+    ctx.restore();
+  }
+
+  /* 只画前景遮挡。调用方必须在角色之后调用。 */
+  function drawFront(ctx, camX, W, H, groundY, worldW) {
+    if (!ctx) return false;
+    normParams(camX, W, H, groundY, worldW);
+
+    /* 背景素材没就绪时整层不画：不留半成品，也不抛错 */
+    if (!ready()) return false;
+
+    for (var i = 0; i < OCCLUDERS.length; i++) {
+      drawOccluder(ctx, OCCLUDERS[i], i);
+    }
+    return true;
+  }
+
+  /* 查询接口：给 index.html 判断「这个 x 的角色是否被挡」
+     返回 [{ x, w, top }]，x 是世界坐标中心，top 是遮挡物顶部的屏幕 y。
+     遮挡层画不出来（ready() 为假 → drawFront 直接返回）时返回空数组：
+     否则角色会在没有任何遮挡物的情况下变半透明，变成幽灵。 */
+  function occluders() {
+    var out = [];
+    if (!ready()) return out;
+    for (var i = 0; i < OCCLUDERS.length; i++) {
+      var o = OCCLUDERS[i];
+      out.push({ x: o.x, w: o.w, top: _groundY - o.h });
+    }
+    return out;
+  }
+
+  /* ==================================================================
+     主绘制
+     ================================================================== */
+  /* 返回值：true = 已完整绘制素材背景；false = 一张都没画，调用方必须回落到 drawBG()。
+     返回 false 时不会留下任何像素（判定在绘制之前），所以调用方可以直接补画。 */
+  function draw(ctx, camX, W, H, groundY, worldW) {
+    if (!ctx) return false;
+
+    /* ---- 参数归一（先归一，occluders() 才能拿到当帧的 camX / groundY） ---- */
+    normParams(camX, W, H, groundY, worldW);
+
+    /* ---- 兜底闸门：三张核心图任一不可用就整个放弃，交给纯代码背景 ---- */
+    if (!coreUsable()) return false;
+
 
     /* ---- 0. 兜底底色（图没到位时不至于整屏黑） ---- */
     ctx.save();
@@ -413,14 +604,11 @@
     /* ---- 7. 地面线 ---- */
     drawGroundLine(ctx);
 
-    /* ---- 8. 前景（视差 1.30）：贴屏幕底部 ---- */
-    var fg = img("bgFg");
-    if (okImg(fg)) {
-      drawLayer(ctx, fg, P_FG, _W, _H, 0, true, 1);
-    }
-
-    /* ---- 9. 暗角 ---- */
+    /* ---- 8. 暗角 ---- */
     drawVignette(ctx);
+
+    /* 前景遮挡不在这里画：它必须盖在角色之上，由调用方在角色落屏后
+       调 Background.drawFront() —— 见本文件顶部说明。 */
 
     return true;                                      // 素材背景已完整落屏
   }
@@ -445,6 +633,11 @@
   /* ==================================================================
      导出
      ================================================================== */
-  global.Background = { draw: draw, ready: ready };
+  global.Background = {
+    draw: draw,
+    drawFront: drawFront,
+    occluders: occluders,
+    ready: ready
+  };
 
 })(window);

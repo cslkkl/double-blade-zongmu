@@ -10,11 +10,12 @@
 
 ## assets.js
 
-- 职责：清单式预加载 25 张静态图到 `window.IMG`，失败不阻塞启动。
+- 职责：清单式预加载 24 张静态图到 `window.IMG`，失败不阻塞启动。
 - 关键导出：`window.Assets = { load, MANIFEST }`，`load()` 返回 `Promise<{loaded, failed}>`。
 - 依赖谁：只用浏览器 `Image`，不依赖任何本地模块。
 - 被谁依赖：`background.js`、`fx.js`、`enemies-assets.js` 读 `window.IMG`；`char-rig.js` 降级读 `IMG.pose0`；`index.html` 启动时调 `load()` 并只打印结果。
 - 关键约束：`MANIFEST` 只收静态图；逐帧动画的帧图由 `anim-data.js` 自己列，不在这里。
+- 关键约束：`bgFg`（`assets/bg-fg.webp`，16:9 整图前景）已从清单移除，前景遮挡改由 `background.js` 的 `drawFront()` 用道具素材在世界坐标排布；该 webp 文件保留在 `assets/` 里备回滚，不参与加载。
 - 改后必测：新增键必须同时确认消费方读得到；删键前 grep 全仓确认无人引用。
 
 ## anim-data.js
@@ -29,11 +30,11 @@
 ## background.js
 
 - 职责：多层视差背景（远景 / 天光 / 雾 / 中景 / 道具 / 地面 / 地面线 / 前景 / 暗角）。
-- 关键导出：`window.Background = { draw(ctx, camX, W, H, groundY, worldW) → bool, ready() → bool }`。
-  `draw()` 返回 `false` = 一像素都没画，调用方必须补 `drawBG()`；`ready()` 对 4 张核心图判 `complete && naturalWidth > 0`，加载失败与加载中都为假。
-- 依赖谁：`window.IMG` 的 4 张背景 + 7 个道具键。
+- 关键导出：`window.Background = { draw(ctx, camX, W, H, groundY, worldW) → bool, drawFront(...) → bool, occluders() → [{x,w,top}], ready() → bool }`。
+  `draw()` / `drawFront()` 返回 `false` = 一像素都没画，调用方必须补 `drawBG()`；`ready()` 对 `CORE_KEYS`（远景 / 中景 / 地面）判 `complete && naturalWidth > 0`，加载失败与加载中都为假。
+- 依赖谁：`window.IMG` 的 3 张核心背景 + 7 个道具键 + 前景遮挡素材。
 - 被谁依赖：`index.html` 的 `render()`；`ready()` 为假或 `draw()` 返回 `false` 时回落到内联 `drawBG()`。
-- 关键约束：只在屏幕坐标系算偏移，不做世界坐标平移；道具世界坐标写在模块内 `PROPS`；`save/restore` 必须成对；道具加载失败不阻塞背景整体，由 `drawProps` 逐张剔除。
+- 关键约束：只在屏幕坐标系算偏移，不做世界坐标平移；道具世界坐标写在模块内 `PROPS`；`save/restore` 必须成对；道具与前景遮挡物加载失败不阻塞背景整体，各自逐张回落纯代码。
 - 改后必测：四档视差系数、道具底部是否贴 `GROUND`、`ready()` 对新键的判定、核心图任一失败时是否整层让位给 `drawBG()`。
 
 ## char-rig.js
@@ -43,7 +44,8 @@
 - 依赖谁：`window.ANIM`、`window.IMG.pose0`（降级）。
 - 被谁依赖：`index.html` 的 `drawPlayer()`；`ready()` 为假则回落到内联 `drawFighter()`。
 - 关键约束：`pickClip()` 的状态优先级不能乱；`attack` 帧号必须由 `swingT / swingDur` 推导；`tint` 与 `frameCache` 只在预热与首次用时建。
-- 改后必测：`pickClip` 九种状态的映射、`attack` 与判定同步、帧图缺失时是否落到 `pose0` 再到纯代码。
+- 关键约束：可选字段 `p.__alphaMul`（缺省 1）是前景遮挡淡出的通道 —— 本模块会绝对赋值 `globalAlpha`，外层包一层无效，因子必须在这里乘进 `alpha`；`index.html` 的 `drawPlayer()` 设置后要立刻复位成 1。
+- 改后必测：`pickClip` 九种状态的映射、`attack` 与判定同步、帧图缺失时是否落到 `pose0` 再到纯代码、`__alphaMul` 在帧图与降级两条路径上都生效。
 
 ## enemies-assets.js
 
@@ -80,8 +82,8 @@
 |---|---|
 | `anim-data.js` | `char-rig` 的 `CLIPS`、`enemies-assets` 的 `KINDS`、`scaleFix` 是否仍需校正 |
 | `assets.js` | `background` 的 `PROPS`/`CORE_KEYS`/`PROP_KEYS`、`fx` 的 `ready()` 名单、`char-rig` 的 `pose0` 降级 |
-| `background.js` | `index.html` 的 `Background.ready()` 守卫、内联 `drawBG()` 兜底常量 |
-| `char-rig.js` | `index.html` 的 `drawPlayer()` 守卫、`Player` 字段（`swingT / swingDur / throwT / whirlT / hurtT / onGround`）是否改名 |
+| `background.js` | `index.html` 的 `Background.ready()` 守卫、`drawFront()` 的调用位置（必须在角色之后）、内联 `drawBG()` 兜底常量、`OCCLUDERS` 的 `w/h` 是否仍与素材比例配准 |
+| `char-rig.js` | `index.html` 的 `drawPlayer()` 守卫、`__alphaMul` 是否仍被乘进 `alpha`、`Player` 字段（`swingT / swingDur / throwT / whirlT / hurtT / onGround`）是否改名 |
 | `enemies-assets.js` | 跑 `selftest_enemies.mjs`；`Enemy` 的 `kind / scale / w / h / maxHp / state` 字段是否改名 |
 | `fx.js` | `index.html` 三处 `FX.*` 调用与 `FX.ready()` 守卫 |
 | `ui-shell.js` | `index.html` 四个调用点、`body.solo` 样式、`UIShell` 未加载时的降级分支 |
