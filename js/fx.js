@@ -36,6 +36,55 @@
     return img;
   }
 
+  /* ------------------------------------------------- 武器专属特效图缓存
+     WEAPON_FX / HIT_MATERIAL 里的图不在 assets.js 的清单里（那张清单只管
+     界面与世界道具），这里按 file 路径自建 Image：**只在首次用到时建一次**，
+     draw 热路径只读缓存，绝不 new Image。
+     返回 null = 还没就绪 / 已失败 → 调用方回落通用刀光或纯代码弧光。 */
+  var fxCache = Object.create ? Object.create(null) : {};
+
+  function fxImg(file) {
+    if (!file) return null;
+    var img = fxCache[file];
+    if (!img) {
+      if (typeof Image !== "function") return null;
+      img = new Image();
+      img.src = file;
+      fxCache[file] = img;
+      return null;                 // 刚建出来必然没就绪，这一帧走降级
+    }
+    if (img.complete === false) return null;
+    if (typeof img.naturalWidth === "number" && img.naturalWidth <= 0) return null;
+    return img;
+  }
+
+  function weaponFxOf(key) {
+    var W = global.WEAPON_FX;
+    if (!W || !key) return null;
+    var d = W[key];
+    if (!d || !d.file) return null;
+    return d;
+  }
+
+  function matImage(mat) {
+    var M = global.HIT_MATERIAL;
+    if (!M || !mat) return null;
+    var file = M[mat];
+    if (!file) return null;
+    return fxImg(file);
+  }
+
+  /* 武器专属刀光是否可用（index.html 用它决定要不要挂 wkey） */
+  function weaponFxReady(key) {
+    var d = weaponFxOf(key);
+    if (!d) return false;
+    return !!fxImg(d.file);
+  }
+
+  function matHitReady(mat) {
+    return !!matImage(mat);
+  }
+
   function roundRect(ctx, x, y, w, h, r) {
     var rr = Math.min(r, Math.abs(w) * 0.5, Math.abs(h) * 0.5);
     ctx.beginPath();
@@ -52,6 +101,28 @@
   }
 
   /* ------------------------------------------------ 刀光：图片 + 降级 */
+
+  /* 武器专属刀光的色相：同一套弧光图，靠这层描边把「玉 / 青铜 / 钝击 /
+     破空 / 投掷」区分开。图本身已经各画各的形状，这里再补一线彩色刃光，
+     保证在暗背景上也一眼分得出拿的是哪把刀。 */
+  var WPN_RIM = {
+    short:  "rgba(216,242,228,.95)",
+    dagger: "rgba(232,240,236,.95)",
+    blade:  "rgba(205,233,214,.95)",
+    sword:  "rgba(255,222,150,.95)",
+    axe:    "rgba(255,196,120,.95)",
+    spear:  "rgba(214,240,255,.95)",
+    hammer: "rgba(238,196,132,.95)",
+    bow:    "rgba(190,236,255,.95)",
+    rock:   "rgba(216,206,190,.95)",
+    jar:    "rgba(255,176,102,.95)",
+    bell:   "rgba(159,208,168,.95)"
+  };
+
+  /* 投掷与弓箭没有「挥砍弧」，它们的手上动作不该出现金色月牙：
+     这两种类型的特效走弹道（见 index.html 的 drawProjectileFx），
+     这里直接不出图，避免手里凭空炸一道弧。 */
+  var NO_ARC = { bow: 1, rock: 1, blade: 1, jar: 1, bell: 1 };
 
   function slashImageFor(s) {
     if (s.big) return { img: imgOf("slash3"), scale: 1.0, r: 126 };
@@ -127,7 +198,9 @@
 
   /* ================================================================
    * drawSlash(ctx, s)
-   * s: { x, y, facing, life, max, big }
+   * s: { x, y, facing, life, max, big, seg, wkey }
+   *   wkey 可选：手上那把刀的 key。给了就走 WEAPON_FX 的专属刀光，
+   *   没给 / 图没就绪 / 该武器压根不出弧（弓与投掷物）→ 走通用三档。
    * ================================================================ */
   function drawSlash(ctx, s) {
     if (!ctx || !s) return;
@@ -136,6 +209,13 @@
     var life = clamp(num(s.life, 0), 0, max);
     var t = clamp(1 - life / max, 0, 1);       // 0 = 刚出现，1 = 消散
     var facing = (num(s.facing, 1) < 0) ? -1 : 1;
+
+    var wkey = s.wkey ? String(s.wkey) : "";
+    if (wkey && NO_ARC[wkey]) return;          // 弓 / 投掷：弧不归手上这一刀管
+
+    var wfx = wkey ? weaponFxOf(wkey) : null;
+    var wimg = wfx ? fxImg(wfx.file) : null;
+    if (wimg) { drawWeaponSlash(ctx, s, t, facing, wkey, wfx, wimg); return; }
 
     var pick = slashImageFor(s);
     var scale = pick.scale * (0.7 + 0.45 * t);          // 0.7 → 1.15
@@ -191,9 +271,100 @@
     ctx.restore();
   }
 
+  /* 武器专属刀光：形状随武器（图各画各的），色相随材质（WPN_RIM 补一线刃光）。
+     r 是「弧的视觉半径」，按图高换算显示尺寸，所以同一把刀在 1x / 2x 屏上
+     观感一致；swing 的扫势仍由 t 推导，和判定同步。 */
+  function drawWeaponSlash(ctx, s, t, facing, wkey, def, img) {
+    var r = num(def.r, 110);
+    var base = num(def.scale, 1.0);
+    var alpha = Math.pow(1 - t, 0.82);
+    var grow = 0.78 + 0.34 * t;                 // 起手小、出刀最大
+
+    var iw = img.naturalWidth || img.width || 200;
+    var ih = img.naturalHeight || img.height || 200;
+    var dh = r * 1.55 * base * grow;
+    var dw = dh * (iw / (ih || 1));
+
+    var angle = -0.34 + t * 0.72;               // 比通用档略收，避免压过角色
+    var rim = WPN_RIM[wkey] || GOLD_HI;
+    var big = !!s.big;
+
+    ctx.save();
+    ctx.translate(num(s.x, 0), num(s.y, 0));
+    if (facing < 0) ctx.scale(-1, 1);
+    ctx.rotate(angle);
+
+    /* 底色光晕：按武器半径收放，重武器更亮 */
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    var g = ctx.createRadialGradient(0, 0, r * 0.16, 0, 0, r * 1.22 * grow);
+    var peak = (big ? 0.34 : 0.24) * alpha;
+    g.addColorStop(0, "rgba(255,250,235,0)");
+    g.addColorStop(0.46, rim.replace(/[\d.]+\)$/, (peak * 0.7).toFixed(3) + ")"));
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.22 * grow, -1.42, 0.34);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    var ox = -dw * 0.42;
+    var oy = -dh * 0.50;
+
+    ctx.globalAlpha = alpha;
+    try {
+      ctx.drawImage(img, ox, oy, dw, dh);
+    } catch (e) {
+      ctx.restore();
+      drawFallbackSlash(ctx, r, t);
+      return;
+    }
+
+    /* 提亮一层：素材自带描边，这一层只负责「发光」 */
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = alpha * 0.34;
+    try { ctx.drawImage(img, ox - dw * 0.02, oy - dh * 0.02, dw * 1.04, dh * 1.04); } catch (e) {}
+    ctx.restore();
+
+    /* 材质色刃光：沿弧扫一条，把玉 / 青铜 / 钝击在暗底上分开 */
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = alpha * 0.62;
+    ctx.strokeStyle = rim;
+    ctx.lineWidth = Math.max(1.4, r * 0.045 * grow);
+    ctx.lineCap = "round";
+    var arcSpan = num(def.arc, 1.0);
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.86 * grow,
+            -0.92 + t * 0.30,
+            -0.92 + t * 0.30 + arcSpan * (big ? 1.02 : 0.92));
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.restore();
+  }
+
+  /* 打击火花的材质配色（RGB 三元组字符串，拼进 rgba() 用） */
+  var HIT_CORE = {
+    jade:   "226,246,236",
+    bronze: "255,238,196",
+    blunt:  "240,214,168",
+    airy:   "214,242,255"
+  };
+  var HIT_MID = {
+    jade:   "150,214,186",
+    bronze: "232,186,86",
+    blunt:  "186,148,92",
+    airy:   "146,206,236"
+  };
+
   /* ================================================================
    * 打击火花：命中瞬间在受击点炸开
-   * s: { x, y, life, max, big }
+   * s: { x, y, life, max, big, mid, mat }
+   *   mat 可选（jade / bronze / blunt / airy）：给了且有图就走材质专属火花，
+   *   否则沿用通用的三档（hit1/hit2/hit3）。
    * ================================================================ */
   function drawHit(ctx, s) {
     if (!ctx || !s) return;
@@ -202,22 +373,26 @@
     var life = clamp(num(s.life, 0), 0, max);
     var t = clamp(1 - life / max, 0, 1);
 
+    var matImg = matImage(s.mat);
     var idx = s.big ? 3 : (s.mid ? 2 : 1);
-    var img = imgOf("hit" + idx);
+    var img = matImg || imgOf("hit" + idx);
     var scale = (s.big ? 1.15 : 0.85) * (0.6 + 0.75 * t);
-    var alpha = Math.pow(1 - t, 0.7);
 
     var x = num(s.x, 0), y = num(s.y, 0);
 
-    /* 底层暖光 */
+    /* 底层暖光：材质不同，芯色不同 —— 玉是冷白、青铜是金、钝击是土黄 */
+    var core = HIT_CORE[s.mat] || "255,246,214";
+    var mid = HIT_MID[s.mat] || "232,200,126";
+    var alpha = Math.pow(1 - t, 0.7);
+
     ctx.save();
     ctx.translate(x, y);
     ctx.globalCompositeOperation = "lighter";
     var r = (s.big ? 120 : 78) * (0.6 + 0.6 * t);
     var gr = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
-    gr.addColorStop(0, "rgba(255,246,214," + (0.55 * alpha).toFixed(3) + ")");
-    gr.addColorStop(0.5, "rgba(232,200,126," + (0.22 * alpha).toFixed(3) + ")");
-    gr.addColorStop(1, "rgba(232,200,126,0)");
+    gr.addColorStop(0, "rgba(" + core + "," + (0.55 * alpha).toFixed(3) + ")");
+    gr.addColorStop(0.5, "rgba(" + mid + "," + (0.22 * alpha).toFixed(3) + ")");
+    gr.addColorStop(1, "rgba(" + mid + ",0)");
     ctx.fillStyle = gr;
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
@@ -243,6 +418,57 @@
     ctx.globalAlpha = alpha * 0.45;
     try { ctx.drawImage(img, -dw * 0.51, -dh * 0.51, dw * 1.02, dh * 1.02); } catch (e) {}
     ctx.restore();
+  }
+
+  /* ================================================================
+   * 弹道特效：箭矢 / 投掷物背后的专属速度痕
+   * s: { x, y, vx, vy, kind, spin, alpha }
+   *   kind 就是投掷物的 wkey（bow / rock / blade / jar / bell）。
+   *   箭走「顺速度方向拉伸」，投掷物走「轻微旋转的残影」——
+   *   手感差别一眼看得出，同时它也是 WEAPON_FX 那几张图的第二种用法。
+   * ================================================================ */
+  function drawProjFx(ctx, s) {
+    if (!ctx || !s) return false;
+    var kind = s.kind ? String(s.kind) : "";
+    var def = weaponFxOf(kind);
+    if (!def) return false;
+    var img = fxImg(def.file);
+    if (!img) return false;
+
+    var iw = img.naturalWidth || img.width || 200;
+    var ih = img.naturalHeight || img.height || 200;
+    var alpha = clamp(num(s.alpha, 1), 0, 1);
+    var vx = num(s.vx, 1), vy = num(s.vy, 0);
+    var sp = Math.sqrt(vx * vx + vy * vy) || 1;
+
+    ctx.save();
+    ctx.translate(num(s.x, 0), num(s.y, 0));
+
+    if (kind === "bow") {
+      /* 箭：尾巴朝后，长向就是速度方向；按速度做水平拉伸 */
+      var ang = Math.atan2(vy, vx);
+      var len = num(def.r, 100) * (0.9 + Math.min(0.6, sp / 2400));
+      var hh = len * (ih / (iw || 1)) * 0.55;
+      ctx.rotate(ang);
+      ctx.globalAlpha = alpha * 0.9;
+      ctx.globalCompositeOperation = "lighter";
+      try { ctx.drawImage(img, -len * 0.72, -hh * 0.5, len, hh); } catch (e) {}
+    } else {
+      /* 投掷物：图在物体后方拖出一段，越靠后越淡 */
+      var dir = vx >= 0 ? 1 : -1;
+      var size = num(def.r, 100) * 0.78;
+      var dh = size * (ih / (iw || 1));
+      ctx.scale(dir, 1);
+      ctx.rotate(num(s.spin, 0) * 0.5);
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = alpha * 0.5;
+      try { ctx.drawImage(img, -size * 0.86, -dh * 0.5, size, dh); } catch (e) {}
+      ctx.globalAlpha = alpha * 0.28;
+      try { ctx.drawImage(img, -size * 1.24, -dh * 0.62, size * 1.16, dh * 1.24); } catch (e) {}
+    }
+
+    ctx.restore();
+    return true;
   }
 
   /* ================================================================
@@ -570,8 +796,11 @@
     drawSlash: drawSlash,
     drawHit: drawHit,
     drawWhirl: drawWhirl,
+    drawProjFx: drawProjFx,
     drawHudPanel: drawHudPanel,
     drawHurtVignette: drawHurtVignette,
+    weaponFxReady: weaponFxReady,
+    matHitReady: matHitReady,
     ready: ready
   };
 })(window);
