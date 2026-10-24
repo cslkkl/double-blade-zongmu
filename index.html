@@ -110,6 +110,13 @@
     background:rgba(14,11,7,.66);border:1px solid rgba(217,180,94,.22);
     text-shadow:0 1px 3px rgba(0,0,0,.95)}
   #keys b{color:#f0d99c;font-weight:600}
+  /* 底部提示按当前输入设备切换：接上手柄看手柄键位，纯键盘看键盘键位。
+     两套都写在 DOM 里，靠 body 上的类互斥显示，不重建节点。 */
+  #keysPad{display:none}
+  body.pad-mode #keysKbd{display:none}
+  body.pad-mode #keysPad{display:block}
+  body.pad-mode #keys{background:rgba(11,16,10,.72);border-color:rgba(158,222,132,.24)}
+  body.pad-mode #keys b{color:#9ede84}
   #pad{position:absolute;right:28px;bottom:22px;font-size:11px;letter-spacing:.06em;
     color:#b6a883;text-align:right;line-height:1.9;padding:9px 14px;border-radius:3px;
     background:rgba(14,11,7,.66);border:1px solid rgba(217,180,94,.22);
@@ -194,10 +201,16 @@
       <div id="wave">第 1 阵</div>
     </div>
     <div id="keys">
-      <b>玩家一</b> A D 走 · W/空格 跳 · F/J 挥刀（连按三连） · <b>Q</b> 换格 · <b>E</b> 丢弃 · <b>R</b> 递队友<br>
-      <b>玩家二</b> ← → 走 · ↑/右Shift 跳 · / 或小键盘0 挥刀 · <b>,</b> 换格 · <b>.</b> 丢弃 · <b>'</b> 递队友
+      <div id="keysKbd">
+        <b>玩家一</b> A D 走 · W/空格 跳 · F/J 挥刀兼拾取 · <b>Q</b> 换格 · <b>Tab</b> 反向 · <b>E</b> 丢弃 · <b>R</b> 递队友<br>
+        <b>玩家二</b> ← → 走 · ↑/右Shift 跳 · / 或小键盘0 挥刀兼拾取 · <b>,</b> 换格 · <b>\</b> 反向 · <b>.</b> 丢弃 · <b>'</b> 递队友
+      </div>
+      <div id="keysPad">
+        <b>玩家一</b> 左摇杆走 · <b>A</b> 挥刀 · <b>X</b> 跳 · <b>B</b> 旋风斩 · <b>Y</b> 拾取/开箱 · <b>LB/RB</b> 换格 · <b>十字上下</b> 递队友/丢弃<br>
+        <b>玩家二</b> 第二个手柄同上；只插一个手柄时两位共用移动
+      </div>
     </div>
-    <div id="pad">手柄：左摇杆走 · A 跳 · X / □ 挥刀 · <b>H 看完整键位</b></div>
+    <div id="pad">手柄：左摇杆走 · A 挥刀 · X 跳 · B 旋风斩 · Y 拾取/开箱 · <b>H 看完整键位</b></div>
   </div>
 
   <div id="banner"><div class="b1" id="b1"></div><div class="b2" id="b2"></div></div>
@@ -435,6 +448,7 @@ window.addEventListener("keydown", function(e){
 window.addEventListener("keyup", function(e){ KEYS[e.code] = false; });
 
 var PADS = [null,null];
+var PAD_MODE = false;        /* 底部提示当前是否按手柄版显示 */
 function scanPads(){
   var gp = navigator.getGamepads ? navigator.getGamepads() : [];
   var list = [];
@@ -442,11 +456,20 @@ function scanPads(){
   PADS[0] = list[0]||null;
   PADS[1] = list[1]||null;
   var el = document.getElementById("pad");
-  if(list.length){
-    el.innerHTML = '手柄已连接 ×'+list.length+' · 左摇杆走 · A 挥刀 · X 跳 · B 旋风斩 · Y 拾取/开箱 · LB/RB 换格 · 十字上下 递/弃';    el.style.color = "#7fa86f";
+  var n = list.length;
+  if(n){
+    el.innerHTML = '手柄已连接 ×'+n+' · 左摇杆走 · A 挥刀 · X 跳 · B 旋风斩 · Y 拾取/开箱 · LB/RB 换格 · 十字上下 递/弃';
+    el.style.color = "#7fa86f";
   } else {
-    el.innerHTML = '手柄：左摇杆走 · A 挥刀 · X 跳 · B 旋风斩 · Y 拾取/开箱 · LB/RB 换格';
+    el.innerHTML = '手柄：左摇杆走 · A 挥刀 · X 跳 · B 旋风斩 · Y 拾取/开箱 · <b>H 看完整键位</b>';
     el.style.color = "#4a4336";
+  }
+  /* 底部那块操作提示跟着输入设备走。只在状态真的变了才动 class，
+     避免每次扫描都触发一次样式重算。 */
+  var wantPadMode = n > 0;
+  if(wantPadMode !== PAD_MODE){
+    PAD_MODE = wantPadMode;
+    if(document.body) document.body.classList.toggle("pad-mode", PAD_MODE);
   }
   return list;
 }
