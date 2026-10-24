@@ -1114,10 +1114,14 @@
       return pin;
     }
 
-    /* walk 及未知状态：按 fps 循环，相位按 x 打散，避免同屏同步踏步 */
-    var fps = d.fps > 0 ? d.fps : 8;
+    /* walk 及未知状态：按「实际走的距离」推进，不跟真实时间跑。
+       否则慢速小怪腿摆得飞快（走 110px/s 却每秒循环 3.5 次）。
+       e.walk 在 index.html 里按 |vx|*dt*0.026 累加，乘 38.46 还原成像素位移。 */
+    var STRIDE = { walker: 150, fast: 148, brute: 178, boss: 240 };
+    var stride = STRIDE[e.kind] || 150;
+    var distPx = num(e.walk, 0) * 38.46;
     var off = hsh(Math.round(num(e.x, 0) * 0.37) + 1) * n;
-    var idx = Math.floor(now * fps + off) % n;
+    var idx = Math.floor(distPx / stride * n + off) % n;
     if (idx < 0) idx += n;
     st.last = idx;
     return idx;

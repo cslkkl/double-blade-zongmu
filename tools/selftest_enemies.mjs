@@ -221,7 +221,10 @@ for (const kind of kinds) {
   const seen = new Set();
   for (let i = 0; i < 40; i++) {
     drawCalls = [];
-    A.art.draw(makeCtx(), enemy("walker", { state: "walk", x: 300 }), i * 0.05);
+    const w = enemy("walker", { state: "walk", x: 300 });
+    // 走位动画按位移推进：要模拟实际走动，必须推 e.walk
+    w.walk = i * 1.5;
+    A.art.draw(makeCtx(), w, i * 0.05);
     const c = drawCalls.find(x => x.src && x.src.includes("enemy-walker"));
     if (c) seen.add(c.src);
   }
