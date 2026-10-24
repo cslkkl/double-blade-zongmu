@@ -83,21 +83,21 @@
      二、样式（一次性注入，类名统一 gd- 前缀）
      ======================================================================= */
   var CSS = `
-.gd-host{display:flex;align-items:center;justify-content:center;gap:40px;text-align:left}
+.gd-host{display:flex;align-items:center;justify-content:center;gap:56px;text-align:left}
 .gd-fig{flex:0 0 auto}
-.gd-pad{display:block;width:288px;height:auto;filter:drop-shadow(0 10px 26px rgba(0,0,0,.62))}
+.gd-pad{display:block;width:380px;height:auto;filter:drop-shadow(0 10px 26px rgba(0,0,0,.62))}
 
 /* ---- 手柄图形 ---- */
 .gd-body{fill:url(#gd-body-grad);stroke:rgba(217,180,94,.42);stroke-width:1.4}
 .gd-pill{fill:rgba(28,30,24,.95);stroke:rgba(217,180,94,.40);stroke-width:1.2}
-.gd-pill-t{fill:#c9bb98;font-size:11px;font-weight:700;letter-spacing:.04em}
+.gd-pill-t{fill:#c9bb98;font-size:12.5px;font-weight:700;letter-spacing:.04em}
 .gd-bar{fill:#c9bb98;opacity:.95}
 .gd-ring{fill:rgba(10,11,8,.9);stroke:rgba(217,180,94,.42);stroke-width:1.4}
 .gd-dot{fill:#4a4d40;stroke:rgba(217,180,94,.30);stroke-width:1}
 .gd-cross{fill:rgba(28,30,24,.95);stroke:rgba(217,180,94,.34);stroke-width:1.1}
 .gd-face{fill:rgba(22,24,19,.96);stroke:rgba(217,180,94,.48);stroke-width:1.3;
   transition:fill .14s ease,stroke .14s ease}
-.gd-face-t{fill:#f2e6c8;font-size:13px;font-weight:700;
+.gd-face-t{fill:#f2e6c8;font-size:15px;font-weight:700;
   paint-order:stroke;stroke:rgba(0,0,0,.55);stroke-width:2.4px}
 
 /* 面键用色区分，和底部提示里的粗体同色系，读图就能对上 */
@@ -117,28 +117,28 @@
 
 /* ---- 图例 ---- */
 .gd-legend{flex:1 1 auto;min-width:0}
-.gd-row{display:flex;align-items:center;gap:12px;padding:5px 8px;border-radius:4px;
+.gd-row{display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:4px;
   border:1px solid transparent;transition:background .14s ease,border-color .14s ease}
 .gd-row.gd-on{background:rgba(245,217,142,.10);border-color:rgba(245,217,142,.28)}
-.gd-row em{font-style:normal;font-size:12.5px;letter-spacing:.05em;color:#b8ab8c}
+.gd-row em{font-style:normal;font-size:15px;letter-spacing:.05em;color:#b8ab8c}
 .gd-row.gd-on em{color:#f2e2b6}
 .gd-k{display:inline-flex;align-items:center;justify-content:center;
-  min-width:30px;height:26px;padding:0 8px;flex:0 0 auto;
-  font-size:11px;letter-spacing:.04em;color:#e8dab4;
+  min-width:38px;height:32px;padding:0 10px;flex:0 0 auto;
+  font-size:13.5px;letter-spacing:.04em;color:#e8dab4;
   background:rgba(0,0,0,.5);border:1px solid rgba(180,150,96,.42);border-radius:4px;
   box-shadow:inset 0 1px 0 rgba(255,240,200,.10)}
-/* 箭头字形在中文字体里比字母窄得多，按 11px 会缩成一根竖线，单独放大一档 */
-.gd-k--arrow{font-size:14px;min-width:30px;color:#f2e4bc}
-.gd-k--wide{min-width:44px}
-.gd-k--mini{min-width:26px;height:24px;padding:0 6px;font-size:10.5px;color:#c9bb98}
-.gd-plus{color:#6c6354;font-size:11px;flex:0 0 auto}
+/* 箭头字形在中文字体里比字母窄得多，按小号会缩成一根竖线，单独放大一档 */
+.gd-k--arrow{font-size:17px;min-width:38px;color:#f2e4bc}
+.gd-k--wide{min-width:54px}
+.gd-k--mini{min-width:32px;height:29px;padding:0 7px;font-size:12.5px;color:#c9bb98}
+.gd-plus{color:#6c6354;font-size:13.5px;flex:0 0 auto}
 
 /* 键盘图：两列键位卡 */
-.gd-kbd{display:flex;gap:44px;align-items:flex-start;text-align:left}
+.gd-kbd{display:flex;gap:56px;align-items:flex-start;text-align:left}
 .gd-col{flex:1 1 0;min-width:0}
-.gd-col-h{font-size:10px;letter-spacing:.3em;color:#8a7a5c;margin-bottom:10px}
-.gd-col .gd-row{padding:4px 6px;gap:9px}
-.gd-col .gd-row em{font-size:12px}
+.gd-col-h{font-size:12px;letter-spacing:.3em;color:#8a7a5c;margin-bottom:12px}
+.gd-col .gd-row{padding:6px 9px;gap:10px}
+.gd-col .gd-row em{font-size:14px}
 `;
 
   function ensureStyle() {
@@ -157,7 +157,7 @@
      ======================================================================= */
   function facePin(pin, cx, cy, letter) {
     return '<g class="gd-pin" data-pin="' + pin + '">' +
-      '<circle class="gd-face" cx="' + cx + '" cy="' + cy + '" r="15"/>' +
+      '<circle class="gd-face" cx="' + cx + '" cy="' + cy + '" r="17"/>' +
       '<text class="gd-face-t" x="' + cx + '" y="' + cy + '" dy=".35em" ' +
       'text-anchor="middle">' + letter + '</text>' +
       '</g>';
@@ -173,10 +173,10 @@
 
       /* 肩键 */
       '<g class="gd-pin" data-pin="LB">' +
-      '<rect class="gd-pill" x="84" y="40" width="66" height="20" rx="10"/>' +
+      '<rect class="gd-pill" x="82" y="38" width="70" height="22" rx="11"/>' +
       '<text class="gd-pill-t" x="117" y="54" text-anchor="middle">LB</text></g>' +
       '<g class="gd-pin" data-pin="RB">' +
-      '<rect class="gd-pill" x="210" y="40" width="66" height="20" rx="10"/>' +
+      '<rect class="gd-pill" x="208" y="38" width="70" height="22" rx="11"/>' +
       '<text class="gd-pill-t" x="243" y="54" text-anchor="middle">RB</text></g>' +
 
       /* 机身 */
@@ -189,17 +189,17 @@
 
       /* 十字键：两臂合成一个十字，上 / 下两臂各自可高亮 */
       '<g class="gd-pin" data-pin="dup">' +
-      '<rect class="gd-cross" x="160" y="144" width="15" height="16" rx="3"/></g>' +
+      '<rect class="gd-cross" x="159" y="143" width="17" height="18" rx="3"/></g>' +
       '<g class="gd-pin" data-pin="down">' +
-      '<rect class="gd-cross" x="160" y="176" width="15" height="16" rx="3"/></g>' +
-      '<rect class="gd-cross" x="160" y="158" width="15" height="22" rx="3" opacity=".85"/>' +
-      '<rect class="gd-cross" x="144" y="164" width="47" height="15" rx="3" opacity=".85"/>' +
+      '<rect class="gd-cross" x="159" y="175" width="17" height="18" rx="3"/></g>' +
+      '<rect class="gd-cross" x="159" y="157" width="17" height="22" rx="3" opacity=".85"/>' +
+      '<rect class="gd-cross" x="143" y="163" width="49" height="16" rx="3" opacity=".85"/>' +
 
       /* Start：机身中线偏上的暂停条，避开左摇杆与面键菱阵 */
       '<g class="gd-pin" data-pin="start">' +
-      '<rect class="gd-pill" x="176" y="88" width="36" height="16" rx="8"/>' +
-      '<rect class="gd-bar" x="190.5" y="93" width="2.6" height="6" rx="1"/>' +
-      '<rect class="gd-bar" x="195.5" y="93" width="2.6" height="6" rx="1"/>' +
+      '<rect class="gd-pill" x="174" y="86" width="40" height="18" rx="9"/>' +
+      '<rect class="gd-bar" x="190" y="92" width="2.8" height="6.5" rx="1"/>' +
+      '<rect class="gd-bar" x="196" y="92" width="2.8" height="6.5" rx="1"/>' +
       '</g>' +
 
       /* 面键菱阵：上 Y / 左 X / 右 B / 下 A */

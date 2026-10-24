@@ -96,8 +96,8 @@
     text-shadow:0 1px 3px rgba(0,0,0,.95)}
 
   /* --- 底部提示 --- */
-  #keys{position:absolute;left:28px;bottom:22px;font-size:11px;letter-spacing:.05em;
-    color:#b6a883;line-height:1.9;padding:9px 14px;border-radius:3px;
+  #keys{position:absolute;left:28px;bottom:22px;font-size:14px;letter-spacing:.05em;
+    color:#b6a883;line-height:2.1;padding:12px 18px;border-radius:3px;
     background:rgba(14,11,7,.66);border:1px solid rgba(217,180,94,.22);
     text-shadow:0 1px 3px rgba(0,0,0,.95)}
   #keys b{color:#f0d99c;font-weight:600}
@@ -106,8 +106,8 @@
      文案本身也由它注入 —— 按键叫什么只有一份数据。 */
   body.dev-pad #keys{background:rgba(11,16,10,.72);border-color:rgba(158,222,132,.24)}
   body.dev-pad #keys b{color:#9ede84}
-  #pad{position:absolute;right:28px;bottom:22px;font-size:11px;letter-spacing:.06em;
-    color:#b6a883;text-align:right;line-height:1.9;padding:9px 14px;border-radius:3px;
+  #pad{position:absolute;right:28px;bottom:22px;font-size:14px;letter-spacing:.06em;
+    color:#b6a883;text-align:right;line-height:2.1;padding:12px 18px;border-radius:3px;
     background:rgba(14,11,7,.66);border:1px solid rgba(217,180,94,.22);
     text-shadow:0 1px 3px rgba(0,0,0,.95)}
   #pad b{color:#9ede84;font-weight:600}
@@ -355,6 +355,7 @@
 <script src="js/enemies-assets.js"></script>
 <script src="js/fx.js"></script>
 <script src="js/guide.js"></script>
+<script src="js/rumble.js"></script>
 <script src="js/ui-shell.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/intro-video.js"></script>
@@ -849,6 +850,7 @@ function startWave(i){
   showBanner(w.name, w.sub);
   showStory(i);
   sfxWave();
+  Rumble.play("all", "wave");   /* 换阵号角：两只手柄都闷 200ms */
 }
 /* 剧情条：每阵开场 2.5 秒（与 CSS 的 storyIn 时长对齐） */
 function showStory(i){
@@ -887,6 +889,7 @@ function waveCleared(){
   document.getElementById("wave").textContent = "第 " + (G.waveIdx+1) + " 阵守住 · 喘息";
   showBanner("这一阵守住了",
     G.breatherT > 1 ? "喘息 · 下一阵将至" : "机关咬合 · 下一阵提前");
+  Rumble.play("all", "wave");   /* 破阵号角，与换阵同款 */
 }
 function nextWave(){
   if(G.waveIdx >= G.waves.length-1){ goWin(); return; }
@@ -909,11 +912,13 @@ function goWin(){
     Math.floor(G.time/60)+":"+String(Math.floor(G.time)%60).padStart(2,"0");
   showOv("ovWin");
   sfxWin();
+  Rumble.play("all", "win");   /* 五连上行脉冲 */
 }
 function gameOver(){
   G.phase = "lose";
   showOv("ovLose");
   sfxLose();
+  Rumble.play("all", "lose");  /* 三连下行重震 */
 }
 function restartAll(){ startGame(); }
 
@@ -960,6 +965,7 @@ function togglePause(force){
     G.resumeGrace = 0.18;
     clearPressed();
   }
+  Rumble.play(0, "ui");   /* 暂停 / 解冻两方向都轻点一下 */
   return G.paused;
 }
 
@@ -1411,6 +1417,7 @@ function updatePlayer(p, dt, inp, other){
     p.swingT = 0; p.swingIdx = 0;
     G.shake = Math.max(G.shake, 12);
     sfxCrit();
+    Rumble.player(p.padTag, "whirl");   /* 500ms 渐强两段 */
     burst(p.x, p.y-90, 30, "#fff0c0", 480);
     return;
   }
@@ -1514,6 +1521,7 @@ function bagDrop(p){
   p.pickLock = 0.24;
   burst(p.x, p.y-90, 8, "#c9b78c", 200);
   tone(300, 0.10, "square", 0.05, 190);
+  Rumble.player(p.padTag, "drop");
   syncHUD();
   return true;
 }
@@ -1551,6 +1559,7 @@ function bagGive(p, other){
   tone(920, 0.09, "triangle", 0.05, 1180);
   burst((p.x + other.x)/2, p.y-120, 10, "#a8e6c6", 220);
   showHitText(other.x, other.y-190, "得 " + mine.name);
+  Rumble.player(p.padTag, "give");   /* 预设内部两只手柄都震 */
   syncHUD();
   return true;
 }
@@ -1584,6 +1593,7 @@ function tryPickup(p){
       p.pickLock = 0.26;
       p.pickupT = 0.30;                       /* 播 pickup 动作 */
       showHitText(p.x, p.y-190, (swapped ? "换手 · " : "上手 · ") + d.weapon.name);
+      Rumble.player(p.padTag, swapped ? "swap" : "pickup");
       burst(d.x, d.y-40, 10, "#fff0c0", 240);
       tone(660, 0.12, "square", 0.05, 880);
       syncHUD();
@@ -1690,6 +1700,7 @@ function openChest(c, p){
   burst(c.x, c.y-64, 30, "#f5d98e", 420);
   burst(c.x, c.y-64, 14, "#9fe0c0", 260);
   if(S){ S.chest(); } else { sfxCrit(); }
+  Rumble.player(p.padTag, "chest");   /* 120/80/120 递增三段 */
   /* 一张宝箱爆 1 件：武器 / 海贝 / 玉器（降频收敛：不再一次喷两件） */
   var n = 1;
   for(var i=0;i<n;i++) chestReward(c, p, i);
@@ -1740,6 +1751,7 @@ function activateMechanism(m, p){
   burst(m.x, m.y-96, 36, "#ffe9a8", 480);
   burst(m.x, m.y-96, 16, "#9fe0c0", 300);
   sfxCrit();
+  Rumble.player(p.padTag, "mechanism");   /* 一记闷震 */
   if(m.mode === "rush"){
     G.mechSkipBreather = true;
     showHitText(m.x, m.y-220, "机关咬合 · 下一阵提前");
@@ -1900,6 +1912,7 @@ function breakWeapon(p, wp){
   burst(p.x + p.facing*60, p.y-100, 14, wp.col, 320);
   if(S){ S.breakWeapon(); } else { tone(240,0.18,"square",0.06,110); }
   if(S){ recentSwing = S.setMaterial("fist"); }
+  Rumble.player(p.padTag, "breakWeapon");   /* 锯齿三段 */
   p.weapon = newWeapon("fist");
   p.__forceClip = null;                 /* 空手回到原 attack */
   syncHUD();
@@ -1909,6 +1922,7 @@ function breakWeapon(p, wp){
    箭走 "bow"；投掷物的 kind 直接用武器 key（rock / blade / jar / bell），
    出手速度、重力、穿透、引信、反弹都从 wp 上取，四种手感共用一条管线。 */
 function fireProjectile(p, wp){
+  Rumble.player(p.padTag, "throwProj");
   if(wp.type === "bow"){
     p.throwT = 0.24;
     p.swingCd = 0.38;
@@ -1977,6 +1991,7 @@ function startSwing(p, idx){
      只挂状态字段，clip 名与帧映射归 char-rig 管（它读 p.__forceClip）。 */
   p.__forceClip = attackClipOf(wp);
   sfxSwing(wp.key);
+  Rumble.player(p.padTag, (idx === 2) ? "hit" : "swing", idx === 2);   /* 重击起手就闷一记 */
   if(wp.type !== "fist") addSlash(p, idx);
   /* 耐久（空手不掉） */
   if(wp.type !== "fist"){
@@ -2031,11 +2046,12 @@ function doSwingHit(p, other){
       hitAny = true;
     }
   }
+  if(hitAny) Rumble.player(p.padTag, "hit", p.swingIdx === 2);   /* 命中了才震：挥空只有起手那一下 */
   if(!hitAny) return;
 }
 /* 旋风斩判定 */
 function whirlHit(p){
-  var R = 200;
+  var R = 200, hitAny = false;
   for(var i=0;i<G.enemies.length;i++){
     var e = G.enemies[i];
     if(e.state==="dead") continue;
@@ -2043,8 +2059,10 @@ function whirlHit(p){
       hitEnemy(e, 2, e.x > p.x ? 1 : -1, true, false);
       G.combo++; G.comboT = 0.9;
       if(G.combo > G.maxCombo) G.maxCombo = G.combo;
+      hitAny = true;
     }
   }
+  if(hitAny) Rumble.player(p.padTag, "hit", true);   /* 旋风斩扫到了也闷一记 */
   sfxHit(recentSwing, true, false);
   G.shake = Math.max(G.shake, 6);
 }
@@ -2073,6 +2091,7 @@ function hitEnemy(e, dmg, dir, big, weak){
     G.shake = Math.max(G.shake, 12);
     /* 掉落武器：BOSS 走下面固定的三件套，普通敌人按 34% 从当前波次池里抽 */
     if(e.kind === "boss"){
+      Rumble.play("all", "bossDie");   /* 三连重震：两只手柄一起庆祝 */
       dropWeapon(e.x-170, e.y, newWeapon("sword"));
       dropWeapon(e.x,     e.y, newWeapon("bow"));     /* 远程保底：保证玩家体验过直线弹道 */
       dropWeapon(e.x+170, e.y, newWeapon("hammer"));
@@ -2152,8 +2171,9 @@ function updateEnemy(e, dt){
             p.vy = -320; p.onGround = false;
             G.shake = Math.max(G.shake, 14);
             sfxHurt();
+            Rumble.player(p.padTag, "hurt");          /* 挨打：狠的一下 */
             burst(p.x, p.y-80, 14, "#e07a6c", 360);
-            if(p.hp <= 0){ p.hp = 0; p.dead = true; }
+            if(p.hp <= 0){ p.hp = 0; p.dead = true; Rumble.player(p.padTag, "die"); }
           }
         });
       }
@@ -3894,13 +3914,6 @@ function render(){
 
   ctx.restore();
 
-  /* ---- 前景遮挡层：必须在角色 / 刀光 / 粒子都落屏之后，
-         否则「遮挡」变成「垫在背后」。它和背景一样走屏幕坐标系
-         （内部用 camX 算视差 1.0），所以放在 world translate 之外。 ---- */
-  if(window.Background && window.Background.drawFront){
-    window.Background.drawFront(ctx, G.camX, W, H, GROUND, WORLD_W);
-  }
-
   /* 白光 */
   if(G.flash > 0){
     ctx.globalAlpha = clamp(G.flash*3,0,1);
@@ -3932,41 +3945,15 @@ function render(){
   }
 }
 
-/* ---------------- 前景遮挡淡出 ----------------
-   前景遮挡物（Background.drawFront）画在角色之上，角色走到它背后时
-   会被完全盖住看不见。这里问 Background 要遮挡物的世界里坐标，
-   命中就把角色整体压到 0.35 alpha —— 不是 0，轮廓要还看得见。 */
-var OCC_FADE_ALPHA = 0.52;      /* 被挡住时的整体透明度（不是 0，轮廓要看得见） */
-var OCC_FADE_RATIO = 0.42;      /* 判定半宽 = 遮挡物宽 × 该系数 */
-
-function playerOccluded(p){
-  var B = window.Background;
-  if(!p || !B || !B.occluders) return false;
-  var occ = B.occluders();
-  if(!occ || !occ.length) return false;
-  for(var i=0;i<occ.length;i++){
-    var o = occ[i];
-    if(!o || !(o.w > 0)) continue;
-    if(Math.abs(p.x - o.x) < o.w * OCC_FADE_RATIO) return true;
-  }
-  return false;
-}
-
-/* 玩家绘制：优先用素材精灵 */
+/* 玩家绘制：优先用素材精灵
+   角色任何时候都是满不透明 —— 原来的「前景遮挡淡出」已随遮挡层一起删除
+   （遮挡物曾画在角色之上，人走过去被盖住，只好压到 52% alpha 保留轮廓；
+   那条淡出是硬切换、判定只看 x 不看高度，走过道具旁边就闪一下，读起来像 bug）。 */
 function drawPlayer(p){
-  var mul = playerOccluded(p) ? OCC_FADE_ALPHA : 1;
-
   if(window.CharArt && window.CharArt.ready()){
-    /* CharArt 内部会绝对赋值 globalAlpha，外层包一层是无效的，
-       所以走它约定的 p.__alphaMul（缺省 1），画完立刻复位。 */
-    p.__alphaMul = mul;
     window.CharArt.draw(ctx, p, G.time);
-    p.__alphaMul = 1;
   } else {
-    ctx.save();
-    if(mul < 1) ctx.globalAlpha = mul;
     drawFighter(p);
-    ctx.restore();
   }
   drawWhirlAsset(p);
 }
@@ -4028,6 +4015,11 @@ if(window.Guide){
   Guide.mount();
   /* 暂停页开着时切了设备，图要当帧换掉，不能等下次开暂停 */
   Guide.onChange(function(){ if(G.paused) showPauseGuide(); });
+}
+
+/* 手柄震动：事件驱动，不轮询；init 幂等，手柄晚插也没关系 */
+if(window.Rumble){
+  Rumble.init();
 }
 
 /* UI 覆盖层：按键说明只挂载，用 H 开关（由 ui-shell 自己监听） */
