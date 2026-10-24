@@ -53,8 +53,9 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 
 - 2026-10-24（武器视觉 + 出招序列 + 暂停 + 指南模块化 + 攻击/拾取分家后）：`check-inline` 通过；`selftest_enemies` 0 失败；`selftest_audio` 0 失败；`selftest_weapons` 0 失败；`node --check` 9/9 通过。
 - 2026-10-24（背包改单手 + 去遮挡物阴影 + 并入 main 暂停/Guide 模块化）：check-inline 通过（内联脚本 120422 字符）；selftest_enemies / selftest_audio / selftest_weapons 0 失败；node --check 9/9 通过。
+- 2026-10-25（手柄震动 js/rumble.js + 键位指南放大）：check-inline 通过（内联脚本 127304 字符）；selftest_enemies / selftest_audio / selftest_weapons 0 失败；node --check 10/10 通过。
 - 暂停链路由 CDP 驱动本机 `file://` 页面实测：Esc 暂停 / 解冻、抽屉开着时 Esc 只收抽屉、暂停中切设备换图、R 重开、暂停页点击、非 play 阶段不响应，逐条断言通过。
-- 规模：`index.html` 约 3900 行；`js/` 9 个模块；`assets/` 约 194 个文件 5.96 MB。
+- 规模：`index.html` 约 3900 行；`js/` 10 个模块；`assets/` 约 194 个文件 5.96 MB。
 - 素材分布：`anim/` 118（10 张单帧 `atk-*` + 40 张序列帧 `atk-*-<i>` + 4 张 `hold-*`）、`fx/` 13、`icons/` 16、`icon/` 10、`ui/` 6、`interact/` 6、`props/` 8、`char/` 5、根 12。
 - 素材预算：单帧 ≤ 60 KB（实测最大 55.4 KB）、总量 ≤ 8 MB（上调依据见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 的「素材流水线」）。
 - 帧数：角色 12 个 clip 共 43 帧；敌人 4 类共 14 帧；武器站立帧 11、出招单帧 10、出招序列 10 把 × 4 帧。
@@ -92,6 +93,7 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 - **新增任何覆盖层 / 可交互界面，必须同时想手柄怎么过这一页。** `readPad()` 只在 `play` 阶段被调用，离开对局就没人读手柄 —— 失败页与通关页曾因此只能鼠标点。
 - 手柄按下沿检测必须带「启用闸」（先见到一次全部松开）。界面刚打开时那一下按键还按在手上，不设闸会当场确认掉，玩家看不到界面（模式选择页曾因此被 A 键直接跳过）。
 - 界面文案跟输入设备走：`body` 上的 `dev-pad` / `dev-kbd` 由 `js/guide.js` 按「谁在动」切换（不是「谁插着」），键位文案与操作图都从它那四张表来，两套永不同时出现。
+- 手柄震动入口只有 [js/rumble.js](js/rumble.js) 一处：全部调用点经 `Rumble.player(tag, preset)` / `Rumble.play("all", preset)` 走预设表，别在 `index.html` 直接摸 `vibrationActuator`；不支持 dual-rumble 的浏览器（Firefox/Safari）整条链路静默 no-op。
 - 手柄键位以 `index.html` 的 `readPad()` 与 `js/guide.js` 的 `PAD_LEGEND` 为准（`A` 挥刀 / `X` 跳 / `B` 技能 / `Y` 拾取）。对外文档曾把 `A`/`X` 写反，改键位要连 README 与《操作与录屏说明》一起改。
 - `slice_anim.py` 生成过 `fps: 6, true, loop: true` 这类语法错误，生成后必须 `node --check`。
 - `slice_anim_extra.py` 曾写出缺冒号的 `anim-data.js` 行（`"attack-heavy"{ frames: ...`），整份数据文件当场语法错误；现已在脚本内加 `node --check` 门禁，非 0 直接退出。

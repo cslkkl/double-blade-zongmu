@@ -1,10 +1,11 @@
 # js/ — 文件索引
 
-9 个文件，全部是 IIFE，只往 `window.*` 挂一个对象。
+10 个文件，全部是 IIFE，只往 `window.*` 挂一个对象。
 设计理由见 [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)；本目录规则见 [AGENTS.md](AGENTS.md)。
 
-加载顺序固定：`assets → anim-data → background → char-rig → enemies-assets → fx → guide → ui-shell → audio`。
+加载顺序固定：`assets → anim-data → background → char-rig → enemies-assets → fx → guide → rumble → ui-shell → audio`。
 `guide` 必须在 `ui-shell` 之前：说明抽屉靠 `Guide.renderInto()` 画操作图。
+`rumble` 必须在 `guide` 之后：手柄列表现读 `Guide.pads()`（与 `readPad` 同源），缺席 Guide 就全部 no-op。
 `audio` 必须最后，它要被内联脚本的音效壳捕获成 `window.SND`。
 `audio.js` 排在最后是有意的：它只被 `index.html` 的 `sfx*()` 包装层读取，缺席时那层自动退回老的单振荡器实现。
 
@@ -116,7 +117,19 @@
 - 关键约束：`renderInto` 会把自己登记进 `mounted`，用于「按下哪个键、图上哪个键亮」；重绘时先摘旧实例再登记，避免重复。
 - 关键约束：暂停页与说明抽屉都调 `renderInto`，同一时刻最多两处挂载；`onChange` 会挨个重绘，所以设备切换时两处同步换图。
 - 关键约束：任何 DOM 缺失都不抛异常；`Guide` 缺席时 `ui-shell` 的说明抽屉退化为只有玩法要点，`index.html` 的 `scanPads()` 退化为空列表。
+- 图例支持放大显示：380px 手柄图 / 15px 图例字 / 32px 键帽（等比加大，`viewBox` 不变），hover 高亮、实按闪烁、`mounted` 重绘、`onChange` 行为不变。导出契约没变。
 - 改后必测：切设备后抽屉里只剩一套图（不能两套并存）；`#keys` 文案跟着换；`body` class 只有 `dev-kbd` 或 `dev-pad` 之一；手柄按下时对应 `data-pin` 亮起。
+
+## rumble.js
+
+- 职责：手柄震动总入口。管取手柄、管 actuator、管波形；不管时机（事件驱动，不轮询）。
+- 关键导出：`window.Rumble = { init, play, player }`。`play(padIndex, what, arg)` 是底层 + 预设统一入口（`"all"` 两只 / `0` `1` 单只 / 预设名字符串 / 裸波形对象）；`player(tag, name, arg)` 按玩家 tag 路由（`"p1"→0` / `"p2"→1`，不认识的落 0 号）。预设 18 个：`swing / hit / hurt / die / bossDie / pickup / swap / drop / give / breakWeapon / chest / mechanism / whirl / throwProj / wave / win / lose / ui`。
+- 依赖谁：`Guide.pads()`（每拍现读，与 `readPad` 同源）与 `GamepadHapticActuator.playEffect("dual-rumble", ...)`。不持 rAF、不读音频、不碰网络。
+- 被谁依赖：`index.html` 十几个调用点（挥刀 / 命中 / 受击 / 阵亡 / BOSS 击杀 / 拾取 / 换手 / 丢弃 / 递队友 / 碎武器 / 开箱 / 机关 / 旋风斩 / 投掷 / 破阵 / 通关 / 失败 / 暂停）经 `Rumble.player(p.padTag, ...)` 或 `Rumble.play("all", ...)` 进入本模块。
+- 关键约束：**静默降级**——缺 Guide、缺手柄、无 `vibrationActuator`、`playEffect` 抛异常（Firefox/Safari 不支持 dual-rumble），一律静默 no-op，任何一条路断了都不许把游戏搞崩。
+- 关键约束：`player()` 的 tag→pad 映射必须与 `index.html` 的 `readPad()` 取源一致（`G.p1` 永远 `PADS[0]`、`G.p2` 永远 `PADS[1]`），否则震到别人手上。
+- 关键约束：加载序在 `guide` 之后（要读 `Guide.pads()`）、`ui-shell` 之前（`ui-shell` 不依赖它，纯排保险位）。
+- 改后必测：拔插手柄即时生效（play 每次现读）；无手柄环境下全流程跑通无报错；`hit(big)` 与 `swap` 等相近波形实际手感区分是否明显。
 
 ## ui-shell.js
 
@@ -158,6 +171,7 @@
 | `enemies-assets.js` | 跑 `selftest_enemies.mjs`；`Enemy` 的 `kind / scale / w / h / maxHp / state` 字段是否改名 |
 | `fx.js` | `index.html` 四处 `FX.*` 调用与 `FX.ready()` 守卫；`drawSlash` 的 `wkey`、`drawHit` 的 `mat`、`drawProjFx` 的 `kind` 是否都有人传；新增武器要在 `WEAPON_FX` 与 `HIT_MATERIAL` 的表里都有落点 |
 | `guide.js` | `index.html` 的 `scanPads()` 与 `#keys`/`#pad`、`ui-shell` 的 `.uis-help-body` 与 `Guide.onChange`；改键位只改这里的四张表，别再往 `ui-shell` 抄文案 |
+| `rumble.js` | `index.html` 的十几个 `Rumble.player / Rumble.play` 调用点是否还指向本页列出的预设名；`Guide.pads()` 结构变化时 `padAt()` 是否仍取得到；`player()` 的 tag→pad 映射与 `readPad()` 取源是否仍一致 |
 | `ui-shell.js` | `index.html` 四个调用点、`body.solo` 样式、`UIShell` 未加载时的降级分支、`Guide` 缺席时抽屉仍要能开、`padFrame` 的启用闸、模式页底部文案 |
 | `audio.js` | 跑 `selftest_audio.mjs`；`index.html` 的 `sfx*()` 包装层是否仍能退回旧实现；新增武器要在 `MATERIAL` 表里给材质，否则一律落到 `jade`；`SND.bgm.*` 的调用点（开局 `start` / 换阵 `setWave` / 通关 `stop`） |
 
