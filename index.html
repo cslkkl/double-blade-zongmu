@@ -381,6 +381,7 @@
 <script src="js/ui-shell.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/intro-video.js"></script>
+<script src="js/rumble.js"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -1036,6 +1037,16 @@ function updatePaused(dt){
 var OVS = ["ovTitle","ovClear","ovLose","ovWin","ovPause","ovIntro"];
 function hideOv(){ OVS.forEach(function(id){ document.getElementById(id).classList.remove("on"); }); }
 
+/* ---------------- 手柄震动 ----------------
+   玩家序号 → 手柄序号。两人共用一个手柄时（只插了一个）两个 tag 都指向 0，
+   震谁都一样，所以不需要特判。PADS 由 scanPads() 每帧刷新。
+   模块缺席时 padIndexOf 仍返回 0，调用方自己判 window.Rumble。 */
+function padIndexOf(p){
+  if(!p) return 0;
+  if((p.padTag || "") === "p2") return PADS[1] ? 1 : 0;
+  return 0;
+}
+
 /* ---------------- 开场短片 + 长按跳过 ----------------
    短片在每次开局（含死亡后重开）播一遍。要解决四件事：
 
@@ -1105,6 +1116,8 @@ function playIntro(){
   G.intro = true;
   introSyncHint();
   introSetHoldUI(false, 0);
+  /* 起播轻震一下：短片是静音的，这一下是唯一能确认「开始了」的触觉反馈 */
+  if(window.Rumble) Rumble.pulse({strong:0.45, weak:0.25, ms:250});
 
   return IntroVideo.play({ maxSeconds: 20.5 }).then(function(res){
     introRunning = false;
@@ -1114,6 +1127,8 @@ function playIntro(){
     introHolding = false;
     introSetHoldUI(false, 0);
     if(e.ov) e.ov.classList.remove("on");
+    /* 收尾掐掉残留震动：短片里那一下不该拖到开局之后还在震 */
+    if(window.Rumble) Rumble.stop();
     return res;
   });
 }
@@ -1156,6 +1171,8 @@ function introTick(dt){
       /* 到阈值：立刻收，别让玩家多按 */
       introHoldT = INTRO_HOLD_SEC;
       introSetHoldUI(true, 1);
+      /* 跳过给一记短促的确认震动，与「开始」的轻震区分开 */
+      if(window.Rumble) Rumble.pulse({strong:0.8, weak:0.6, ms:120});
       if(window.IntroVideo && IntroVideo.skip) IntroVideo.skip("hold");
       return;
     }
@@ -2376,6 +2393,9 @@ function updateEnemy(e, dt){
             G.shake = Math.max(G.shake, 14);
             sfxHurt();
             burst(p.x, p.y-80, 14, "#e07a6c", 360);
+            /* 挨打震一下：谁挨打就震谁的手柄。p 是 p1/p2，序号从 padTag 来；
+               只插了一个手柄时两人共用一个，震同一个也对。 */
+            if(window.Rumble) Rumble.pulse({strong:0.9, weak:0.5, ms:180, pad:padIndexOf(p)});
             if(p.hp <= 0){ p.hp = 0; p.dead = true; }
           }
         });
