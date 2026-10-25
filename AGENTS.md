@@ -154,6 +154,12 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
   3. 竖屏遮罩 `请横过来玩` 兜底 —— iOS Safari 压根没有 `screen.orientation.lock`，只能靠玩家手动转屏。
   全部失败都静默（`.catch` 吞掉），绝不能因为锁不了方向就白屏或弹错误。
 - **不要给 `.tch-rotate` 里加 `pointer-events:none`**：遮罩自带 `pointer-events:auto` 是为了盖死底下的一切，而「横屏进入」按钮就在它里面 —— 一改就点不动。
+- **「双击放大」只能靠 JS 掐，不能只靠 CSS / meta**：`touch-action:none` 与 `user-scalable=no` 是**建议**，老 WebView 与部分国产 ROM 浏览器不认，玩家看到的就是「双击一下画面放大」。`index.html` 里那个 IIFE 才是所有内核都吃得下的那一道。三层各管一段，缺一层就有机型漏：
+  - `<meta name="viewport" ... maximum-scale=1,user-scalable=no>` —— 标准浏览器；
+  - `touchend` 上的双击守卫 —— 只掐「单指 + ≤320ms + 落点漂移 ≤30px」的**第二次抬手**；
+  - `gesturestart/gesturechange` —— iOS 的整页捏合，不吃 `touch-action`。
+- **双击守卫绝对不能改成在 `touchstart` 上 `preventDefault`**：那会连带把 `pointerdown` 一起吞掉，而虚拟键全挂在 pointer 事件上 —— 双人同屏、两只拇指同时按方向与刀时，按键会当场失灵。所以多指（`changedTouches.length !== 1` 或 `touches.length > 0`）必须原样放过。
+- **测这类时序要用忙等（`while(performance.now()-t0 < ms){}`），不能用 `setTimeout`**：后台标签页的定时器会被节流到几百毫秒，测出来「60ms 后双击」实际隔了 700ms，守卫自然不触发 —— 会误判成「守卫失效」。同理 CDP 的 `Input.dispatchTouchEvent` 在模拟触摸没启用时会一直挂住。
 - **鼠标与手指靠 `pointerType` 区分**：`mouse` 不算手指 —— 触摸屏笔记本上用鼠标玩要保持桌面界面。`touch` / `pen` 算。
 - **`index.html` 的 script 标签带 `?v=` 版本号**：文件名不带 hash，浏览器与 CDN 会长期缓存 `js/*.js`。玩家拿到旧版 `touch.js` 就会在桌面上看到手机虚拟键，刷新几次都改不掉。**改了 `js/` 下任何文件就把版本号 +1。**
 - **从主屏图标启动时没有「第一次手指落下」事件**：自动判断会等不到，虚拟键永远不出现。所以有 `mobile.html` 强制入口（`?touch=1`），别指望自动判断覆盖这个场景。
