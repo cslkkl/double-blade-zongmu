@@ -246,6 +246,100 @@ ok("无 AudioContext 时全部安全空转", silentOk);
 /* ---------------- 8. 结尾音 ---------------- */
 try { SND.win(); SND.lose(); } catch (e) { fail++; console.log("  FAIL 胜负音抛错: " + e.message); }
 
+/* ---------------- 9. 外部音轨 BGM（assets/audio/bgm-main.mp3） ---------------- */
+/* 上面那半截跑在「没有 Audio 构造器」的 mock 里，验的是程序化兜底。
+   这一段反过来：给一个假的 <audio> 元素，验音轨真的接管了 BGM ——
+   素材能不能播、程序化那三层有没有让位、静音与压音是否落到元素的
+   volume 上。file:// 下这条是唯一能真播 mp3 的写法（fetch 取不到字节）。 */
+let tracks = [];
+class FakeAudio {
+  constructor() {
+    this.src = ""; this.loop = false; this.preload = "";
+    this.volume = 1; this.currentTime = 0; this.paused = true;
+    this.listeners = {};
+    tracks.push(this);
+  }
+  addEventListener(t, fn) { (this.listeners[t] = this.listeners[t] || []).push(fn); }
+  play() { this.paused = false; return Promise.resolve(); }
+  pause() { this.paused = true; }
+  fire(t) { (this.listeners[t] || []).forEach((fn) => fn({ type: t })); }
+}
+
+const win3 = {
+  Audio: FakeAudio,
+  AudioContext: FakeAC,
+  performance: { now: () => Date.now() },
+  setTimeout: (fn, ms) => setTimeout(fn, 0),
+  setInterval: (fn, ms) => setInterval(fn, ms),   /* 音轨看护定时器要真跑 */
+  clearInterval: (id) => clearInterval(id),
+  addEventListener() {}, removeEventListener() {},
+  document: { hidden: false },
+  G: { phase: "play", waveIdx: 0, camX: 0, hitstop: 0.04,
+       p1: { x: 700, hp: 6, dead: false }, p2: null, enemies: [],
+       waves: [{ name: "一" }, { name: "二" }] }
+};
+win3.window = win3;
+const ctx3 = vm.createContext(win3);
+vm.runInContext(fs.readFileSync("js/audio.js", "utf8"), ctx3, { filename: "js/audio.js#track" });
+const S3 = win3.SND;
+
+S3.bgm.start();
+ok("音轨：起了 <audio> 元素", tracks.length === 1, "建了 " + tracks.length + " 个");
+const el = tracks[0] || {};
+ok("音轨：src 指向 assets/audio/bgm-main.mp3",
+   String(el.src).indexOf("assets/audio/bgm-main.mp3") >= 0, "实际 " + el.src);
+ok("音轨：循环播放", el.loop === true);
+ok("音轨：已在播放", el.paused === false);
+ok("音轨：接管后程序化 BGM 不启动（bgm.isOn 为假）", S3.bgm.isOn() === false);
+ok("音轨：isTrack 为真", S3.bgm.isTrack() === true);
+ok("音轨：音量按 music 总线 × 主增益折算（0 < v < 1）",
+   el.volume > 0 && el.volume < 1, "实际 " + el.volume);
+
+/* 静音闸必须同时关掉元素 —— 它不在 WebAudio 总线里，光改 master 是关不掉的 */
+const volBeforeMute = el.volume;
+S3.mute(true);
+ok("音轨：静音后元素音量为 0", el.volume === 0, "实际 " + el.volume);
+S3.mute(false);
+ok("音轨：取消静音后音量回来", Math.abs(el.volume - volBeforeMute) < 1e-6,
+   "实际 " + el.volume);
+
+/* 喘息压音：元素这条路也要跟着 breathe 走，否则过场时音乐照旧吵 */
+S3.bgm.breathe(true);
+S3.bgm.start();                       /* 已在播，只是重算一次电平 */
+const ducked = el.volume;
+ok("音轨：喘息期音量被压低", ducked < volBeforeMute, "喘息 " + ducked + " vs 常态 " + volBeforeMute);
+S3.bgm.breathe(false);
+S3.bgm.setWave();
+ok("音轨：开新阵后音量回满", Math.abs(el.volume - volBeforeMute) < 1e-6, "实际 " + el.volume);
+
+/* 被自动播放策略拒掉：不许当场判死，要留着下一次手势重试 */
+const el4 = tracks[0];
+el4.paused = true;
+S3.bgm.start();
+await new Promise((r) => setTimeout(r, 260));   /* 看护定时器 140ms 一拍 */
+ok("音轨：被拒播后由看护定时器重试并恢复播放", el4.paused === false);
+
+/* 停播：淡出后必须真的 pause，并且回到开头 */
+S3.bgm.stop(0.05);
+await new Promise((r) => setTimeout(r, 220));
+ok("音轨：停播后已暂停", el4.paused === true);
+ok("音轨：停播后回到开头", el4.currentTime === 0, "实际 " + el4.currentTime);
+ok("音轨：停播后 isTrack 为假", S3.bgm.isTrack() === false);
+
+/* 元素报错（文件缺失 / 解码失败）→ 判死，再起 BGM 必须退回程序化。
+   这一条是「素材可缺」那条硬约束的自动化防线。 */
+const el5 = tracks[0];
+el5.fire("error");
+ok("音轨：元素 error 后判死", S3.bgm.isTrackDead() === true);
+const beforeOsc = created.oscillators;
+S3.bgm.start();
+ok("音轨：判死后退回程序化 BGM（drone 振荡器起来了）",
+   created.oscillators > beforeOsc, "新增 " + (created.oscillators - beforeOsc) + " 个");
+S3.bgm.stop(0.05);
+
+/* 注意：这一段用真的 setInterval，收尾前把看护定时器停掉，否则进程挂着不退 */
+S3.bgm.stop(0.05);
+
 console.log("----------------------------------------------");
 if (fail === 0) console.log("audio 自检通过，0 失败");
 else console.log("audio 自检失败 " + fail + " 项");

@@ -58,7 +58,8 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 - **2026-10-25（手机端适配 + 三份审计修复后）**：`check-inline` 通过（内联脚本 139378 字符）；`selftest_enemies` / `selftest_audio` / `selftest_weapons` 全 0 失败；`node --check` 12/12 通过。浏览器端 12 项端到端断言全绿（0 报错 / 对局正常 / 敌人峰值 7 / 粒子不超 600 / `readPad` 有 `pause` / 拾取半径与提示半径都是 90 / `short` dur=55 / axe walk 3 帧 / `Touch` 已加载 / 粒子兜底 900→600 / `syncHUD` 60 帧 0 次 `getElementById`）。
 - **2026-10-25（提音量 + 重做 BGM 编曲后）**：`check-inline` 通过（内联脚本 139514 字符）；`selftest_enemies` / `selftest_audio`（29 项）/ `selftest_weapons` 全 0 失败；`node --check` 12/12 通过；链接检查 31 文件 75 链接 0 错。浏览器实测：`file://` 直开、进单人模式、开局 BGM 起、挥砍与跳跃出声、控制台 0 报错 0 警告。离线渲染 A/B：同场景 RMS +2.8 dB、峰值 +2.6 dB、**0 个削波样本**（峰值 -19.3 dB，离满量程还差 19 dB）。动机核验：档 0 走 D–G–F–A，档 3 走 D5–C5–A4–G4–A–G–F–D，低音线 D3/A2，档 3 drone 顶到 Eb3。
 - **2026-10-25（刀光朝向定案 + 刃口高光锚定后）**：`check-inline` 通过（内联脚本 140318 字符）；`selftest_enemies` / `selftest_audio` / `selftest_weapons`（新增 5b/5c 两节）全 0 失败；`node --check` 12/12 通过；链接检查 30 文件 75 链接 0 错。朝向回归防线实测有效：把 `slashMirror` 临时改回 `facing < 0` 当场 14 项失败。像素探针（900×460，两朝向并排）：`facing=+1` 质心 `mass_x=+4.61`、`facing=-1` 为 `-5.32`（都在锚点身前），互为镜像偏差 `dx=0.71 / dy=0.03`。版本号 `20261025d` → `e`。
-- 规模：`index.html` 约 4350 行；`js/` 12 个模块；`assets/` 329 个文件 18.32 MB。
+- **2026-10-25（BGM 换成外部音轨后）**：`check-inline` 通过（内联脚本 138516 字符）；`selftest_enemies` / `selftest_audio`（43 项，新增第 9 节音轨断言 16 项）/ `selftest_weapons` 全 0 失败；`node --check` 12/12 通过。BGM 改为 `assets/audio/bgm-main.mp3`（256 kbps / 48 kHz 立体声 / 222 秒 / 6.8 MB，`<audio>` 元素循环播放），音轨缺席或被拦时退回原程序化 BGM。人耳实测：`file://` 直开、进单人模式即出声。
+- 规模：`index.html` 约 4350 行；`js/` 12 个模块；`assets/` 330 个文件 25.1 MB。
 - 素材分布：`anim/` 249、`fx/` 13、`icons/` 16、`icon/` 10、`ui/` 10、`interact/` 6、`props/` 8、`char/` 5、根 11。
 - 素材预算：单帧 ≤ 60 KB（实测最大 55.4 KB）、总量 ≤ 8 MB（上调依据见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 的「素材流水线」）。**当前 18.32 MB 超预算 10.3 MB**，2026-10-25 已清掉未引用的 15.78 MB（`promo/` 与 `bg-fg.webp`），剩下的都是运行时真加载的。
 - 帧数：角色 12 个 clip 共 43 帧；敌人 4 类共 14 帧；武器站立帧 11、出招单帧 10、出招序列 10 把 × 4 帧、持械行走 11 把（其中斧头 3 帧，见活跃坑）。
@@ -115,7 +116,7 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 - **刀光朝向是一处契约**：源画凸背朝左（实测弧心 `cx/w` 全 > 0.5），要求「凸背朝人面向的方向」，所以面朝右镜像、面朝左原样 —— 与常规写法相反。判据只在 `js/fx.js` 的 `ART_CONVEX` + `slashMirror()`，两条绘制路径共用。改回 `facing < 0` 会让 `selftest_weapons` 的 5b 当场 14 项失败（已实测）。
 - **月牙素材左右不对称，不能按包围盒居中**：刃口高光的圆心必须取实测弧心（`js/fx.js` 的 `ARC`，由 `tools/measure_slash.py` 生成），半径取脊线半径。在原点画近似半径的弧，高光会整根悬在图外（实测偏 40px 以上）。
 - **验刀光的探针页里不许放文字或辅助线**：它们会进像素统计，曾让 `tools/probe_slash_orient.py` 报出 3.4px 的假不对称。另外 `file://` 下 `getImageData` 抛 `SecurityError`，游戏主循环会让 Playwright 截图超时，`<canvas>` 会被全局 CSS 拉成 1600×900 —— 三条都得绕。
-- 声音全在 [js/audio.js](js/audio.js)，实时合成、不读音频文件 —— `file://` 下 `fetch` / `XHR` 取音频会被 CORS 拦，放 `assets/audio/*.mp3` 等于放一堆加载不了的文件。要换音色改配方表，别加素材。
+- 声音全在 [js/audio.js](js/audio.js)：打击音实时合成、不读音频文件；BGM 读 `assets/audio/bgm-main.mp3`，用 `<audio>` 元素播放（`file://` 下 `decodeAudioData` 取不到字节，媒体元素能播）。换 BGM 只改 `MEDIA_SRC` 与那份文件；`assets/audio/` 缺席或被拦时自动退回程序化 BGM。
 - **提音量只动 `VOL`（总线）与 `MASTER`（总增益），别动配方表里的 `gain`** —— 那些是「相对轻重」语义，改了毁配比。`sfx` 总线上限 1，越过压缩器就压不住峰值。
 - **BGM 旋律层是 `PHRASE` 表里的定好动机，不是随机拨弦**。随机音高听起来像素材铺底；每档一条五声乐句，32 步（16 拍）一轮，改旋律只改那张表。
 - **新加的音频节点必须带降级分支**：music 支路的延时混响用 `AC.createDelay` 特性探测，老浏览器没有就整段跳过。

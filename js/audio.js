@@ -1,16 +1,20 @@
 /* =========================================================================
- * audio.js — 总线 / 材质打击音 / 程序化 BGM
+ * audio.js — 总线 / 材质打击音 / 外部音轨 BGM（+ 程序化兜底）
  *
- * 纯 Web Audio 实时合成，零素材文件：file:// 下不碰任何 fetch / XHR，
- * 因此没有 CORS 问题，也不引入任何版权素材（README 承诺项）。
+ * 打击音全是 Web Audio 实时合成，不碰 fetch / XHR。
+ * BGM 读 assets/audio/bgm-main.mp3，用 <audio> 元素播放 —— 媒体元素属于
+ * 文档子资源，file:// 直开能播；decodeAudioData 那条路在 file:// 下拿不到
+ * 字节（fetch / XHR 被 CORS 拦），所以不走它。
  *
  * 三层结构：
  *   总线路由  sfx / music / amb → compressor → master → destination
  *   打击音    瞬态 + 材质主体 + 低频尾，按武器材质分流，全部带随机化
- *   BGM       drone / 节奏 / 氛围 三层，随波次升档，随血量与 BOSS 硬直动态压缩
+ *   BGM       外部音轨优先；音轨缺席 / 被拒播 / 文件缺失时整条退回
+ *             drone / 节奏 / 氛围 三层程序化合成，随波次升档
  *
  * 降级：无 AudioContext 时所有导出函数都是安全空转，调用方不需要判空。
  * 无 AudioContext 但调用方仍要出声 → 由 index.html 内的旧合成器兜底。
+ * 无 Audio 构造器 / 音轨加载失败 → 走程序化 BGM（bgm* 那套），不会静音。
  * ========================================================================= */
 (function (global) {
   "use strict";
@@ -122,6 +126,8 @@
     armFirstGesture.done = true;
     var kick = function () {
       if (AC && AC.state === "suspended") { try { AC.resume(); } catch (e) {} }
+      /* 音轨被自动播放策略拒过：手势来了再试一次，这一次一定在手势栈里 */
+      if (media.want && media.el && media.el.paused) mediaTryPlay(media.el);
       global.removeEventListener("pointerdown", kick);
       global.removeEventListener("keydown", kick);
     };
@@ -383,8 +389,132 @@
     bgmStop(1.0);
   }
 
+  /* ==================================================== 外部音轨（BGM 素材）*/
+  /* 背景音乐读 assets/audio/bgm-main.mp3。为什么是 <audio> 而不是
+     decodeAudioData：file:// 下 fetch / XHR 取本地音频会被 CORS 拦，
+     decodeAudioData 连字节都拿不到；媒体元素是文档子资源，file:// 直开能播。
+
+     代价：元素绕开了 WebAudio 总线，所以 VOL.music / MASTER / 静音闸 /
+     喘息与低血压音都要在 mediaLevel() 里手动折进元素的 volume —— 别在别处
+     直接写 el.volume，下一拍就会被看护定时器按媒体电平覆盖回去。
+
+     降级：没有 Audio 构造器 / 元素 error / 文件缺失 → media.dead，
+     bgmStart() 那一层退回程序化 BGM，BGM 一定有声这条仍然成立。 */
+  var MEDIA_SRC = "assets/audio/bgm-main.mp3";
+  var MEDIA_TRIM = 0.92;          /* 母带自己压过一遍，元素音量只做轻微让位 */
+  var media = { el: null, on: false, want: false, dead: false, timer: 0 };
+
+  function mediaEl() {
+    if (media.dead) return null;
+    if (media.el) return media.el;
+    if (!global.Audio) { media.dead = true; return null; }
+    try {
+      var el = new global.Audio();
+      el.src = MEDIA_SRC;
+      el.loop = true;                 /* 22 秒循环素材够用，整段就是一首曲子 */
+      el.preload = "auto";
+      /* 404 / 解码失败 / file:// 被拦：整条音轨作废，交给程序化 BGM 接管 */
+      el.addEventListener("error", function () {
+        media.dead = true;
+        media.on = false;
+        media.want = false;
+      });
+      media.el = el;
+    } catch (e) {
+      media.dead = true;
+      return null;
+    }
+    return media.el;
+  }
+
+  /* 元素最终音量：静音闸 → 喘息 / 低血 / BOSS 硬直压音 → VOL.music × MASTER。
+     这一步与 bgmTick 里那套 duck 是同一套判据，不能各写一份不同口径的。 */
+  function mediaLevel() {
+    if (muted) return 0;
+    var duck = 1;
+    if (bgm.breathe) duck = 0.45;
+    var g = global.G;
+    if (g) {
+      var lowHp = false;
+      [g.p1, g.p2].forEach(function (p) { if (p && !p.dead && p.hp <= 2) lowHp = true; });
+      var stagger = false;
+      if (g.enemies) {
+        for (var i = 0; i < g.enemies.length; i++) {
+          var e = g.enemies[i];
+          if (e.kind === "boss" && e.state === "recover") { stagger = true; break; }
+        }
+      }
+      if (stagger) duck = 0.32;               /* 硬直窗口把舞台让给打击音 */
+      else if (lowHp) duck = Math.min(duck, 0.72);
+    }
+    return clamp(VOL.music * MASTER * MEDIA_TRIM * duck, 0, 1);
+  }
+
+  function mediaApply() {
+    var el = media.el;
+    if (!el) return;
+    try { el.volume = mediaLevel(); } catch (e) {}
+  }
+
+  function mediaTryPlay(el) {
+    var p = null;
+    try { p = el.play(); } catch (e) { p = null; }
+    /* 自动播放策略拒掉不算失败：want 留着，下一次手势与看护定时器都会再试 */
+    if (p && p.catch) p.catch(function () { media.on = false; });
+    return !!p;
+  }
+
+  /* 看护：① 压音跟随血量与 BOSS 硬直 ② 被拒播后重试 ③ want 撤掉后自停 */
+  function mediaTick() {
+    var el = media.el;
+    if (!el) return;
+    if (!media.want) {
+      if (media.timer) { global.clearInterval(media.timer); media.timer = 0; }
+      return;
+    }
+    if (media.on && el.paused) mediaTryPlay(el);
+    if (media.on) mediaApply();
+  }
+
+  /* 起播：返回 true 表示这条链路接管了 BGM，程序化那三层就整条不跑。 */
+  function mediaStart() {
+    if (media.dead) return false;
+    var el = mediaEl();
+    if (!el) return false;
+    media.want = true;
+    media.on = true;
+    mediaApply();
+    mediaTryPlay(el);
+    if (!media.timer) media.timer = global.setInterval(mediaTick, 140);
+    return true;
+  }
+
+  /* 停播：先在 fade 秒里把元素音量收到 0，再 pause 并回到开头。
+     收尾那一下另挂 setTimeout —— 淡出定时器在某些环境（后台标签页）会被
+     节流，只有 setTimeout 这条腿能保证它一定会停。 */
+  function mediaStop(fade) {
+    var el = media.el;
+    media.want = false;
+    media.on = false;
+    if (media.timer) { global.clearInterval(media.timer); media.timer = 0; }
+    if (!el) return;
+    var d = Math.max(0.05, fade || 0.8);
+    var from = 1;
+    try { from = el.volume; } catch (e) {}
+    var t0 = nowMs();
+    var id = global.setInterval(function () {
+      var k = (nowMs() - t0) / (d * 1000);
+      if (k >= 1) { global.clearInterval(id); return; }
+      try { el.volume = clamp(from * (1 - k), 0, 1); } catch (e) {}
+    }, 40);
+    global.setTimeout(function () {
+      global.clearInterval(id);
+      try { el.pause(); el.currentTime = 0; el.volume = mediaLevel(); } catch (e) {}
+    }, d * 1000 + 60);
+  }
+
   /* ================================================================ BGM */
-  /* 三层：drone（低频床）/ pulse（鼓与心跳）/ color（旋律层）。
+  /* 程序化兜底：drone（低频床）/ pulse（鼓与心跳）/ color（旋律层）。
      全部程序生成，随波次升档；血量低抽高频、BOSS 硬直时把音乐压下去。
 
      旋律层是**定好的动机**，不是随机拨弦 —— 随机音高听起来像素材铺底，
@@ -654,7 +784,10 @@
   function bgmStart() {
     var a = ctx();
     if (!a) return;
-    if (bgm.on) return;
+    if (bgm.on || media.on) return;
+    /* 外部音轨优先。它一接管，程序化那三层就整条不跑 ——
+       两套同时响只会互相打架，玩家听到的是噪声。 */
+    if (mediaStart()) return;
     bgm.on = true;
     bgm.step = 0;
     bgm.nextT = a.currentTime + 0.1;
@@ -667,6 +800,7 @@
   }
 
   function bgmStop(fade) {
+    mediaStop(fade);
     if (!bgm.on) { stopDrone(fade); return; }
     bgm.on = false;
     if (bgm.timer) { global.clearInterval(bgm.timer); bgm.timer = 0; }
@@ -677,6 +811,7 @@
      新阵开始意味着喘息结束，breathe 必须清掉，否则鼓点回不来。 */
   function bgmSetWave() {
     bgm.breathe = false;
+    mediaApply();                   /* 喘息压音解除，音轨立刻回满 */
     bgmStart();
     if (bgm.on) {
       bgm.tier = -1;
@@ -694,6 +829,9 @@
     bgm.tier = -1;                  /* 让 tick 立刻按新 bpm 重排节拍 */
     bgm.step = 0;
     bgm.nextT = AC.currentTime + 0.05;
+    /* 音轨那条路不归 bgmTick 管，压音要当场折进去 —— 等看护定时器下一拍
+       会有 140ms 的「过场一开始音乐还没让开」，那一下最容易听出来。 */
+    mediaApply();
     if (!on) {
       try { bus.music.gain.setTargetAtTime(VOL.music, AC.currentTime, 0.3); } catch (e) {}
     }
@@ -723,12 +861,18 @@
     matOf: matOf,
     bgm: { start: bgmStart, stop: bgmStop, setWave: bgmSetWave, breathe: bgmBreathe,
            tier: bgmTier, isOn: function () { return bgm.on; },
-           isBreathe: function () { return bgm.breathe; } },
+           isBreathe: function () { return bgm.breathe; },
+           /* 音轨侧的自检/调试口：src 为空 = 没有音轨（走程序化），
+              isTrack 为真表示当前 BGM 由元素接管 */
+           isTrack: function () { return !!media.on; },
+           isTrackDead: function () { return !!media.dead; },
+           track: function () { return media.el ? media.el.src : ""; } },
     setMaterial: function (k) { material = matOf(k); return material; },
     material: function () { return material; },
     mute: function (m) {
       muted = (m === undefined) ? !muted : !!m;
       if (master) master.gain.value = muted ? 0 : MASTER;
+      mediaApply();                 /* 音轨在总线之外，必须单独关一次 */
       return muted;
     },
     isMuted: function () { return muted; },
@@ -738,12 +882,14 @@
         if (typeof v === "number") {
           MASTER = clamp(v, 0, 2);
           if (master) master.gain.value = muted ? 0 : MASTER;
+          mediaApply();
         }
         return MASTER;
       }
       if (VOL[k] !== undefined && typeof v === "number") {
         VOL[k] = clamp(v, 0, 1);
         if (bus[k]) bus[k].gain.value = VOL[k];
+        mediaApply();
       }
       return VOL[k];
     },
@@ -753,11 +899,18 @@
 
   global.SND = api;
 
-  /* 切后台就挂起，回来再恢复：避免切标签页期间音乐跑偏几十秒 */
+  /* 切后台就挂起，回来再恢复：避免切标签页期间音乐跑偏几十秒。
+     音轨走的是元素，不受 AudioContext 挂起影响，要单独 pause / play。 */
   global.addEventListener("visibilitychange", function () {
     if (!AC) return;
-    if (global.document && global.document.hidden) api.suspend();
-    else api.resume();
+    var hidden = !!(global.document && global.document.hidden);
+    if (hidden) {
+      api.suspend();
+      if (media.el && media.on) { try { media.el.pause(); } catch (e) {} }
+    } else {
+      api.resume();
+      if (media.want && media.el && media.el.paused) mediaTryPlay(media.el);
+    }
   });
 
   /* M 静音：调试与录屏都要能一把关掉 */

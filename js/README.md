@@ -169,19 +169,22 @@
 
 ## audio.js
 
-- 职责：全部声音。总线（`sfx / music / amb` → 压缩器 → 主增益）、材质打击音、程序化 BGM（drone 低频床 / 鼓组 / 旋律动机三层）。
-- 关键导出：`window.SND = { ctx, voice, tone, noise, swing, hit, impact, jump, hurt, die, pickup, chest, breakWeapon, explode, wave, win, lose, matOf, setMaterial, bgm{start,stop,setWave,breathe,tier,isOn,isBreathe}, mute, isMuted, volume, suspend, resume }`。`volume("master", v)` 是整场响度总闸，允许超过 1（压缩器已把峰值摁住）；`volume("sfx"|"music"|"amb", v)` 是总线音量，上限 1。
-- 依赖谁：只依赖浏览器 `AudioContext`。**不读任何音频文件** —— `file://` 下 `fetch` / `XHR` 会被 CORS 拦，所以全部实时合成，也因此天然不含版权素材。
+- 职责：全部声音。总线（`sfx / music / amb` → 压缩器 → 主增益）、材质打击音、BGM（外部音轨 `assets/audio/bgm-main.mp3` 优先，缺席时退回 drone 低频床 / 鼓组 / 旋律动机三层程序化合成）。
+- 关键导出：`window.SND = { ctx, voice, tone, noise, swing, hit, impact, jump, hurt, die, pickup, chest, breakWeapon, explode, wave, win, lose, matOf, setMaterial, bgm{start,stop,setWave,breathe,tier,isOn,isBreathe,isTrack,isTrackDead,track}, mute, isMuted, volume, suspend, resume }`。`volume("master", v)` 是整场响度总闸，允许超过 1（压缩器已把峰值摁住）；`volume("sfx"|"music"|"amb", v)` 是总线音量，上限 1。
+- 依赖谁：只依赖浏览器 `AudioContext` 与 `Audio` 构造器（后者可选）。**打击音不读任何音频文件**；BGM 读一份 `assets/audio/bgm-main.mp3`，用 `<audio>` 元素播放 —— 媒体元素是文档子资源，`file://` 直开能播，而 `decodeAudioData` 那条路在 `file://` 下连字节都取不到（`fetch` / `XHR` 被 CORS 拦）。元素建不出来 / 报错 / 文件缺失 → `media.dead`，整条退回程序化 BGM。
 - 被谁依赖：`index.html` 的音效转发壳（`tone / noise / sfx*` 共 9 个出口）。全文件几十个调用点经由这些壳进入本模块，改本模块等于改全场声音。
 - 关键约束：打击音分三层（瞬态 + 材质主体 + 低频尾），低频尾长度由 `G.hitstop` 驱动，让「顿帧多久、尾巴多久」对齐。
 - 关键约束：**必须有复音节流与随机化**。同帧十来个敌人受击若线性叠加必削波；同频同相叠加会让响度忽大忽小。`gate()` 管节流，`jit()` 管音高/时长抖动。
 - 关键约束：材质映射在 `MATERIAL` 表（武器 key → `metal / jade / heavy / clay / bell / flesh / string`）。青铜靠**非整数泛音比**（1 : 2.37 : 3.71）才有金属感，整数比会听成音叉；玉与骨不共振，要钝而干。
 - 关键约束：BGM 的喘息压音必须走 `bgm.breathe` 标志，在 `bgmTick` 里统一结算。直接改总线增益会被下一帧 tick 覆盖回满。
+- 关键约束：**音轨绕开了 WebAudio 总线**，所以它的音量只有一个出口 `mediaLevel()`（静音闸 → 喘息 / 低血 / BOSS 硬直压音 → `VOL.music × MASTER`）。别在别处直接写 `el.volume`：140ms 的看护定时器下一拍就按媒体电平覆盖回去。`bgmBreathe` / `bgmSetWave` / `mute` / `volume` 四处都显式调了 `mediaApply()`，就是为了别等那一拍。
+- 关键约束：**音轨接管后程序化那三层整条不跑**（`media.on` 为真时 `bgmStart` 直接返回）。两套同时响只会互相打架，玩家听到的是噪声。
+- 关键约束：音轨被自动播放策略拒掉**不算失败** —— `media.want` 留着，`armFirstGesture` 的手势回调与看护定时器都会重试；文件 404 / 解码失败才 `media.dead`，那时退回程序化 BGM。
 - 关键约束：**旋律层是定好的动机（`PHRASE` / `MEL` 表），不是随机拨弦**。随机音高听起来像素材铺底，不像音乐。每档一条五声动机，32 步（16 拍）一轮；改旋律只改 `PHRASE` 表，别在 `bgmTick` 里散写音高。
 - 关键约束：**提音量只能动总线（`VOL`）与主增益（`MASTER`），不要去改配方表里的 gain 字段** —— 那些数字是「这一条声音相对别条多重」的语义，改了会毁掉配比。`sfx` 总线上限是 1，越过压缩器就压不住了。
 - 关键约束：music 支路上挂了一根带回授的延时线当混响（`musicDelay / musicWet / musicFb`）。老浏览器没有 `createDelay` 就整段跳过，音效与 BGM 不受影响 —— 新增节点一律要带这个降级分支。
 - 关键约束：`file://` 自动播放策略要求一次用户手势，`armFirstGesture()` 负责解锁；`M` 键静音；`visibilitychange` 切后台自动挂起。
-- 改后必测：`node tools/selftest_audio.mjs`（mock Web Audio，不开浏览器），覆盖材质发声、复音节流、BGM 起停与档位、无 `AudioContext` 时安全空转。
+- 改后必测：`node tools/selftest_audio.mjs`（mock Web Audio，不开浏览器），覆盖材质发声、复音节流、BGM 起停与档位、音轨接管与让位（9 节）、音轨判死后退回程序化、无 `AudioContext` 时安全空转。
 ---
 
 ## 变更影响路由
