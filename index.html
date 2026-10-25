@@ -3,6 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- 手机端默认横屏。
+     这两条是国产浏览器内核（X5 / UC）专有的私有 meta，标准里没有，
+     但微信、QQ、UC、部分国产 ROM 的浏览器**只认它们** ——
+     screen.orientation.lock() 在这些内核里不可用，没有这两条就转不过来。
+     两者互不冲突：认得的用，不认得当注释。标准浏览器的横屏由
+     js/touch.js 的 lockLandscape()（全屏 + orientation.lock）负责。 -->
+<meta name="x5-orientation" content="landscape">
+<meta name="screen-orientation" content="landscape">
+<meta name="x5-fullscreen" content="true">
+<meta name="full-screen" content="yes">
 <title>双刃战士 · 纵目</title>
 <meta name="description" content="三星堆纵目祭司主题横版双人清版动作游戏，零依赖，双击即玩。">
 <meta name="theme-color" content="#1a140e">
@@ -424,20 +434,20 @@
      而且刷新几次都改不掉 —— 缓存不认文件名。
      这个项目没有构建步骤（禁 npm / CDN，file:// 要能双击跑），
      所以版本号靠手改；改 js/ 就 bump 一次。
-     当前版本：20261025-f（f = 刀光凸背朝向 + 刃口高光实测锚定，合并远端 e 的走路 anchorX 重对齐）
+     当前版本：20261025-g（g = 手机端默认横屏：X5 私有 meta + 全屏锁方向 + 「横屏进入」按钮；f = 刀光凸背朝向）
      —— 两边曾各自把版本号提到 e，同号两个版本会让缓存分不清，合并后统一顺延。 -->
-<script src="js/assets.js?v=20261025f"></script>
-<script src="js/anim-data.js?v=20261025f"></script>
-<script src="js/background.js?v=20261025f"></script>
-<script src="js/char-rig.js?v=20261025f"></script>
-<script src="js/enemies-assets.js?v=20261025f"></script>
-<script src="js/fx.js?v=20261025f"></script>
-<script src="js/guide.js?v=20261025f"></script>
-<script src="js/rumble.js?v=20261025f"></script>
-<script src="js/touch.js?v=20261025f"></script>
-<script src="js/ui-shell.js?v=20261025f"></script>
-<script src="js/audio.js?v=20261025f"></script>
-<script src="js/intro-video.js?v=20261025f"></script>
+<script src="js/assets.js?v=20261025g"></script>
+<script src="js/anim-data.js?v=20261025g"></script>
+<script src="js/background.js?v=20261025g"></script>
+<script src="js/char-rig.js?v=20261025g"></script>
+<script src="js/enemies-assets.js?v=20261025g"></script>
+<script src="js/fx.js?v=20261025g"></script>
+<script src="js/guide.js?v=20261025g"></script>
+<script src="js/rumble.js?v=20261025g"></script>
+<script src="js/touch.js?v=20261025g"></script>
+<script src="js/ui-shell.js?v=20261025g"></script>
+<script src="js/audio.js?v=20261025g"></script>
+<script src="js/intro-video.js?v=20261025g"></script>
 <script>
 "use strict";
 /* =====================================================================

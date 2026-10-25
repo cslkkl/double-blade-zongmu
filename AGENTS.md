@@ -148,6 +148,12 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 - **手柄的 `pause` 字段在 `readPad` 里**：`Start`(9) 与 `Back`(8)。这条以前完全没接 —— `togglePause` 只有 Esc / 按钮 / 触屏三个入口，而指南与暂停页都写着「Start」。新增手柄键位时，`readPad` 的空返回也要同步补字段（保持同形）。
 - **机关（`G.mechanisms`）每加新的要先清已激活的**：已激活的金光机关一直立着（用过了还在闪），且避让逻辑每有一个机关就把新落点 +320，会越推越远。宝箱同理但要反过来 —— 未开的留着（玩家还没开），只清已开的。
 - **判「有没有触屏」不能看 `PointerEvent`**：桌面 Chrome / Edge / Firefox 全都支持 PointerEvent，拿它当判据，鼠标点一下页面就切进手机版，玩家看到一圈虚拟键凭空冒出来。正确判据是触摸硬件（`navigator.maxTouchPoints > 0` 或 `ontouchstart` in window）。`PointerEvent` 只用来选事件 API。
+- **手机端「默认横屏」是三条腿，缺一条就有整片机型转不过来**：
+  1. `<meta name="x5-orientation" content="landscape">` + `<meta name="screen-orientation" content="landscape">` —— 国产内核（微信 / QQ / UC 的 X5、部分 ROM 浏览器）**只认这两条私有 meta**，标准 API 在它们里面不可用；
+  2. `js/touch.js` 的 `lockLandscape()`：`requestFullscreen()` 然后 `screen.orientation.lock("landscape")`。**`requestFullscreen` 必须在用户手势的同步调用栈里**，所以挂在「第一根手指落下」与「横屏进入」按钮上，脚本加载时调 100% 被拒；
+  3. 竖屏遮罩 `请横过来玩` 兜底 —— iOS Safari 压根没有 `screen.orientation.lock`，只能靠玩家手动转屏。
+  全部失败都静默（`.catch` 吞掉），绝不能因为锁不了方向就白屏或弹错误。
+- **不要给 `.tch-rotate` 里加 `pointer-events:none`**：遮罩自带 `pointer-events:auto` 是为了盖死底下的一切，而「横屏进入」按钮就在它里面 —— 一改就点不动。
 - **鼠标与手指靠 `pointerType` 区分**：`mouse` 不算手指 —— 触摸屏笔记本上用鼠标玩要保持桌面界面。`touch` / `pen` 算。
 - **`index.html` 的 script 标签带 `?v=` 版本号**：文件名不带 hash，浏览器与 CDN 会长期缓存 `js/*.js`。玩家拿到旧版 `touch.js` 就会在桌面上看到手机虚拟键，刷新几次都改不掉。**改了 `js/` 下任何文件就把版本号 +1。**
 - **从主屏图标启动时没有「第一次手指落下」事件**：自动判断会等不到，虚拟键永远不出现。所以有 `mobile.html` 强制入口（`?touch=1`），别指望自动判断覆盖这个场景。
