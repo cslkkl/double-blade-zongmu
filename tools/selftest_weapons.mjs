@@ -593,9 +593,236 @@ for (const k of ["bow", "rock", "jar"]) {
   ok(r === false, "未知弹道 kind 应返回 false");
 }
 
-/* ---------------------------------------------------------------- 汇总 */
+/* ---------------------------------------------------------------- 5b. 刀光朝向 */
+/* 维护者 2026-10-25 定：**凸背朝人面向的方向**。
+   源画凸背朝左（实测，见 .agents/notes/依据-半月斩素材左右不对称.md），
+   所以面朝右要镜像、面朝左用原样 —— 与「朝左才镜像」的常规写法相反。
+   旧代码正是常规写法，两个朝向都把凸背送进了人背后。
 
-console.log("");
+   这里断言三件事（全部是参数级，不需要读像素）：
+     1. FX.mirrors() 的方向契约；
+     2. 变换后「源画 -x 轴」在设备空间的指向 = facing 方向（即凸背朝前）；
+     3. 两个朝向逐点左右对称 —— 否则「朝左反了」会以另一种形式复发。
+
+   为什么必须用矩阵：mock ctx 的 scale 本来是空函数，光看 drawImage 的
+   参数看不出翻没翻。这里自带一个记录 CTM 的 ctx，把目标矩形真正变换出去。 */
+console.log("=== 5b. 刀光朝向 ===");
+
+/* 记录 CTM 的 ctx：a,b,c,d,e,f —— x' = a·x + c·y + e，y' = b·x + d·y + f
+   save/restore 必须连**绘制状态**一起存（尤其 globalCompositeOperation）：
+   真实 canvas 就是这样。只存矩阵的话，暖光层设的 "lighter" 会漏给后面的
+   主体绘制，主图就被误判成叠加层了。 */
+function makeMatrixCtx() {
+  let m = [1, 0, 0, 1, 0, 0];
+  const stack = [];
+  const images = [];   // { src, rect, a, comp }
+  const arcs = [];     // { x, y, r, a0, a1 }
+  const c = {
+    canvas: { width: 1600, height: 900 },
+    globalAlpha: 1,
+    globalCompositeOperation: "source-over",
+    fillStyle: "#000", strokeStyle: "#000", lineWidth: 1,
+    lineCap: "butt", lineJoin: "miter", font: "10px sans-serif",
+    save() {
+      stack.push({
+        m: m.slice(),
+        comp: c.globalCompositeOperation,
+        alpha: c.globalAlpha,
+        fill: c.fillStyle,
+        stroke: c.strokeStyle,
+        lw: c.lineWidth,
+        cap: c.lineCap
+      });
+    },
+    restore() {
+      const s = stack.pop();
+      if (!s) return;
+      m = s.m;
+      c.globalCompositeOperation = s.comp;
+      c.globalAlpha = s.alpha;
+      c.fillStyle = s.fill;
+      c.strokeStyle = s.stroke;
+      c.lineWidth = s.lw;
+      c.lineCap = s.cap;
+    },
+    translate(tx, ty) {
+      m[4] += m[0] * tx + m[2] * ty;
+      m[5] += m[1] * tx + m[3] * ty;
+    },
+    scale(sx, sy) { m[0] *= sx; m[1] *= sx; m[2] *= sy; m[3] *= sy; },
+    rotate(a) {
+      const cs = Math.cos(a), sn = Math.sin(a);
+      const a0 = m[0], b0 = m[1], c0 = m[2], d0 = m[3];
+      m[0] = a0 * cs + c0 * sn;
+      m[1] = b0 * cs + d0 * sn;
+      m[2] = -a0 * sn + c0 * cs;
+      m[3] = -b0 * sn + d0 * cs;
+    },
+    setTransform() {}, transform() {},
+    beginPath() {}, closePath() {}, moveTo() {}, lineTo() {},
+    quadraticCurveTo() {}, bezierCurveTo() {}, arcTo() {}, ellipse() {},
+    rect() {}, fill() {}, stroke() {}, clip() {},
+    fillRect() {}, strokeRect() {}, clearRect() {},
+    createLinearGradient: () => gradient(),
+    createRadialGradient: () => gradient(),
+    createPattern: () => gradient(),
+    setLineDash() {}, getLineDash: () => [],
+    measureText: () => ({ width: 8 }),
+    fillText() {}, strokeText() {}, putImageData() {},
+    arc(x, y, r, a0, a1) { arcs.push({ x, y, r, a0, a1 }); },
+    drawImage(img) {
+      const rest = Array.prototype.slice.call(arguments, 1);
+      if (rest.length < 4) return;
+      const [ox, oy, dw, dh] = rest;
+      const pts = [[ox, oy], [ox + dw, oy], [ox + dw, oy + dh], [ox, oy + dh]]
+        .map(([x, y]) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]);
+      images.push({
+        src: img && img.src ? String(img.src) : "",
+        rect: pts,
+        a: m[0],
+        comp: c.globalCompositeOperation
+      });
+    }
+  };
+  c.__images = images;
+  c.__arcs = arcs;
+  return c;
+}
+
+/* 出图两次：武器专属刀的 fxImg 第一次只建 Image，第二次才可用 */
+function captureSlash(s) {
+  FX.drawSlash(makeCtx(), s);
+  const c = makeMatrixCtx();
+  FX.drawSlash(c, s);
+  return c;
+}
+
+ok(FX.artConvex() === -1, "源画凸背朝左（ART_CONVEX === -1）");
+ok(FX.mirrors(1) === true, "面朝右必须镜像（凸背才朝右）");
+ok(FX.mirrors(-1) === false, "面朝左用原样（凸背本来就朝左）");
+
+/* 通用三档：seg1 → slash-1，seg2 → slash-2，big → slash-3 */
+const GENERIC_CASES = [
+  { name: "slash-1", s: { seg: 1, big: false } },
+  { name: "slash-2", s: { seg: 2, big: false } },
+  { name: "slash-3", s: { seg: 1, big: true } }
+];
+const WEAPON_CASES = ["short", "sword", "axe", "spear"];
+
+function caseOf(kind, name) {
+  if (kind === "generic") {
+    const g = GENERIC_CASES.find((x) => x.name === name);
+    return Object.assign({ x: 0, y: 0, life: 0.1, max: 0.19 }, g.s);
+  }
+  return { x: 0, y: 0, life: 0.1, max: 0.19, seg: 1, wkey: name };
+}
+
+function mainImageOf(c) {
+  /* 取第一张 source-over 的 drawImage：那就是月牙本体，
+     后面两张是 lighter 提亮层（同样受 CTM 影响，但不代表本体位置）。 */
+  const im = c.__images.filter((r) => r.comp === "source-over" && r.src);
+  return im.length ? im[0] : null;
+}
+
+const orientRows = [];
+for (const kind of ["generic", "weapon"]) {
+  const names = kind === "generic" ? GENERIC_CASES.map((x) => x.name) : WEAPON_CASES;
+  for (const name of names) {
+    const plus = captureSlash(Object.assign(caseOf(kind, name), { facing: 1 }));
+    const minus = captureSlash(Object.assign(caseOf(kind, name), { facing: -1 }));
+    const ip = mainImageOf(plus), im2 = mainImageOf(minus);
+    ok(!!ip, name + " facing=+1 应画出月牙本体");
+    ok(!!im2, name + " facing=-1 应画出月牙本体");
+    if (!ip || !im2) continue;
+
+    /* 源画的 -x 轴就是凸背方向。CTM 的 a 分量把源画 +x 映到设备 x，
+       所以凸背的设备 x 符号 = -a。它必须与 facing 同号。 */
+    const backP = -ip.a, backM = -im2.a;
+    ok(Math.sign(backP) === 1,
+       name + " 面朝右时凸背应朝右（实际 " + backP.toFixed(3) + "）");
+    ok(Math.sign(backM) === -1,
+       name + " 面朝左时凸背应朝左（实际 " + backM.toFixed(3) + "）");
+
+    /* 左右对称：两个朝向的目标矩形互为 x 取反 */
+    const rp = ip.rect, rm = im2.rect;
+    let symErr = 0;
+    for (let i = 0; i < 4; i++) {
+      symErr = Math.max(symErr, Math.abs(rp[i][0] + rm[i][0]));
+      symErr = Math.max(symErr, Math.abs(rp[i][1] - rm[i][1]));
+    }
+    ok(symErr < 0.01, name + " 两个朝向应逐点左右对称（最大偏差 " + symErr.toFixed(4) + "）");
+
+    orientRows.push([name, backP > 0 ? "右 ✓" : "左 ✗", backM < 0 ? "左 ✓" : "右 ✗",
+      symErr < 0.01 ? "对称" : "偏差 " + symErr.toFixed(2)]);
+  }
+}
+console.log("  " + pad("素材", 10) + pad("面朝右凸背", 14) + pad("面朝左凸背", 14) + "左右对称");
+for (const r of orientRows) {
+  console.log("  " + pad(r[0], 10) + pad(r[1], 14) + pad(r[2], 14) + r[3]);
+}
+
+/* 5c. 刃口高光必须贴住实测脊线，不能悬在月牙外 */
+/* 旧代码在原点画 r≈pick.r 的弧：实测脊线圆心在 +0.65~1.03 画布宽、
+   半径 0.41~0.87 画布宽，两者差 40px 以上，高光整根飘在图外。
+   这里断言高光的圆心与半径都来自实测表（而不是原点 + 拍脑袋的半径）。 */
+console.log("=== 5c. 刃口高光锚定 ===");
+const ARC_FIXTURE = {
+  slash1: { cx: 1.0272, cy: 0.4811, r: 0.8725 },
+  slash2: { cx: 0.8573, cy: 0.4862, r: 0.6604 },
+  slash3: { cx: 0.6553, cy: 0.4860, r: 0.4070 },
+  short:  { cx: 0.7213, cy: 0.4915, r: 0.5124 },
+  dagger: { cx: 0.8169, cy: 0.4940, r: 0.6128 },
+  sword:  { cx: 1.0197, cy: 0.4948, r: 0.8622 },
+  axe:    { cx: 0.8999, cy: 0.4853, r: 0.5706 },
+  hammer: { cx: 0.5178, cy: 0.4998, r: 0.3270 },
+  spear:  { cx: 0.6284, cy: 0.4983, r: 0.1502 }
+};
+for (const k of Object.keys(ARC_FIXTURE)) {
+  const got = FX.arcOf(k);
+  ok(!!got, k + " 应有实测锚定数据");
+  if (!got) continue;
+  const f = ARC_FIXTURE[k];
+  ok(Math.abs(got.cx - f.cx) < 1e-4 && Math.abs(got.cy - f.cy) < 1e-4
+     && Math.abs(got.r - f.r) < 1e-4,
+     k + " 锚定表应与实测一致（重跑 tools/measure_slash.py 后再改这里）");
+}
+
+/* 画出来的高光弧：圆心 = (ox + dw·cx, oy + dh·cy)，半径 = dw·r。
+   变换里只有 translate / rotate / scale(±1)（没有缩放），
+   所以设备空间量的边长就等于局部 dw / dh，可以直接反推期望值。 */
+for (const name of WEAPON_CASES.concat(GENERIC_CASES.map((x) => x.name))) {
+  const f = ARC_FIXTURE[name];
+  if (!f) continue;
+  const c = captureSlash(Object.assign(caseOf(
+    WEAPON_CASES.includes(name) ? "weapon" : "generic", name), { facing: 1 }));
+  const im = mainImageOf(c);
+  if (!im) continue;
+
+  const dw = Math.hypot(im.rect[1][0] - im.rect[0][0], im.rect[1][1] - im.rect[0][1]);
+  const dh = Math.hypot(im.rect[3][0] - im.rect[0][0], im.rect[3][1] - im.rect[0][1]);
+  const expR = Math.max(2, dw * f.r);
+  const expX = dw * (f.cx - 0.42);          // ox = -dw·0.42
+  const expY = dh * (f.cy - 0.50);          // oy = -dh·0.50
+
+  /* 找半径对得上的那条弧（其余 arc 调用来自光晕 / 降级弧） */
+  const cand = c.__arcs.filter((a) => Math.abs(a.r - expR) < 0.6);
+  ok(cand.length > 0,
+     name + " 刃口高光半径应 = 弧宽 × 实测 R（期望 " + expR.toFixed(1) + "）");
+  if (cand.length) {
+    const a = cand[0];
+    const dxErr = Math.abs(a.x - expX);
+    const dyErr = Math.abs(a.y - expY);
+    ok(dxErr < 0.6 && dyErr < 0.6,
+       name + " 刃口高光圆心应落在实测弧心（偏差 " + dxErr.toFixed(2)
+       + "," + dyErr.toFixed(2) + "）");
+    /* 回归防线：旧代码在原点画弧。原点 = 玩家位置，高光飘在月牙外。 */
+    ok(Math.hypot(a.x, a.y) > 0.5,
+       name + " 刃口高光不该画在原点（那是旧 bug）");
+  }
+}
+console.log("  9 张素材的锚定表与高光半径已按实测校验");
+
+
 if (fails) {
   console.error("selftest_weapons: " + fails + " 项失败");
   process.exit(1);

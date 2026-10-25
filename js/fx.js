@@ -1,7 +1,7 @@
 /* =========================================================================
  * fx.js — 刀光 / HUD 底板 / 受伤渐晕
  * 独立 Canvas 2D 绘制模块，只依赖 window.IMG 与调用方传入的 ctx。
- * 默认朝右；facing < 0 时用 scale(-1,1) 镜像。
+ * 刀光的朝向见下方 ART_CONVEX：**面朝右镜像、面朝左原样**（与常规相反）。
  * 无外部库，无 console 输出。
  * ========================================================================= */
 (function (global) {
@@ -15,6 +15,45 @@
   var INK = "#3a2a10";
 
   var TAU = Math.PI * 2;
+
+  /* ------------------------------------------------------- 刀光朝向契约 */
+  /* 源画的月牙**凸背朝左**、凹口朝右（「(」形），实测见
+     .agents/notes/依据-半月斩素材左右不对称.md：
+     三张通用素材的脊线弧心 cx/w 分别为 1.0272 / 0.8573 / 0.6553，
+     全部 > 0.5 —— 圆心在右，凸背在左。12 张武器专属弧光同一口径。
+
+     玩法要求是**凸背朝人面向的方向**（维护者 2026-10-25 定），于是：
+       面朝右（facing > 0）→ 必须镜像，凸背才朝右；
+       面朝左（facing < 0）→ 用原样，凸背本来就朝左。
+     这与「素材朝右、朝左才镜像」的常规写法**正好相反**。
+
+     旧的 `if (facing < 0) ctx.scale(-1,1)` 把凸背送进了人背后，
+     这才是「面朝左时特效反了」的真正原因 —— 两个朝向都反，左挥只是更明显。
+     改之前先量：把条件改回 facing < 0 会让朝向再次整体翻转。 */
+  var ART_CONVEX = -1;                  // 源画凸背指向 -x
+
+  function slashMirror(facing) {
+    return (ART_CONVEX < 0) ? (facing > 0) : (facing < 0);
+  }
+
+  /* ------------------------------------------------- 刀光实测锚定表
+     由 tools/measure_slash.py 生成，勿手改。
+     cx / cy = 脊线弧心（按画布宽 / 高归一化），r = 脊线半径（按画布宽归一化）。
+     用途只有一个：让刃口那线高光**落在月牙身上**。
+     旧代码在原点画一个 r≈pick.r 的弧，而真实脊线圆心在 +0.65~1.03 宽处、
+     半径 0.41~0.87 宽 —— 两者差 40px 以上，高光整根悬在月牙外。
+     换素材（重跑生图）必须重跑 measure_slash.py 重新填表，否则高光会飘。 */
+  var ARC = {
+    slash1: { cx: 1.0272, cy: 0.4811, r: 0.8725 },
+    slash2: { cx: 0.8573, cy: 0.4862, r: 0.6604 },
+    slash3: { cx: 0.6553, cy: 0.4860, r: 0.4070 },
+    short:  { cx: 0.7213, cy: 0.4915, r: 0.5124 },
+    dagger: { cx: 0.8169, cy: 0.4940, r: 0.6128 },
+    sword:  { cx: 1.0197, cy: 0.4948, r: 0.8622 },
+    axe:    { cx: 0.8999, cy: 0.4853, r: 0.5706 },
+    hammer: { cx: 0.5178, cy: 0.4998, r: 0.3270 },
+    spear:  { cx: 0.6284, cy: 0.4983, r: 0.1502 }
+  };
 
   /* ---------------------------------------------------------------- 工具 */
 
@@ -125,11 +164,11 @@
   var NO_ARC = { bow: 1, rock: 1, blade: 1, jar: 1, bell: 1 };
 
   function slashImageFor(s) {
-    if (s.big) return { img: imgOf("slash3"), scale: 1.0, r: 126 };
+    if (s.big) return { img: imgOf("slash3"), scale: 1.0, r: 126, key: "slash3" };
     // 第二段（或任意调用方标记的段数）用 slash2；其余用 slash1
     var seg = num(s.seg, num(s.stage, num(s.index, num(s.variant, num(s.combo, 1)))));
-    if (seg >= 2) return { img: imgOf("slash2"), scale: 0.86, r: 112 };
-    return { img: imgOf("slash1"), scale: 0.72, r: 98 };
+    if (seg >= 2) return { img: imgOf("slash2"), scale: 0.86, r: 112, key: "slash2" };
+    return { img: imgOf("slash1"), scale: 0.72, r: 98, key: "slash1" };
   }
 
   /* 图片未就绪时的纯代码弧形光：外晕 + 亮芯 + 细描边 */
@@ -224,7 +263,7 @@
 
     ctx.save();
     ctx.translate(num(s.x, 0), num(s.y, 0));
-    if (facing < 0) ctx.scale(-1, 1);
+    if (slashMirror(facing)) ctx.scale(-1, 1);
     ctx.rotate(angle);
 
     drawWarmBloom(ctx, pick.r * scale, t, !!s.big);
@@ -234,7 +273,9 @@
       var ih = pick.img.naturalHeight || pick.img.height || 260;
       var dw = iw * scale;
       var dh = ih * scale;
-      // 以“握柄”为轴心，弧口朝挥砍方向
+      /* 包围盒居中。真实弧心在 +0.65~1.03 宽处，比包围盒中心偏右，
+         所以「亮肚」落在锚点略偏后 —— 这是刻意的：锚点在玩家身前 70px，
+         月牙再往前推会离身体太远。刃口高光单独按真实弧心画（见下）。 */
       var ox = -dw * 0.42;
       var oy = -dh * 0.50;
 
@@ -252,18 +293,27 @@
       ctx.drawImage(pick.img, ox - dw * 0.02, oy - dh * 0.02, dw * 1.04, dh * 1.04);
       ctx.restore();
 
-      // 刃口的一线高光
-      ctx.save();
-      ctx.globalCompositeOperation = "lighter";
-      ctx.globalAlpha = alpha * 0.5;
-      ctx.strokeStyle = GOLD_HI;
-      ctx.lineWidth = Math.max(1.2, 5.5 * scale);
-      ctx.lineCap = "round";
-      var hr = pick.r * scale;
-      ctx.beginPath();
-      ctx.arc(0, 0, hr, -1.02 + t * 0.34, -0.34 + t * 0.34);
-      ctx.stroke();
-      ctx.restore();
+      /* 刃口的一线高光：圆心必须落在实测弧心上，半径取脊线半径。
+         旧代码在原点画 r≈pick.r 的弧，那两个数都跟实测差得远，
+         高光整根悬在月牙外（实测偏移 40px 以上）。 */
+      var arc = ARC[pick.key];
+      if (arc) {
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = alpha * 0.5;
+        ctx.strokeStyle = GOLD_HI;
+        ctx.lineWidth = Math.max(1.2, 5.5 * scale);
+        ctx.lineCap = "round";
+        var acx = ox + dw * arc.cx;
+        var acy = oy + dh * arc.cy;
+        var hr = Math.max(2, dw * arc.r);
+        /* 月牙在弧心左侧，所以区间取 π 附近；从 2.1 扫到 4.1 正好贴住亮肚 */
+        var a0 = Math.PI - 1.04 + t * 0.30;
+        ctx.beginPath();
+        ctx.arc(acx, acy, hr, a0, a0 + 2.0);
+        ctx.stroke();
+        ctx.restore();
+      }
     } else {
       drawFallbackSlash(ctx, pick.r, t);
     }
@@ -291,7 +341,7 @@
 
     ctx.save();
     ctx.translate(num(s.x, 0), num(s.y, 0));
-    if (facing < 0) ctx.scale(-1, 1);
+    if (slashMirror(facing)) ctx.scale(-1, 1);
     ctx.rotate(angle);
 
     /* 底色光晕：按武器半径收放，重武器更亮 */
@@ -328,19 +378,33 @@
     try { ctx.drawImage(img, ox - dw * 0.02, oy - dh * 0.02, dw * 1.04, dh * 1.04); } catch (e) {}
     ctx.restore();
 
-    /* 材质色刃光：沿弧扫一条，把玉 / 青铜 / 钝击在暗底上分开 */
+    /* 材质色刃光：沿实测脊线扫一条，把玉 / 青铜 / 钝击在暗底上分开。
+       圆心与半径都取实测值（ARC），否则这线会飘在图外。 */
+    var warc = ARC[wkey];
+    var arcSpan = num(def.arc, 1.0);
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = alpha * 0.62;
     ctx.strokeStyle = rim;
     ctx.lineWidth = Math.max(1.4, r * 0.045 * grow);
     ctx.lineCap = "round";
-    var arcSpan = num(def.arc, 1.0);
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.86 * grow,
-            -0.92 + t * 0.30,
-            -0.92 + t * 0.30 + arcSpan * (big ? 1.02 : 0.92));
-    ctx.stroke();
+    if (warc) {
+      var wcx = ox + dw * warc.cx;
+      var wcy = oy + dh * warc.cy;
+      var wr = Math.max(2, dw * warc.r);
+      var wa0 = Math.PI - 1.0 + t * 0.28;
+      ctx.beginPath();
+      ctx.arc(wcx, wcy, wr, wa0, wa0 + arcSpan * (big ? 1.02 : 0.92));
+      ctx.stroke();
+    } else {
+      /* 没有实测数据（新增武器但没跑 measure_slash.py）→ 退回原点小弧，
+         不画错位的线，也不留空白。 */
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.86 * grow,
+              -0.92 + t * 0.30,
+              -0.92 + t * 0.30 + arcSpan * (big ? 1.02 : 0.92));
+      ctx.stroke();
+    }
     ctx.restore();
 
     ctx.restore();
@@ -801,6 +865,14 @@
     drawHurtVignette: drawHurtVignette,
     weaponFxReady: weaponFxReady,
     matHitReady: matHitReady,
+    /* 刀光朝向与实测锚定表：给自检读，只读不改。
+       ART_CONVEX / ARC 都是契约数值，改它们等于改画面朝向与刃口位置。 */
+    artConvex: function () { return ART_CONVEX; },
+    mirrors: slashMirror,
+    arcOf: function (key) {
+      var a = ARC[key];
+      return a ? { cx: a.cx, cy: a.cy, r: a.r } : null;
+    },
     ready: ready
   };
 })(window);

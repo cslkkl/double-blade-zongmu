@@ -141,9 +141,30 @@
 - 门禁：写完 `node --check js/anim-data.js`，再跑 `node tools/selftest_weapons.mjs`。
 - 验收：每把武器 4 帧的「头冠→脚底」屏幕高度极差 ≤ 3%；4 个文件尺寸完全一致；与单帧 `atk-<key>.webp` 的屏幕身高差 ≤ 4%。
 
+## measure_slash.py — 刀光素材几何测量（朝向 / 弧心 / 脊线半径）
+
+- 做什么：量 9 张刀光素材（`slash-1..3` + `wp-slash-*`）的不透明包围盒、alpha 加权质量重心、最厚点列、以及**脊线弧心与半径**（逐行取最长游程中点当脊线，再对脊线做最小二乘圆拟合，Kåsa 法），输出 JSON 到 stdout。
+- 何时跑：换刀光素材之后**必须重跑**，否则 `js/fx.js` 的 `ARC` 表会把刃口高光画到图外。
+- 输入：`assets/slash-1..3.webp`、`assets/fx/wp-slash-*.webp`。
+- 输出：stdout 的 JSON（不写任何文件），每项含 `bbox` / `mass_cx_n` / `thick_x_n` / `arc_cx_n` / `arc_cy_n` / `arc_r_n` / `convex_dir`。
+- 怎么用：把新数值填进 `js/fx.js` 的 `ARC` 与 `tools/selftest_weapons.mjs` 的 `ARC_FIXTURE`，两处必须一致（5c 会校验）。
+- 判据：`convex_dir` 全为 −1 即「凸背朝左」。若某张变成 +1，说明素材被重新生成了朝向，`ART_CONVEX` 要跟着改。
+- 幂等性：纯只读，无副作用。
+
+## probe_slash_orient.py — 刀光朝向的像素级验证
+
+- 做什么：读一张探针截图（两个朝向并排渲染），按亮度加权算各自的质心与包围盒，断言「亮肚在面向一侧」且两者**互为镜像**。
+- 何时跑：改 `slashMirror` / `ARC` 之后，作为参数级自检之外的独立复核。
+- 输入：探针截图 PNG（900×460，`facing=+1` 的锚点在 (240,230)、`facing=-1` 在 (660,230)）。
+- 输出：stdout 报表；退出码 0 = 通过，1 = 有断言失败。
+- **探针怎么造**（踩过的坑都在这）：`file://` 下 `getImageData` 抛 `SecurityError`，必须走截图；游戏主循环一直在动会让 Playwright 截图超时，要么 `animations: "disabled"` 并裁剪到画布，要么先停 rAF；`<canvas>` 会被全局 CSS 拉成 1600×900，必须显式写 `style.width/height`；**探针里不许画任何文字或辅助线** —— 它们会进像素统计，曾造出 3.4px 的假不对称。
+- 幂等性：纯只读（只读截图），无副作用。
+
 ## selftest_weapons.mjs — 武器视觉自检
 
-- 做什么：node + mock canvas 跑 `char-rig.js` 与 `fx.js`，校验四件事：出招序列的字段约束（4 帧共用画布与 `scaleFix`、`anchorX` 是逐帧数组）；每把武器都能拿到「站立帧 / 出招图 / 专属刀光」三件套；挥砍过程中真的播到了多个不同帧；缺键能逐级落回（序列 → 单帧 → 动画 clip；专属刀光 → 通用 slash-1..3 → 纯代码弧光）而不抛异常。
+- 做什么：node + mock canvas 跑 `char-rig.js` 与 `fx.js`，校验五件事：出招序列的字段约束（4 帧共用画布与 `scaleFix`、`anchorX` 是逐帧数组）；每把武器都能拿到「站立帧 / 出招图 / 专属刀光」三件套；挥砍过程中真的播到了多个不同帧；缺键能逐级落回（序列 → 单帧 → 动画 clip；专属刀光 → 通用 slash-1..3 → 纯代码弧光）而不抛异常；**刀光朝向与刃口高光锚定**（5b / 5c 两节）。
+- 5b 怎么测朝向：mock ctx 自带 CTM（`translate / rotate / scale` 真正乘矩阵，`save/restore` 连 `globalCompositeOperation` 一起存），把 `drawImage` 的目标矩形变换到设备空间，断言「源画 −x 轴（凸背）的设备指向 = facing」，并断言两个朝向逐点镜像（容差 0.01px）。
+- 5c 怎么测高光：从记录的 `arc()` 里按半径匹配刃口高光，断言它的圆心落在**实测弧心** `(ox + dw·cx, oy + dh·cy)` 而不是原点 —— 旧代码在原点画弧，高光整根悬在月牙外。
 - 何时跑：改 `char-rig.js`、`fx.js`、`anim-data.js` 的武器相关数据块，或新增武器后。
 - 输入：`js/anim-data.js`、`js/char-rig.js`、`js/fx.js`、`assets/` 目录。
 - 输出：stdout 报表；退出码 0 = 通过，1 = 有失败项。

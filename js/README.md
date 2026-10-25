@@ -98,14 +98,16 @@
 ## fx.js
 
 - 职责：刀光（通用三档 + 每把武器专属）、打击火花（通用三档 + 四种材质）、弹道痕、旋风环、HUD 底板、受伤渐晕。
-- 关键导出：`window.FX = { drawSlash, drawHit, drawWhirl, drawProjFx, drawHudPanel, drawHurtVignette, weaponFxReady, matHitReady, ready }`。
+- 关键导出：`window.FX = { drawSlash, drawHit, drawWhirl, drawProjFx, drawHudPanel, drawHurtVignette, weaponFxReady, matHitReady, ready, artConvex, mirrors, arcOf }`。后三个是只读契约访问器，专给 `tools/selftest_weapons.mjs` 读朝向判据与实测锚定表。
+- 关键约束：**刀光朝向是 `ART_CONVEX` + `slashMirror()` 一处定义**。源画凸背朝左（实测，见 [../.agents/notes/依据-半月斩素材左右不对称.md](../.agents/notes/依据-半月斩素材左右不对称.md)），玩法要求「凸背朝人面向的方向」，所以**面朝右镜像、面朝左原样** —— 与「素材朝右、朝左才镜像」的常规写法相反。改回 `facing < 0` 会让自检 5b 当场 14 项失败。
+- 关键约束：`ARC` 是实测锚定表（脊线弧心与半径），`tools/measure_slash.py` 生成。刃口高光与材质刃光**必须**用它，不能在原点画近似半径的弧 —— 旧代码那样会让高光整根悬在月牙外。换素材要同时更新 `ARC` 与自检里的 `ARC_FIXTURE`。
 - 依赖谁：`window.IMG`（`slash1..3`、`hit1..3`、`whirlRing`、`jadeTablet`），以及**不在清单里、自建 Image 缓存**的 `window.WEAPON_FX`（武器 key → `{file, scale, r, arc}`）与 `window.HIT_MATERIAL`（`jade / bronze / blunt / airy` → 图路径）。
 - 被谁依赖：`index.html` 的刀光、火花、投掷物弹道、渐晕四处；`drawWhirl` 由 `drawWhirlAsset` 调；`drawHudPanel` 目前无调用方。
 - 关键约束：`ready()` 只判 `slash1..3` 与 `jadeTablet`，**武器专属特效不进这个名单** —— 它们靠 `weaponFxReady()` / `matHitReady()` 逐把判，缺图时 `drawSlash` / `drawHit` 自动落回通用三档，再落回纯代码弧形光。
 - 关键约束：`fxImg(file)` 是唯一的建图入口，**只在首次用到时 new Image 一次**，`draw` 热路径只读缓存；不得在绘制里建图或建 canvas。
 - 关键约束：`NO_ARC`（`bow / rock / blade / jar / bell`）不出手上弧光 —— 它们的特效走弹道（`drawProjFx`），在手里凭空炸一道月牙是错的。
 - 关键约束：`drawSlash(s)` 的 `s.wkey` 决定用哪张专属弧光；`drawHit(s)` 的 `s.mat` 决定用哪张材质火花。两个字段都缺省，缺省即回到老行为。
-- 改后必测：`ready()` 名单与图形依赖一致；三段刀光 / 三档火花的档位映射（`seg` / `big` / `mid`）；`WEAPON_FX` 缺某个键时是否落回通用档而不报错。
+- 改后必测：`ready()` 名单与图形依赖一致；三段刀光 / 三档火花的档位映射（`seg` / `big` / `mid`）；`WEAPON_FX` 缺某个键时是否落回通用档而不报错；`node tools/selftest_weapons.mjs` 的 5b（朝向 + 镜像对称）与 5c（高光锚定）两节必须全绿。
 
 ## guide.js
 
