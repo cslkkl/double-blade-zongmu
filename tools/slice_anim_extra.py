@@ -27,6 +27,38 @@ NEW = [
     ("char-attack-thrust.png", "attack-thrust", 4, 16, False),
 ]
 
+# idle 基准：屏幕身高对齐的参照。scaleFix 的正确定义见 AGENTS.md ——
+#   scaleFix = (idle 内容高 ÷ idle 画布高) ÷ (该 clip 内容高 ÷ 该 clip 画布高)
+# 但**这个公式只对「站直」的 clip 成立**。弯腰（pickup）与蹲低（attack-thrust）
+# 的内容高天然更矮，按包围盒归一化会把弯腰的人放大到站立高度 —— 这是踩过的坑
+# （宽高比 2.19 → 1.19 那批）。所以本脚本**不自动写** scaleFix：
+#   · 已存在的 clip：patch_js 原样沿用文件里的旧值（手改过的校准不会被覆盖）
+#   · 新增的 clip：写 1.0 占位并大声警告，必须人眼实测后再手改
+# estimate_scale_fix() 只把「按包围盒反算」的数字打出来给人对照，不落盘。
+
+
+def estimate_scale_fix(body_h, canvas_h, idle_ratio):
+    """按「内容高 / 画布高」反算 scaleFix —— **仅供参考**。
+
+    弯腰 / 蹲低的 clip 会算出偏大的值（把矮姿势拉成站高），所以只打印不落盘。
+    """
+    if not body_h or not canvas_h or not idle_ratio:
+        return None
+    return round(idle_ratio / (body_h / float(canvas_h)), 3)
+
+
+def idle_body_ratio():
+    """实测 idle-0.webp 的「内容高 / 画布高」—— 反算基准，别用常量猜。"""
+    p = OUT_IMG / "idle-0.webp"
+    if not p.exists():
+        print("  注意：idle-0.webp 不存在，无法给出 scaleFix 参考值")
+        return None
+    a = np.array(Image.open(p).convert("RGBA"))[:, :, 3]
+    rows = np.where((a > 24).any(axis=1))[0]
+    if not len(rows):
+        return None
+    return (rows[-1] - rows[0] + 1) / float(a.shape[0])
+
 
 def slice_one(png, clip, nominal, fps, loop):
     path = Path(SA.SRC) / png
@@ -70,7 +102,7 @@ def slice_one(png, clip, nominal, fps, loop):
     sc = min(MAX_SIDE / max(W, H), 1.0)
     cw, ch = max(1, int(W * sc)), max(1, int(H * sc))
 
-    files, anchors = [], []
+    files, anchors, heights = [], [], []
     for i, c in enumerate(cells):
         if c is None:
             continue
@@ -90,8 +122,12 @@ def slice_one(png, clip, nominal, fps, loop):
             frame = frame.resize((cw, ch), Image.LANCZOS)
         frame = SA.defringe_rgba(frame)
 
-        ax = SA.frame_anchor(np.array(frame)[:, :, 3])
+        fa = np.array(frame)[:, :, 3]
+        ax = SA.frame_anchor(fa)
         anchors.append(ax)
+        # 内容高：alpha > 24 的包围盒高（与 AGENTS.md 的实测口径一致）
+        rows = np.where((fa > 24).any(axis=1))[0]
+        heights.append(int(rows[-1] - rows[0] + 1) if len(rows) else 0)
 
         name = f"{clip}-{i}.webp"
         frame.save(OUT_IMG / name, "WEBP", quality=92, method=6)
@@ -102,7 +138,11 @@ def slice_one(png, clip, nominal, fps, loop):
         return None
 
     ax = float(np.median(anchors)) if anchors else 0.5
-    print(f"  {clip:14s} {len(files)} 帧  {cw}x{ch}  残留 {SA.magenta_residue(Image.open(OUT_IMG / files[0]))}")
+    body = max(heights) if heights else 0
+    est = estimate_scale_fix(body, ch, idle_body_ratio())
+    print(f"  {clip:14s} {len(files)} 帧  {cw}x{ch}  内容高 {body}  "
+          f"包围盒反算 scaleFix={est}（仅参考，姿势矮的 clip 会偏大）  "
+          f"残留 {SA.magenta_residue(Image.open(OUT_IMG / files[0]))}")
     return {
         "clip": clip,
         "frames": len(files),
@@ -112,27 +152,51 @@ def slice_one(png, clip, nominal, fps, loop):
         "h": ch,
         "anchorX": round(ax, 4),
         "footY": 1.0,
+        # ⚠️ 只作新增 clip 的初值。已存在的 clip 由 patch_js 沿用旧值，绝不覆盖。
         "scaleFix": 1.0,
+        "estimate": est,
+        "bodyH": body,
         "files": [f"assets/anim/{f}" for f in files],
     }
 
 
+def _existing_scale_fix(src, clip):
+    """从文件里沿用已存在 clip 的 scaleFix —— 手改过的校准绝不覆盖。
+
+    这是本脚本唯一的「反算」保障：脚本算不出正确值（弯腰 / 蹲低的 clip 按
+    包围盒归一化会把人放大到站高，见 AGENTS.md 的活跃坑），所以重跑时
+    必须保住人眼调过的数。找不到就返回 None，由调用方决定写占位。
+    """
+    m = re.search(
+        r"^\s*" + re.escape(clip) + r"\s*:\s*\{[^}]*?scaleFix:\s*([0-9.]+)",
+        src, re.S | re.M)
+    return m.group(1) if m else None
+
+
 def patch_js(entries):
-    """把新 clip 插入 window.ANIM（已存在则替换该行）"""
+    """把新 clip 插入 window.ANIM（已存在则替换该行，但保留原有 scaleFix）"""
     src = OUT_JS.read_text(encoding="utf-8")
 
     for e in entries:
         files = ", ".join(f'"{f}"' for f in e["files"])
+        old = _existing_scale_fix(src, e["clip"])
+        if old is not None:
+            fix = old
+            note = f"  scaleFix 沿用 {old}（不覆盖手改；包围盒反算为 {e['estimate']}）"
+        else:
+            fix = e["scaleFix"]
+            note = (f"  !! 新增 clip 的 scaleFix 写的是占位 {fix}（包围盒反算 {e['estimate']}）"
+                    f" —— 必须实测内容高后手改，不是 1.0 就一定对")
         line = (
             f'  {e["clip"]:14s}{{ frames: {e["frames"]}, fps: {e["fps"]}, '
             f'loop: {"true" if e["loop"] else "false"}, w: {e["w"]}, h: {e["h"]}, '
-            f'anchorX: {e["anchorX"]}, footY: 1.0, scaleFix: {e["scaleFix"]},\n'
+            f'anchorX: {e["anchorX"]}, footY: 1.0, scaleFix: {fix},\n'
             f'            files: [{files}] }}'
         )
         pat = re.compile(r"^\s*" + re.escape(e["clip"]) + r"\s*:\s*\{.*?\},?\s*$", re.S | re.M)
         if pat.search(src):
             src = pat.sub(line.rstrip(",") + ",", src, count=1)
-            print(f"  替换 {e['clip']}")
+            print(f"  替换 {e['clip']}" + note)
         else:
             # 插到 window.ANIM 的闭合大括号前
             m = re.search(r"window\.ANIM\s*=\s*\{", src)
@@ -152,7 +216,7 @@ def patch_js(entries):
             if not body.endswith(","):
                 body += ","
             src = body + "\n" + line + ",\n" + src[i:]
-            print(f"  追加 {e['clip']}")
+            print(f"  追加 {e['clip']}" + note)
 
     OUT_JS.write_text(src, encoding="utf-8")
 
