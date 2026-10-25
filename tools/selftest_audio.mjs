@@ -15,7 +15,7 @@ function ok(name, cond, extra) {
 }
 
 /* ---------------- mock Web Audio ---------------- */
-let created = { sources: 0, gains: 0, filters: 0, oscillators: 0, buffers: 0 };
+let created = { sources: 0, gains: 0, filters: 0, oscillators: 0, buffers: 0, delays: 0 };
 const log = [];
 
 function param(v) {
@@ -64,6 +64,7 @@ class FakeAC {
     return n;
   }
   createStereoPanner() { const n = node("pan"); n.pan = param(0); return n; }
+  createDelay(max) { created.delays++; const n = node("delay"); n.delayTime = param(0); n.maxDelayTime = max; return n; }
   createDynamicsCompressor() {
     const n = node("comp");
     n.threshold = param(-24); n.knee = param(30); n.ratio = param(12);
@@ -195,6 +196,37 @@ ok("首阵判为最低档 tier=0", SND.bgm.tier() === 0, "实际 " + SND.bgm.tie
 ok("静音开关可切换", SND.mute(true) === true && SND.isMuted() === true);
 ok("取消静音", SND.mute(false) === false && SND.isMuted() === false);
 ok("音量可读写", Math.abs(SND.volume("sfx", 0.5) - 0.5) < 1e-6);
+/* master 是整场响度的总闸：可读可写，且允许超过 1（压缩器已经摁住峰值） */
+ok("主音量可读写且可超过 1", SND.volume("master", 1.4) > 1);
+ok("主音量下限夹到 0", SND.volume("master", -1) === 0);
+ok("静音时主音量不生效（静音优先）", (SND.mute(true), SND.volume("master", 1.25) === 1.25));
+SND.mute(false);
+
+/* ---------------- 6b. 总线音量上限 ---------------- */
+/* 提音量不能把总线推过 1：那之前压缩器就够不着了，峰值会直接削波 */
+const sfxVol = SND.volume("sfx");
+ok("sfx 总线音量不超过 1", sfxVol <= 1, "实际 " + sfxVol);
+ok("music 总线音量已抬高", SND.volume("music") > 0.45, "实际 " + SND.volume("music"));
+SND.volume("sfx", 0.85);   /* 还原自检前的默认，避免影响后面的断言 */
+
+/* ---------------- 6c. BGM 编曲：动机层与延时混响 ---------------- */
+/* 混响支路（createDelay）必须在 ctx() 里建出来，否则新 BGM 听起来是干的 */
+ok("music 支路挂了延时混响", created.delays > 0);
+
+/* 各档位都要真的排出声音：把步进器推到头，检查调度产生了音源 */
+function musicVoicesAt(waveIdx) {
+  win.G.waveIdx = waveIdx;
+  const before = created.sources;
+  SND.bgm.start();
+  SND.bgm.setWave();
+  SND.bgm.stop(0.05);
+  return created.sources - before;
+}
+const v0 = musicVoicesAt(0);
+const v3 = musicVoicesAt(5);
+ok("最低档会排出 BGM 音源", v0 > 0, "放出 " + v0 + " 个源");
+ok("BOSS 档比最低档排得更满", v3 > v0, "档0=" + v0 + " 档3=" + v3);
+win.G.waveIdx = 0;
 
 /* ---------------- 7. 无 AudioContext 时安全空转 ---------------- */
 const win2 = { performance: { now: () => Date.now() }, setTimeout, setInterval,

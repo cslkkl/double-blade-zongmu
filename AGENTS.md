@@ -56,6 +56,7 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 - 2026-10-25（手柄震动 js/rumble.js + 键位指南放大）：check-inline 通过（内联脚本 127304 字符）；selftest_enemies / selftest_audio / selftest_weapons 0 失败；node --check 10/10 通过。
 - 暂停链路由 CDP 驱动本机 `file://` 页面实测：Esc 暂停 / 解冻、抽屉开着时 Esc 只收抽屉、暂停中切设备换图、R 重开、暂停页点击、非 play 阶段不响应，逐条断言通过。
 - **2026-10-25（手机端适配 + 三份审计修复后）**：`check-inline` 通过（内联脚本 139378 字符）；`selftest_enemies` / `selftest_audio` / `selftest_weapons` 全 0 失败；`node --check` 12/12 通过。浏览器端 12 项端到端断言全绿（0 报错 / 对局正常 / 敌人峰值 7 / 粒子不超 600 / `readPad` 有 `pause` / 拾取半径与提示半径都是 90 / `short` dur=55 / axe walk 3 帧 / `Touch` 已加载 / 粒子兜底 900→600 / `syncHUD` 60 帧 0 次 `getElementById`）。
+- **2026-10-25（提音量 + 重做 BGM 编曲后）**：`check-inline` 通过（内联脚本 139514 字符）；`selftest_enemies` / `selftest_audio`（29 项）/ `selftest_weapons` 全 0 失败；`node --check` 12/12 通过；链接检查 31 文件 75 链接 0 错。浏览器实测：`file://` 直开、进单人模式、开局 BGM 起、挥砍与跳跃出声、控制台 0 报错 0 警告。离线渲染 A/B：同场景 RMS +2.8 dB、峰值 +2.6 dB、**0 个削波样本**（峰值 -19.3 dB，离满量程还差 19 dB）。动机核验：档 0 走 D–G–F–A，档 3 走 D5–C5–A4–G4–A–G–F–D，低音线 D3/A2，档 3 drone 顶到 Eb3。
 - 规模：`index.html` 约 4350 行；`js/` 12 个模块；`assets/` 329 个文件 18.32 MB。
 - 素材分布：`anim/` 249、`fx/` 13、`icons/` 16、`icon/` 10、`ui/` 10、`interact/` 6、`props/` 8、`char/` 5、根 11。
 - 素材预算：单帧 ≤ 60 KB（实测最大 55.4 KB）、总量 ≤ 8 MB（上调依据见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 的「素材流水线」）。**当前 18.32 MB 超预算 10.3 MB**，2026-10-25 已清掉未引用的 15.78 MB（`promo/` 与 `bg-fg.webp`），剩下的都是运行时真加载的。
@@ -93,6 +94,9 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 - 洋红底必须 despill，否则边缘一圈紫：见 [tools/README.md](tools/README.md)。
 - 多个 agent 共享同一个 Playwright 实例会互相抢浏览器；自检一律走 mock canvas。
 - 声音全在 [js/audio.js](js/audio.js)，实时合成、不读音频文件 —— `file://` 下 `fetch` / `XHR` 取音频会被 CORS 拦，放 `assets/audio/*.mp3` 等于放一堆加载不了的文件。要换音色改配方表，别加素材。
+- **提音量只动 `VOL`（总线）与 `MASTER`（总增益），别动配方表里的 `gain`** —— 那些是「相对轻重」语义，改了毁配比。`sfx` 总线上限 1，越过压缩器就压不住峰值。
+- **BGM 旋律层是 `PHRASE` 表里的定好动机，不是随机拨弦**。随机音高听起来像素材铺底；每档一条五声乐句，32 步（16 拍）一轮，改旋律只改那张表。
+- **新加的音频节点必须带降级分支**：music 支路的延时混响用 `AC.createDelay` 特性探测，老浏览器没有就整段跳过。
 - 打击音的材质靠 `startSwing(wp.key)` 传入的武器 key。新增武器必须同时在 `audio.js` 的 `MATERIAL` 里给材质，否则一律听成玉器。
 - BGM 的喘息压音只认 `bgm.breathe` 标志（在 `bgmTick` 里统一结算）。直接改 `bus.music` 增益会被下一帧覆盖回满。
 - **新增任何覆盖层 / 可交互界面，必须同时想手柄怎么过这一页。** `readPad()` 只在 `play` 阶段被调用，离开对局就没人读手柄 —— 失败页与通关页曾因此只能鼠标点。

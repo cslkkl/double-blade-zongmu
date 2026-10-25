@@ -396,19 +396,19 @@
      而且刷新几次都改不掉 —— 缓存不认文件名。
      这个项目没有构建步骤（禁 npm / CDN，file:// 要能双击跑），
      所以版本号靠手改；改 js/ 就 bump 一次。
-     当前版本：20261025-b（b = 修桌面端误入触屏档 + 拆出 mobile.html） -->
-<script src="js/assets.js?v=20261025b"></script>
-<script src="js/anim-data.js?v=20261025b"></script>
-<script src="js/background.js?v=20261025b"></script>
-<script src="js/char-rig.js?v=20261025b"></script>
-<script src="js/enemies-assets.js?v=20261025b"></script>
-<script src="js/fx.js?v=20261025b"></script>
-<script src="js/guide.js?v=20261025b"></script>
-<script src="js/rumble.js?v=20261025b"></script>
-<script src="js/touch.js?v=20261025b"></script>
-<script src="js/ui-shell.js?v=20261025b"></script>
-<script src="js/audio.js?v=20261025b"></script>
-<script src="js/intro-video.js?v=20261025b"></script>
+     当前版本：20261025-c（c = 提整场响度 + 重做 BGM 编曲） -->
+<script src="js/assets.js?v=20261025c"></script>
+<script src="js/anim-data.js?v=20261025c"></script>
+<script src="js/background.js?v=20261025c"></script>
+<script src="js/char-rig.js?v=20261025c"></script>
+<script src="js/enemies-assets.js?v=20261025c"></script>
+<script src="js/fx.js?v=20261025c"></script>
+<script src="js/guide.js?v=20261025c"></script>
+<script src="js/rumble.js?v=20261025c"></script>
+<script src="js/touch.js?v=20261025c"></script>
+<script src="js/ui-shell.js?v=20261025c"></script>
+<script src="js/audio.js?v=20261025c"></script>
+<script src="js/intro-video.js?v=20261025c"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -510,7 +510,10 @@ function ac(){
   return AC;
 }
 
-/* ---- 降级：js/audio.js 未加载时的老实现，保证不静音 ---- */
+/* ---- 降级：js/audio.js 未加载时的老实现，保证不静音 ----
+   老实现没有总线与压缩器，直连 destination，所以要自己补上主增益的量：
+   正常路径是 master 1.25 × sfx 1.0，这里乘 1.25 对齐响度。 */
+var OLD_GAIN = 1.25;
 function _toneOld(f, dur, type, gain, to){
   var a = ac(); if(!a) return;
   var o = a.createOscillator(), g = a.createGain();
@@ -518,7 +521,7 @@ function _toneOld(f, dur, type, gain, to){
   o.frequency.setValueAtTime(f, a.currentTime);
   if(to) o.frequency.exponentialRampToValueAtTime(to, a.currentTime+dur);
   g.gain.setValueAtTime(0.0001, a.currentTime);
-  g.gain.exponentialRampToValueAtTime(gain||0.08, a.currentTime+0.008);
+  g.gain.exponentialRampToValueAtTime((gain||0.08)*OLD_GAIN, a.currentTime+0.008);
   g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime+dur);
   o.connect(g); g.connect(a.destination);
   o.start(); o.stop(a.currentTime+dur+0.02);
@@ -530,7 +533,7 @@ function _noiseOld(dur, gain, hp){
   for(var i=0;i<n;i++){ var t=i/n; d[i] = (Math.random()*2-1)*(1-t)*(1-t); }
   var s = a.createBufferSource(); s.buffer = buf;
   var f = a.createBiquadFilter(); f.type="highpass"; f.frequency.value = hp||800;
-  var g = a.createGain(); g.gain.value = gain||0.1;
+  var g = a.createGain(); g.gain.value = (gain||0.1)*OLD_GAIN;
   s.connect(f); f.connect(g); g.connect(a.destination); s.start();
 }
 

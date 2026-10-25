@@ -18,7 +18,14 @@
   var AC = null, master = null, comp = null;
   var bus = {};                       /* sfx / music / amb */
   var inited = false, muted = false;
-  var VOL = { sfx: 0.85, music: 0.42, amb: 0.30 };
+  /* 主增益：总线之后的最后一道。压缩器已经把峰值摁住了，
+     这里可以放心往上推一点，把整体响度提上来而不削波。 */
+  var MASTER = 1.25;
+  /* 三条总线的默认音量。整场声音就靠这三个数定「响不响」，
+     音色配方（gain 字段）只管单条声音的相对轻重。
+     sfx 顶到 1.0：再高总线会先削波，压缩器也就没得救了；
+     music 比 sfx 低一档是刻意的 —— 音乐垫在下面，打击声才浮得出来。 */
+  var VOL = { sfx: 1.00, music: 0.58, amb: 0.40 };
 
   /* ---------------------------------------------------------------- 基础 */
 
@@ -49,14 +56,17 @@
       AC = new Ctor();
 
       comp = AC.createDynamicsCompressor();
-      comp.threshold.value = -14;     /* 多音同帧叠加时防削波，比什么都重要 */
-      comp.knee.value = 12;
-      comp.ratio.value = 6;
+      /* 阈值抬到 -12、比率提到 8：总线音量整体提高之后，
+         峰值更容易顶到压缩区，靠这条曲线把过冲摁回去，
+         比「小音量时不压缩、大音量时狂压缩」稳。 */
+      comp.threshold.value = -12;     /* 多音同帧叠加时防削波，比什么都重要 */
+      comp.knee.value = 10;
+      comp.ratio.value = 8;
       comp.attack.value = 0.004;
       comp.release.value = 0.14;
 
       master = AC.createGain();
-      master.gain.value = muted ? 0 : 1;
+      master.gain.value = muted ? 0 : MASTER;
 
       comp.connect(master);
       master.connect(AC.destination);
@@ -76,6 +86,27 @@
       bus.music.connect(musicLP);
       musicLP.connect(comp);
 
+      /* 混响替身：一根带回授的延时线挂在 music 支路上。
+         祭祀坑是石头坑，声音该有回响；没有 Convolver 就用延时近似。
+         老浏览器没有 createDelay 就整段跳过，音效与 BGM 不受影响。 */
+      if (AC.createDelay) {
+        try {
+          musicDelay = AC.createDelay(2.0);
+          musicDelay.delayTime.value = 0.37;      /* 附点八分 */
+          musicWet = AC.createGain();
+          musicWet.gain.value = 0.22;
+          musicFb = AC.createGain();
+          musicFb.gain.value = 0.26;
+          musicLP.connect(musicDelay);
+          musicDelay.connect(musicWet);
+          musicWet.connect(comp);
+          musicDelay.connect(musicFb);
+          musicFb.connect(musicDelay);
+        } catch (e) {
+          musicDelay = null; musicWet = null; musicFb = null;
+        }
+      }
+
       armFirstGesture();
     } catch (e) {
       AC = null;
@@ -83,7 +114,7 @@
     return AC;
   }
 
-  var musicLP = null;
+  var musicLP = null, musicDelay = null, musicWet = null, musicFb = null;
 
   /* 首次手势解锁：file:// 下自动播放策略要求一次用户交互 */
   function armFirstGesture() {
@@ -353,8 +384,12 @@
   }
 
   /* ================================================================ BGM */
-  /* 三层：drone（低频床）/ pulse（心跳与铜鼓）/ color（稀疏五声）。
-     全部程序生成，随波次升档；血量低抽高频、BOSS 硬直时把音乐压下去。 */
+  /* 三层：drone（低频床）/ pulse（鼓与心跳）/ color（旋律层）。
+     全部程序生成，随波次升档；血量低抽高频、BOSS 硬直时把音乐压下去。
+
+     旋律层是**定好的动机**，不是随机拨弦 —— 随机音高听起来像素材铺底，
+     不像音乐。每档一条五声动机，32 步（16 拍）一轮，
+     档位越高动机越密、节奏层越重、动机本身越往上走。 */
 
   var bgm = {
     on: false, timer: 0, nextT: 0, step: 0, tier: 0, bpm: 60,
@@ -364,6 +399,45 @@
 
   /* 徵调五声：D F G A C —— 用调式不用大小调，避开「西方史诗」味 */
   var SCALE = [293.66, 349.23, 392.0, 440.0, 523.25];
+  var ROOT = 146.83;                 /* D3，音阶基音 */
+  var A2 = 110;                      /* A2，低声部换色的根音 */
+
+  /* 音级 → 频率。音级 0~4 是本八度（D4 F4 G4 A4 C5），5 起进下一八度。 */
+  function deg(d) {
+    var i = d % 5;
+    if (i < 0) i += 5;
+    return SCALE[i] * Math.pow(2, Math.floor(d / 5));
+  }
+
+  /* 每档一条动机：[步, 音级, 时长(步)]。32 步一轮 = 16 拍。 */
+  var PHRASE = [
+    /* 档 0 空原：四个音一口气落下，D - G - F - A */
+    [[0, 0, 6], [8, 2, 6], [16, 1, 6], [24, 3, 8]],
+    /* 档 1 渐行：多两步回环，尾部甩一个 C */
+    [[0, 0, 4], [6, 1, 4], [10, 2, 4], [16, 1, 4], [20, 3, 4], [26, 4, 6]],
+    /* 档 2 铜鼓催：八度跳进，音型开始咬合 */
+    [[0, 2, 2], [3, 3, 2], [6, 4, 4], [12, 3, 2], [15, 2, 2],
+     [18, 1, 4], [24, 3, 2], [26, 4, 2], [28, 5, 4]],
+    /* 档 3 坠：长音收在低音区，中段顶一个小二度 */
+    [[0, 5, 3], [4, 4, 3], [8, 3, 4], [13, 4, 3],
+     [16, 2, 3], [20, 1, 3], [24, 0, 8]]
+  ];
+
+  /* 动机查表：步 → {f, d}。建一次，之后每 tick 只做数组取。 */
+  var MEL = [{}, {}, {}, {}];
+  (function buildMelody() {
+    for (var t = 0; t < PHRASE.length; t++) {
+      var ph = PHRASE[t], map = MEL[t];
+      for (var i = 0; i < ph.length; i++) {
+        map[ph[i][0]] = { f: deg(ph[i][1]), d: ph[i][2] };
+      }
+    }
+  })();
+
+  /* 步长（秒）：一拍的一半。动机时长按它折算，所以改 bpm 不改节奏型。 */
+  function stepDur() {
+    return (60 / (bgm.breathe ? 44 : bgm.bpm)) / 2;
+  }
 
   function bgmTier() {
     var g = global.G;
@@ -389,18 +463,21 @@
     var o1 = a.createOscillator(); o1.type = "sawtooth"; o1.frequency.value = 55;      /* A1 */
     var o2 = a.createOscillator(); o2.type = "sawtooth"; o2.frequency.value = 82.41;   /* E2 */
     var g2 = a.createGain(); g2.gain.value = 0.5;
+    /* 第三层：主题低音 D3。档位升上去它才探头，跟旋律对上。 */
+    var o3 = a.createOscillator(); o3.type = "sine"; o3.frequency.value = ROOT;
+    var g3 = a.createGain(); g3.gain.value = 0.22;
 
     /* 呼吸：0.07Hz 的慢 LFO 调制截止频率 */
     var lfo = a.createOscillator(); lfo.type = "sine"; lfo.frequency.value = 0.07;
     var lfoGain = a.createGain(); lfoGain.gain.value = 42;
     lfo.connect(lfoGain); lfoGain.connect(lp.frequency);
 
-    o1.connect(lp); o2.connect(g2); g2.connect(lp);
+    o1.connect(lp); o2.connect(g2); g2.connect(lp); o3.connect(g3); g3.connect(lp);
     lp.connect(g); g.connect(bus.music);
-    o1.start(); o2.start(); lfo.start();
+    o1.start(); o2.start(); o3.start(); lfo.start();
     g.gain.exponentialRampToValueAtTime(0.16, a.currentTime + 1.6);
 
-    droneNodes = { o1: o1, o2: o2, lfo: lfo, gain: g, lp: lp };
+    droneNodes = { o1: o1, o2: o2, o3: o3, g3: g3, lfo: lfo, gain: g, lp: lp };
   }
 
   function stopDrone(fade) {
@@ -413,28 +490,9 @@
       d.gain.gain.setValueAtTime(Math.max(0.0002, d.gain.gain.value), a.currentTime);
       d.gain.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + (fade || 0.8));
       global.setTimeout(function () {
-        try { d.o1.stop(); d.o2.stop(); d.lfo.stop(); } catch (e) {}
+        try { d.o1.stop(); d.o2.stop(); d.o3.stop(); d.lfo.stop(); } catch (e) {}
       }, (fade || 0.8) * 1000 + 120);
     } catch (e) {}
-  }
-
-  function kick() {
-    voice({ f: jit(62, 0.06), dur: 0.34, type: "sine", gain: 0.085, to: 38, bus: "music", lp: 220 });
-  }
-
-  function gong() {
-    var b0 = jit(1080, 0.02);
-    voice({ f: b0, dur: 1.5, type: "sine", gain: 0.028, to: b0 * 0.97, bus: "music", lp: 5200 });
-    voice({ f: b0 * 1.414, dur: 1.0, type: "sine", gain: 0.014, bus: "music", lp: 4200 });
-    voice({ f: b0 * 2.09, dur: 0.6, type: "sine", gain: 0.01, bus: "music", lp: 3800 });
-  }
-
-  function pluck() {
-    var f = SCALE[(Math.random() * SCALE.length) | 0];
-    voice({ f: f, dur: 0.5, type: "triangle", gain: 0.022, bus: "music",
-            lp: 1800, atk: 0.008,
-            pan: (Math.random() * 2 - 1) * 0.4 });
-    voice({ f: f * 2, dur: 0.28, type: "sine", gain: 0.008, bus: "music", lp: 2600 });
   }
 
   function bgmTick() {
@@ -443,6 +501,7 @@
 
     var tier = bgmTier();
     if (tier !== bgm.tier) {
+      var prev = bgm.tier;
       bgm.tier = tier;
       bgm.bpm = [60, 68, 76, 88][Math.min(3, tier)];
       /* BOSS 档：drone 上移，与小二度打对子制造压迫 */
@@ -450,9 +509,25 @@
         try {
           droneNodes.o2.frequency.setTargetAtTime(
             tier >= 3 ? 116.54 : 82.41, a.currentTime, 1.2);
+          /* 主题低音 D3 在 BOSS 档顶到 Eb3 —— 与旋律的小二度撞在一起 */
+          droneNodes.o3.frequency.setTargetAtTime(
+            tier >= 3 ? 155.56 : ROOT, a.currentTime, 1.2);
+          droneNodes.g3.gain.setTargetAtTime(
+            tier >= 2 ? 0.42 : 0.22, a.currentTime, 1.2);
         } catch (e) {
           droneNodes.o2.frequency.value = tier >= 3 ? 116.54 : 82.41;
+          droneNodes.o3.frequency.value = tier >= 3 ? 155.56 : ROOT;
+          droneNodes.g3.gain.value = tier >= 2 ? 0.42 : 0.22;
         }
+      }
+      /* 冲上 BOSS 档时给一记铜锣 + 一个下行提示音，
+         告诉玩家「变了」，而不是让他自己发现节奏变了 */
+      if (tier >= 3 && prev < 3) {
+        scheduleGong(0, 0.05);
+        [523.25, 440, 392].forEach(function (f, i) {
+          voice({ f: f, dur: 0.5, type: "triangle", gain: 0.05,
+                  delay: 0.32 + i * 0.14, bus: "music", lp: 2600 });
+        });
       }
     }
 
@@ -460,6 +535,7 @@
        bpm 必须在这里一起算，否则 bgmBreathe 设的 44 会被上面的档位覆盖。 */
     var beat = 60 / (bgm.breathe ? 44 : bgm.bpm);
     var lookahead = a.currentTime + 0.25;
+    var sd = beat / 2;
 
     while (bgm.nextT < lookahead) {
       var s = bgm.step;
@@ -469,15 +545,27 @@
         /* 只留一层极稀疏的氛围音，把空间让给呼吸 */
         if (s % 8 === 0 && Math.random() < 0.6) schedulePluck(delay);
       } else if (tier <= 1) {
-        if (s % 4 === 0) scheduleKick(delay);
+        /* 空原：鼓点稀疏，动机自己走 */
+        if (s % 8 === 0) scheduleKick(delay);
+        if (tier === 1 && s % 16 === 12) scheduleBell(delay);
+        scheduleMotif(tier, s, delay, sd);
       } else if (tier === 2) {
-        if (s % 2 === 0) scheduleKick(delay);
-        if (s % 8 === 4) scheduleGong(delay);
-        if (s % 4 === 2 && Math.random() < 0.5) schedulePluck(delay);
+        /* 铜鼓催：底鼓 + 桶鼓 + 木鱼颗粒，动机开始密 */
+        if (s % 4 === 0) scheduleKick(delay);
+        if (s % 8 === 6) scheduleTom(delay);
+        if (s % 2 === 1 && Math.random() < 0.55) scheduleTick(delay);
+        if (s % 16 === 8) scheduleBell(delay);
+        scheduleBass(tier, s, delay, sd);
+        scheduleMotif(tier, s, delay, sd);
       } else {
-        if (s % 2 === 0) scheduleKick(delay);
-        if (s % 4 === 2) scheduleGong(delay);
-        if (s % 2 === 1 && Math.random() < 0.7) schedulePluck(delay);
+        /* 坠：底鼓落地，桶鼓打对子，动机上八度 */
+        if (s % 4 === 0) scheduleKick(delay, 0.09);
+        if (s % 8 === 6) scheduleKick(delay + beat / 4, 0.055);
+        if (s % 4 === 2) scheduleTom(delay);
+        if (s % 2 === 1 && Math.random() < 0.75) scheduleTick(delay);
+        if (s % 16 === 4) scheduleBell(delay);
+        scheduleBass(tier, s, delay, sd);
+        scheduleMotif(tier, s, delay, sd);
       }
 
       bgm.step = (bgm.step + 1) % 32;
@@ -509,20 +597,58 @@
     } catch (e) {}
   }
 
-  function scheduleKick(d) {
-    voice({ f: jit(62, 0.05), dur: 0.34, type: "sine", gain: 0.08, to: 38,
+  function scheduleKick(d, g) {
+    voice({ f: jit(62, 0.05), dur: 0.34, type: "sine", gain: g || 0.085, to: 38,
             delay: d, bus: "music", lp: 220 });
   }
-  function scheduleGong(d) {
+  function scheduleGong(d, g) {
     var b0 = jit(1080, 0.02);
-    voice({ f: b0, dur: 1.4, type: "sine", gain: 0.026, to: b0 * 0.97,
+    voice({ f: b0, dur: 1.4, type: "sine", gain: g || 0.026, to: b0 * 0.97,
             delay: d, bus: "music", lp: 5200 });
-    voice({ f: b0 * 1.414, dur: 0.9, type: "sine", gain: 0.013, delay: d, bus: "music", lp: 4200 });
+    voice({ f: b0 * 1.414, dur: 0.9, type: "sine", gain: (g || 0.026) * 0.5, delay: d, bus: "music", lp: 4200 });
+  }
+  /* 铜铃：比锣短、比木鱼亮，做段落标记用 */
+  function scheduleBell(d) {
+    var b0 = jit(880, 0.02);
+    voice({ f: b0, dur: 1.0, type: "sine", gain: 0.018, to: b0 * 0.98, delay: d, bus: "music", lp: 4600 });
+    voice({ f: b0 * 1.41, dur: 0.6, type: "sine", gain: 0.009, delay: d, bus: "music", lp: 3800 });
+  }
+  /* 桶鼓：击打面有一点噪声，音高比底鼓高 */
+  function scheduleTom(d) {
+    voice({ f: jit(150, 0.04), dur: 0.2, type: "sine", gain: 0.05, to: 76, delay: d, bus: "music", lp: 900 });
+    voice({ noise: 1, dur: 0.05, bp: 900, q: 1.2, gain: 0.016, delay: d, bus: "music" });
+  }
+  /* 木鱼：极短的干脆点击，给节奏加颗粒 */
+  function scheduleTick(d) {
+    voice({ noise: 1, dur: 0.035, hp: 2600, gain: 0.014, curve: 3, delay: d, bus: "music" });
   }
   function schedulePluck(d) {
     var f = SCALE[(Math.random() * SCALE.length) | 0];
     voice({ f: f, dur: 0.5, type: "triangle", gain: 0.02, delay: d, bus: "music",
-            lp: 1800, atk: 0.008, pan: (Math.random() * 2 - 1) * 0.4 });
+            lp: 1800, atk: 0.008,
+            pan: (Math.random() * 2 - 1) * 0.4 });
+    voice({ f: f * 2, dur: 0.28, type: "sine", gain: 0.008, delay: d, bus: "music", lp: 2600 });
+  }
+
+  /* 动机层：按档位查表，只在有音的那一步发声。
+     音色是「石磬」：三角波 + 低通 + 一点八度泛音，尾巴长但不喧宾夺主。 */
+  function scheduleMotif(tier, s, d, sd) {
+    var n = MEL[tier] && MEL[tier][s];
+    if (!n) return;
+    var dur = Math.max(0.22, n.d * sd * 0.92);
+    voice({ f: n.f, dur: dur, type: "triangle", gain: 0.026, delay: d, bus: "music",
+            lp: 2400, atk: 0.012, pan: -0.2 });
+    voice({ f: n.f * 2, dur: dur * 0.45, type: "sine", gain: 0.008, delay: d, bus: "music", lp: 3200 });
+  }
+
+  /* 低音线：档位 2 起进入，D3 / A2 交替，给动机一个底座。
+     不写低音线的话动机就是浮在空中的点阵，听不出乐句。 */
+  function scheduleBass(tier, s, d, sd) {
+    var f = 0;
+    if (s === 0) f = ROOT;
+    else if (s === 16) f = A2;
+    if (!f) return;
+    voice({ f: f, dur: sd * 7, type: "sawtooth", gain: 0.030, delay: d, bus: "music", lp: 420 });
   }
 
   function bgmStart() {
@@ -602,11 +728,19 @@
     material: function () { return material; },
     mute: function (m) {
       muted = (m === undefined) ? !muted : !!m;
-      if (master) master.gain.value = muted ? 0 : 1;
+      if (master) master.gain.value = muted ? 0 : MASTER;
       return muted;
     },
     isMuted: function () { return muted; },
     volume: function (k, v) {
+      /* master 是总闸，压在总线之后；它允许超过 1，因为压缩器已经先把峰值摁住了 */
+      if (k === "master") {
+        if (typeof v === "number") {
+          MASTER = clamp(v, 0, 2);
+          if (master) master.gain.value = muted ? 0 : MASTER;
+        }
+        return MASTER;
+      }
       if (VOL[k] !== undefined && typeof v === "number") {
         VOL[k] = clamp(v, 0, 1);
         if (bus[k]) bus[k].gain.value = VOL[k];
