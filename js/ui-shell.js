@@ -851,6 +851,12 @@
         ? "A / X 选单人 · B / Y 选双人 · 十字左右切换 · Start 确认"
         : "按 1 选单人 · 按 2 选双人";
     }
+    /* 打开时就把「当前高亮项」画出来。
+       S.modePick 默认是 "duo"，但以前要等玩家按过十字才给按钮挂 .uis-pick ——
+       于是页面刚开时**一个高亮都没有**，玩家看不出 Start 会确认哪一项。
+       手柄玩家因此以为「选双人」是个没生效的动作，按 Start 又不知道自己选中了谁。
+       这里补上：默认高亮与实际会确认的项永远一致。 */
+    setModePick(S.modePick || "duo");
     root.classList.add("uis-on");
     root.setAttribute("aria-hidden", "false");
   }

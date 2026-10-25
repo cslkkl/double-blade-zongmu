@@ -160,6 +160,20 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
   - `gesturestart/gesturechange` —— iOS 的整页捏合，不吃 `touch-action`。
 - **双击守卫绝对不能改成在 `touchstart` 上 `preventDefault`**：那会连带把 `pointerdown` 一起吞掉，而虚拟键全挂在 pointer 事件上 —— 双人同屏、两只拇指同时按方向与刀时，按键会当场失灵。所以多指（`changedTouches.length !== 1` 或 `touches.length > 0`）必须原样放过。
 - **测这类时序要用忙等（`while(performance.now()-t0 < ms){}`），不能用 `setTimeout`**：后台标签页的定时器会被节流到几百毫秒，测出来「60ms 后双击」实际隔了 700ms，守卫自然不触发 —— 会误判成「守卫失效」。同理 CDP 的 `Input.dispatchTouchEvent` 在模拟触摸没启用时会一直挂住。
+- **模式选择页打开时必须先把「当前高亮项」画出来**：`S.modePick` 默认是 `duo`，
+  但 `.uis-pick` 以前只在按过十字之后才挂上 —— 页面刚开时一个高亮都没有，
+  玩家看不出 `Start` 会确认哪一项，于是报「选了双人却只出单人」。
+  `openMode()` 里补了 `setModePick(S.modePick || "duo")`：默认高亮与实际确认项永远一致。
+- **手柄选模式的三条键位是「直选」，不是「移动光标 + 确认」**：`A/X` 直接单人、
+  `B/Y` 直接双人、`Start` 确认高亮项。所以玩家按 `A` 两下（想「开始游戏」）会落到单人 ——
+  页脚那行提示必须写清这一点，别指望玩家自己猜。
+- **测手柄要用 `navigator.getGamepads` 桩 + 关闭后台节流**：真实手柄没法在 CI 里驱动，
+  但可以 `Page.addScriptToEvaluateOnNewDocument` 注入假 `getGamepads`，再用
+  `window.__pad.set(i, btn, on)` 逐帧按。**同时必须给 Chrome 加
+  `--disable-backgrounding-occluded-windows --disable-renderer-backgrounding
+  --disable-background-timer-throttling --disable-features=CalculateNativeWinOcclusion`** ——
+  否则页面 `hidden` 时 rAF 完全停摆，而 `js/guide.js` 的手柄轮询、`js/ui-shell.js` 的
+  `padFrame` 全挂在 rAF 上，测出来就是「手柄识别到 0 个」，会把正常功能误判成坏掉。
 - **鼠标与手指靠 `pointerType` 区分**：`mouse` 不算手指 —— 触摸屏笔记本上用鼠标玩要保持桌面界面。`touch` / `pen` 算。
 - **`index.html` 的 script 标签带 `?v=` 版本号**：文件名不带 hash，浏览器与 CDN 会长期缓存 `js/*.js`。玩家拿到旧版 `touch.js` 就会在桌面上看到手机虚拟键，刷新几次都改不掉。**改了 `js/` 下任何文件就把版本号 +1。**
 - **从主屏图标启动时没有「第一次手指落下」事件**：自动判断会等不到，虚拟键永远不出现。所以有 `mobile.html` 强制入口（`?touch=1`），别指望自动判断覆盖这个场景。
