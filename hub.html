@@ -282,9 +282,12 @@
 
   .card:hover .card-go{border-top-color:var(--red)}
 
+  /* 与一级索引同一套口径：静止态先退后 8px，hover 时把这段轨道填满 */
   .card-arrow{
+    display:block;
     font-size:17px;
     line-height:1;
+    margin-right:8px;
     transition:transform 150ms ease-out,color 150ms ease-out;
   }
 
