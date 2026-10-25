@@ -1,11 +1,12 @@
 # js/ — 文件索引
 
-10 个文件，全部是 IIFE，只往 `window.*` 挂一个对象。
+12 个文件，全部是 IIFE，只往 `window.*` 挂一个对象。
 设计理由见 [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)；本目录规则见 [AGENTS.md](AGENTS.md)。
 
-加载顺序固定：`assets → anim-data → background → char-rig → enemies-assets → fx → guide → rumble → ui-shell → audio`。
+加载顺序固定：`assets → anim-data → background → char-rig → enemies-assets → fx → guide → rumble → touch → ui-shell → audio → intro-video`。
 `guide` 必须在 `ui-shell` 之前：说明抽屉靠 `Guide.renderInto()` 画操作图。
 `rumble` 必须在 `guide` 之后：手柄列表现读 `Guide.pads()`（与 `readPad` 同源），缺席 Guide 就全部 no-op。
+`touch` 必须在 `guide` 之后：设备档判定要读 `Guide.padCount()`（插了手柄就不显示虚拟键）。
 `audio` 必须最后，它要被内联脚本的音效壳捕获成 `window.SND`。
 `audio.js` 排在最后是有意的：它只被 `index.html` 的 `sfx*()` 包装层读取，缺席时那层自动退回老的单振荡器实现。
 
@@ -132,6 +133,23 @@
 - 关键约束：加载序在 `guide` 之后（要读 `Guide.pads()`）、`ui-shell` 之前（`ui-shell` 不依赖它，纯排保险位）。
 - 改后必测：拔插手柄即时生效（play 每次现读）；无手柄环境下全流程跑通无报错；`hit(big)` 与 `swap` 等相近波形实际手感区分是否明显。
 
+## touch.js
+
+- 职责：触屏虚拟按键层。布局、按下 / 抬起、指针回收、竖屏遮罩、安卓振动、**设备判定**。
+- 关键导出：`window.Touch = { available, active, state, setMode, show, hide, tick, clearAll, skipHeld, takeTap, anyHeld, buzz, init, forcedTouch, debug, overlaps }`。
+- 依赖谁：只用 `document`、`window`、`navigator`、PointerEvent / TouchEvent。**不加载任何图片**（按钮是纯 CSS 圆钮 + 文字），`file://` 下零请求。
+- 被谁依赖：`index.html` 的 `update()`（把 `Touch.state(tag)` 并进 `in1/in2`）、`loop()`（`Touch.tick()`）、`js/guide.js`（`touchActive()` 判设备档）。
+- 关键约束：**判「有没有触屏」只看触摸硬件**（`navigator.maxTouchPoints > 0` 或 `ontouchstart` in window），**不看 `PointerEvent`**。桌面 Chrome / Edge / Firefox 全都支持 PointerEvent，拿它当判据会让鼠标点一下就切进手机版，玩家看到一圈虚拟键凭空冒出来。`PointerEvent` 只用来选事件 API。
+- 关键约束：**鼠标与手指靠 `pointerType` 区分**：`mouse` 不算手指（触摸屏笔记本上用鼠标玩要保持桌面界面），`touch` / `pen` 算。判在 `armFirstTouch()` 的 kick 里。
+- 关键约束：URL 强制开关 `?touch=1` / `?touch=0`。`?touch=1` 时 `everTouched` 直接置真 —— 从主屏图标启动时没有「第一次手指落下」事件，自动判断会等不到，虚拟键永远不出现。
+- 关键约束：按键层 `position:fixed` 贴视口，**不能放进 `#stage`** —— 那是 1600×900 逻辑坐标、被 `transform:scale(0.43)` 缩过，100px 的按钮到屏幕上只剩 43px，低于 44px 规范下限。
+- 关键约束：纵向间距用「按钮直径」作单位（`var(--tch-d) * 倍数`），**不能用 `vmin` 百分比** —— 那会让间距跟屏幕高度成比例，390px 高的横屏手机上「跳」能飘到左上角、「拾」压在角色脸上。
+- 关键约束：`big` 键（1.22 倍直径）与相邻键的 y 差要 ≥ 1.26 倍直径。`checkOverlap()` 在布局重建时两两求交并 `console.warn` —— 这是这类布局 bug 的唯一自动化防线，别删。
+- 关键约束：手机上 `pointerup` 会丢（手指滑出屏幕 / 来电 / 系统通知 / 切 App / 锁屏）。三道兜底缺一不可：一次性键 8 秒超时回收（`reapStale`）、`pointercancel`、`blur` / `pagehide` / `visibilitychange` 三清。方向键不参与超时回收（按住往前跑是正常玩法）。
+- 关键约束：`state()` 要求层上带 `tch-on` 类才返回值。`tick()` 里 `want !== lastShown` 时会 `clearAll()` —— 一次抖动就清空全部按键，所以 `active()` 的判据（无手柄 / `phase === "play"` / 未暂停）必须稳定。
+- 改后必测：桌面端 `available()` 为 false、无虚拟键层、鼠标点击后图例仍是键盘版；`?touch=1` 下 10 个键可见且 0 重叠；`pointerdown → state.right = true`、`pointerup → 归零`；竖屏时整屏「请横过来」遮罩且按键隐藏。
+
+
 ## ui-shell.js
 
 - 职责：DOM 覆盖层三块 —— 单双人模式选择、按键说明抽屉、拾取气泡。
@@ -173,6 +191,7 @@
 | `fx.js` | `index.html` 四处 `FX.*` 调用与 `FX.ready()` 守卫；`drawSlash` 的 `wkey`、`drawHit` 的 `mat`、`drawProjFx` 的 `kind` 是否都有人传；新增武器要在 `WEAPON_FX` 与 `HIT_MATERIAL` 的表里都有落点 |
 | `guide.js` | `index.html` 的 `scanPads()` 与 `#keys`/`#pad`、`ui-shell` 的 `.uis-help-body` 与 `Guide.onChange`；改键位只改这里的四张表，别再往 `ui-shell` 抄文案 |
 | `rumble.js` | `index.html` 的十几个 `Rumble.player / Rumble.play` 调用点是否还指向本页列出的预设名；`Guide.pads()` 结构变化时 `padAt()` 是否仍取得到；`player()` 的 tag→pad 映射与 `readPad()` 取源是否仍一致 |
+| `touch.js` | `index.html` 的 `Touch.state / tick / init / takeTap / anyHeld / setMode` 调用点；`guide.js` 的 `touchActive()` 与 `forcedTouch()`；`index.html` 的 script 版本号（改了 `js/` 就要 +1）；`available()` 的触摸硬件判据（别改回看 `PointerEvent`） |
 | `ui-shell.js` | `index.html` 四个调用点、`body.solo` 样式、`UIShell` 未加载时的降级分支、`Guide` 缺席时抽屉仍要能开、`padFrame` 的启用闸、模式页底部文案 |
 | `audio.js` | 跑 `selftest_audio.mjs`；`index.html` 的 `sfx*()` 包装层是否仍能退回旧实现；新增武器要在 `MATERIAL` 表里给材质，否则一律落到 `jade`；`SND.bgm.*` 的调用点（开局 `start` / 换阵 `setWave` / 通关 `stop`） |
 
