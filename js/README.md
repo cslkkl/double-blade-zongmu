@@ -65,8 +65,15 @@
 - 依赖谁：`window.IMG` 的 3 张核心背景 + 7 个道具键。
 - 被谁依赖：`index.html` 的 `render()`；`ready()` 为假或 `draw()` 返回 `false` 时回落到内联 `drawBG()`。
 - 关键约束：只在屏幕坐标系算偏移，不做世界坐标平移；道具世界坐标写在模块内 `PROPS`；`save/restore` 必须成对；道具加载失败不阻塞背景整体，逐张回落纯代码。
+- **`W` 是视图宽度、可以是变量**（手机加宽逻辑视口，见 [../docs/手机端适配.md](../docs/手机端适配.md)）。三层各用不同策略，改之前先对清楚：
+  - **远景**：等比缩放（`_farSc = W / 素材宽`），把图内地平线对齐 `GROUND`，溢出向上裁。
+    **绝对不许拉伸成 `W × H`** —— 图里有个正圆太阳，横向拉 22% 就是椭圆。
+    光晕的圆心 / 半径也乘 `_farSc`（`_farSc` / `_farY` 是模块级缓存，供 `drawSunGlow()` 用）。
+  - **中景**：**保持素材原尺寸平铺**。等比放大到视图宽会让高度超过 `GROUND`，
+    贴地面线后顶到画外 —— 天空被吃掉、柱子变粗、编钟横梁被裁断（已实测）。
+  - **地面**：本来就按 `groundY` 反算宽高比，等比平铺，不用动。
 - **没有前景遮挡层**：`drawFront()` / `occluders()` 已于 2026-10-25 删除。原来那 3 座高大遮挡物画在角色之上，人走过去被完全盖住，只好给角色加一条 52% 硬淡出；那条淡出进出无过渡、判定只看 x 不看高度，走过道具旁边就闪一下半透明，读起来像 bug，整套删掉。遮挡物素材仍留在中景 `PROPS`（`maskRelief` / `brazier` / `sacredTree`）。
-- 改后必测：三档视差系数、道具底部是否贴 `GROUND`、`ready()` 对新键的判定、核心图任一失败时是否整层让位给 `drawBG()`。
+- 改后必测：三档视差系数、道具底部是否贴 `GROUND`、`ready()` 对新键的判定、核心图任一失败时是否整层让位给 `drawBG()`、**手机加宽后远景太阳是否仍是正圆、中景接缝是否可接受**。
 
 ## char-rig.js
 
@@ -140,10 +147,22 @@
 
 ## touch.js
 
-- 职责：触屏虚拟按键层。布局、按下 / 抬起、指针回收、竖屏遮罩、安卓振动、**设备判定**。
-- 关键导出：`window.Touch = { available, active, state, setMode, show, hide, tick, clearAll, skipHeld, takeTap, anyHeld, buzz, init, forcedTouch, debug, overlaps }`。
-- 依赖谁：只用 `document`、`window`、`navigator`、PointerEvent / TouchEvent。**不加载任何图片**（按钮是纯 CSS 圆钮 + 文字），`file://` 下零请求。
-- 被谁依赖：`index.html` 的 `update()`（把 `Touch.state(tag)` 并进 `in1/in2`）、`loop()`（`Touch.tick()`）、`js/guide.js`（`touchActive()` 判设备档）。
+- 职责：触屏虚拟按键层。布局、按下 / 抬起、指针回收、竖屏遮罩、安卓振动、**设备判定**、按键美术。
+- 关键导出：`window.Touch = { available, active, state, setMode, show, hide, tick, clearAll, skipHeld, takeTap, anyHeld, buzz, init, forcedTouch, setWeapon, debug, overlaps }`。
+- 依赖谁：只用 `document`、`window`、`navigator`、PointerEvent / TouchEvent，以及自建缓存读的 `assets/touch/` 10 张图。**不读 `window.IMG`**，也不进 `js/assets.js` 的 `MANIFEST`。
+- 被谁依赖：`index.html` 的 `update()`（把 `Touch.state(tag)` 并进 `in1/in2`）、`loop()`（`Touch.tick()`）、`syncHUD()`（一行 `Touch.setWeapon(tag, iconKey)`）；`js/guide.js`（`touchActive()` 判设备档）。
+- **美术是三层结构，各层职责互斥**（详见 [../docs/手机端适配.md](../docs/手机端适配.md) 的「十、按键美术」一节）：
+  - **底 = 青铜盘**：`plate`（正圆，给动作键）/ `plate-sq`（圆角方盘，`border-radius:26%`，给 `.tch-b.dir` 走键）。深青绿锈 + 外圈金色云雷纹，**中心留空**给文字。
+  - **中 = 暗刻金线纹样**：`glyph-<field>` 8 张，**低不透明度**压在文字下面，只给铸造质感。
+  - **上 = 原有文字标签**：`◀ ▶ 跳 刀 技 拾 丢 递 ❚❚ ?`。这一层没有降级 —— 它就是降级本身。
+- 关键约束：**降级链逐级退回，任何一层缺失都不许白屏、不许按钮变透明**：盘缺 → 今天那套径向渐变圆钮；纹样缺 → 不画纹样、文字照旧；武器图标缺 → 攻击键退回「atk 纹样 + 刀字」。三层**各自独立判**，不许用「只要有一层缺就整键退回纯 CSS」的粗暴写法（盘明明在，却因为它旁边的纹样缺了就把盘一起扔掉）。
+- 关键约束：**8 个纹样只做质感、不承担识别**。48px 的小键上纯图形对「跳 / 技 / 拾」辨识度不足，文字是最终兜底 —— 所以纹样必须低不透明度，且不得盖住或替换文字。
+- 关键约束：**这 10 张图不进 `MANIFEST`**。启动期静态图预算是 41 键 / 40 条路径（见本页 `assets.js` 一节），虚拟键图只有真触屏才需要，塞进去等于让桌面玩家白等 10 次解码。`js/touch.js` 自建 Image 缓存，只在 `available()` 为真时建。
+- **`setWeapon(tag, iconKey)` 是攻击键跟随武器的唯一入口**：`iconKey` 是 `js/assets.js` 的 `MANIFEST` 键名（如 `wpAxe` / `itJar`），不是文件路径 —— 路径由本模块从 `Assets.MANIFEST` 查，不许在这里抄第二份武器 → 图片的表。
+  - 语义是**幂等赋值**：同一个 `iconKey` 重复调用不重绘、不重建 Image，只有值真的变了才换图，所以调用方每帧调也不会抖。
+  - `iconKey` 为 `null`（空手）或图未就绪时，键面退回「金线 atk 纹样 + 刀字」。
+  - 调用点在 `index.html` 的 `syncHUD()` **一处**，`p1` / `p2` 各一次。别在别处再调，否则两名玩家的攻击键会互相覆盖。
+- 关键约束：`debug()` 除 `mode / shown / pointers / everTouched / urlTouch` 外还带美术字段（盘 / 纹样 / 攻击键武器图各自是否已就绪），供自动化验收与排障读。它只读缓存状态，不触发建图。
 - 关键约束：**判「有没有触屏」只看触摸硬件**（`navigator.maxTouchPoints > 0` 或 `ontouchstart` in window），**不看 `PointerEvent`**。桌面 Chrome / Edge / Firefox 全都支持 PointerEvent，拿它当判据会让鼠标点一下就切进手机版，玩家看到一圈虚拟键凭空冒出来。`PointerEvent` 只用来选事件 API。
 - 关键约束：**鼠标与手指靠 `pointerType` 区分**：`mouse` 不算手指（触摸屏笔记本上用鼠标玩要保持桌面界面），`touch` / `pen` 算。判在 `armFirstTouch()` 的 kick 里。
 - 关键约束：URL 强制开关 `?touch=1` / `?touch=0`。`?touch=1` 时 `everTouched` 直接置真 —— 从主屏图标启动时没有「第一次手指落下」事件，自动判断会等不到，虚拟键永远不出现。
@@ -152,7 +171,7 @@
 - 关键约束：`big` 键（1.22 倍直径）与相邻键的 y 差要 ≥ 1.26 倍直径。`checkOverlap()` 在布局重建时两两求交并 `console.warn` —— 这是这类布局 bug 的唯一自动化防线，别删。
 - 关键约束：手机上 `pointerup` 会丢（手指滑出屏幕 / 来电 / 系统通知 / 切 App / 锁屏）。三道兜底缺一不可：一次性键 8 秒超时回收（`reapStale`）、`pointercancel`、`blur` / `pagehide` / `visibilitychange` 三清。方向键不参与超时回收（按住往前跑是正常玩法）。
 - 关键约束：`state()` 要求层上带 `tch-on` 类才返回值。`tick()` 里 `want !== lastShown` 时会 `clearAll()` —— 一次抖动就清空全部按键，所以 `active()` 的判据（无手柄 / `phase === "play"` / 未暂停）必须稳定。
-- 改后必测：桌面端 `available()` 为 false、无虚拟键层、鼠标点击后图例仍是键盘版；`?touch=1` 下 10 个键可见且 0 重叠；`pointerdown → state.right = true`、`pointerup → 归零`；竖屏时整屏「请横过来」遮罩且按键隐藏。
+- 改后必测：桌面端 `available()` 为 false、无虚拟键层、**也不请求 `assets/touch/`**、鼠标点击后图例仍是键盘版；`?touch=1` 下 10 个键可见且 0 重叠；`pointerdown → state.right = true`、`pointerup → 归零`；竖屏时整屏「请横过来」遮罩且按键隐藏；三层美术逐层验一遍（删掉 `plate.webp` → 退回纯 CSS 圆钮；删掉某个 `glyph-*` → 该键只剩文字；`setWeapon(tag, null)` → 攻击键回到 atk 纹样 + 刀字），三种情况都不许出现透明键或白屏；换武器后攻击键在 1 帧内换图。
 
 
 ## ui-shell.js
@@ -202,7 +221,7 @@
 | `fx.js` | `index.html` 四处 `FX.*` 调用与 `FX.ready()` 守卫；`drawSlash` 的 `wkey`、`drawHit` 的 `mat`、`drawProjFx` 的 `kind` 是否都有人传；新增武器要在 `WEAPON_FX` 与 `HIT_MATERIAL` 的表里都有落点 |
 | `guide.js` | `index.html` 的 `scanPads()` 与 `#keys`/`#pad`、`ui-shell` 的 `.uis-help-body` 与 `Guide.onChange`；改键位只改这里的四张表，别再往 `ui-shell` 抄文案 |
 | `rumble.js` | `index.html` 的十几个 `Rumble.player / Rumble.play` 调用点是否还指向本页列出的预设名；`Guide.pads()` 结构变化时 `padAt()` 是否仍取得到；`player()` 的 tag→pad 映射与 `readPad()` 取源是否仍一致 |
-| `touch.js` | `index.html` 的 `Touch.state / tick / init / takeTap / anyHeld / setMode` 调用点；`guide.js` 的 `touchActive()` 与 `forcedTouch()`；`index.html` 的 script 版本号（改了 `js/` 就要 +1）；`available()` 的触摸硬件判据（别改回看 `PointerEvent`） |
+| `touch.js` | `index.html` 的 `Touch.state / tick / init / takeTap / anyHeld / setMode / setWeapon` 调用点；`guide.js` 的 `touchActive()` 与 `forcedTouch()`；`index.html` 的 script 版本号（改了 `js/` 就要 +1）；`available()` 的触摸硬件判据（别改回看 `PointerEvent`）；`ART` 表的文件名与 `assets/touch/`、`tools/prep_touch.py` 三者一致；`setWeapon` 的 `iconKey` 仍是 `MANIFEST` 键名（别改成文件路径，也别在 `touch.js` 里抄第二份 `WP_ICON`）；`showcase.js` 界面 tab 的「手机虚拟键」清单 |
 | `ui-shell.js` | `index.html` 四个调用点、`body.solo` 样式、`UIShell` 未加载时的降级分支、`Guide` 缺席时抽屉仍要能开、`padFrame` 的启用闸、模式页底部文案 |
 | `audio.js` | 跑 `selftest_audio.mjs`；`index.html` 的 `sfx*()` 包装层是否仍能退回旧实现；新增武器要在 `MATERIAL` 表里给材质，否则一律落到 `jade`；`SND.bgm.*` 的调用点（开局 `start` / 换阵 `setWave` / 通关 `stop`） |
 
