@@ -84,6 +84,13 @@ CHAR     // 12 个动作的中文名 / 英文名
 
 `node --check showcase.js` 是唯一自动化检查；页面没有列入上面的收工验证链。
 
+**改素材 / 删素材时必须回头查这批手写清单**：`showcase.js` 的 `BG` / `PROPS` / `INTERACT` /
+`ICONS` / `UIS` / `APPS` / `CHARSHEET` / `GENERIC_FX` 都是手写的（浏览器不能列目录），
+删了图不删行就是 404 空框；三处**算式**（顶栏统计、武器表页脚、全集页脚）原本是硬编常数，
+现在都从数据表实时算。`WSTATES` 会按 `WEAPON_ATTACK` / `WEAPON_ATTACK_CLIP` 是否存在动态增删，
+列数写进 CSS 变量 `--wcols` —— **`.wt` 的 `repeat(8, …)` 不许改回常数**，
+否则状态列一变就整张表行行错位（已实测）。
+
 ## 验证快照
 
 - 2026-10-24（武器视觉 + 出招序列 + 暂停 + 指南模块化 + 攻击/拾取分家后）：`check-inline` 通过；`selftest_enemies` 0 失败；`selftest_audio` 0 失败；`selftest_weapons` 0 失败；`node --check` 9/9 通过。
@@ -95,6 +102,7 @@ CHAR     // 12 个动作的中文名 / 英文名
 - **2026-10-25（刀光朝向定案 + 刃口高光锚定后）**：`check-inline` 通过（内联脚本 140318 字符）；`selftest_enemies` / `selftest_audio` / `selftest_weapons`（新增 5b/5c 两节）全 0 失败；`node --check` 12/12 通过；链接检查 30 文件 75 链接 0 错。朝向回归防线实测有效：把 `slashMirror` 临时改回 `facing < 0` 当场 14 项失败。像素探针（900×460，两朝向并排）：`facing=+1` 质心 `mass_x=+4.61`、`facing=-1` 为 `-5.32`（都在锚点身前），互为镜像偏差 `dx=0.71 / dy=0.03`。版本号 `20261025d` → `e`。
 - **2026-10-25（BGM 换成外部音轨后）**：`check-inline` 通过（内联脚本 138516 字符）；`selftest_enemies` / `selftest_audio`（43 项，新增第 9 节音轨断言 16 项）/ `selftest_weapons` 全 0 失败；`node --check` 12/12 通过。BGM 改为 `assets/audio/bgm-main.mp3`（256 kbps / 48 kHz 立体声 / 222 秒 / 6.8 MB，`<audio>` 元素循环播放），音轨缺席或被拦时退回原程序化 BGM。人耳实测：`file://` 直开、进单人模式即出声。
 - **2026-10-25（清死键 + 删 atk-* + 封住会复活的生成入口后）**：`check-inline` 通过（内联脚本 142602 字符）；`selftest_enemies` / `selftest_audio` / `selftest_weapons` 全 0 失败；`node --check` 12/12 通过；链接检查 30 文件 78 链接 0 错。素材：`assets/` 330 文件 21.55 MB → **270 文件 19.48 MB**，剔音视频 10.24 → **8.17 MB**。`MANIFEST` 52 键 / 50 路径 → **41 键 / 40 路径**（`Assets.load()` 加同路径去重）。浏览器实测 `file://` 直开：**41/41 图全部 ready、控制台 0 报错 0 警告**；运行时逐帧抓 `drawImage` 确认挥砍走 `attack-short-0..3`、走路 `walk-short-*`、跳跃 `jump-short-*`、受击 `hurt-short`、拾取 `pickup-short`，**`atk-*` 命中 0 次**（无悬空引用）。版本号 `20261025j` → `k`。
+- **2026-10-26（合上游 `l` + 素材总览页对齐后）**：`check-inline` 通过（内联脚本 146336 字符）；`selftest_enemies` / `selftest_audio` / `selftest_weapons` 全 0 失败；`node --check` 12/12 + `showcase.js` 通过；链接检查 30 文件 75 链接 0 错。合并时 3 处冲突逐条按语义解（版本号取 `m`、`Assets.load()` 同时保 `onProgress` 与同路径去重、`js/README.md` 取并集）。`file://` 实测载入链：**41/41 静态图 ready + `CharArt.progress` 185/185 + `EnemyArt.progress` 14/14**，载入条走满才放行，控制台 0 报错 0 警告。展示页（`node serve-showcase.mjs`，http）7 个 tab 全查：**0 张 404、0 报错**，顶栏统计 **199 帧 / 268 文件 / 49 组 / 11 武器**。运行时引用的 248 条路径 0 缺失。
 - 规模：`index.html` 约 4543 行；`js/` 12 个模块；`assets/` 270 个文件 19.48 MB。
 - 素材分布：`anim/` 199、`fx/` 13、`icons/` 10、`icon/` 10、`ui/` 10、`interact/` 6、`props/` 8、`char/` 1、`audio/` 1、`video/` 1、根 10。
 - 素材预算：单帧 ≤ 60 KB（实测最大 55.4 KB）、总量 ≤ 8 MB（上调依据见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 的「素材流水线」）。**8 MB 只算游戏素材**：含 `audio/`（6.78 MB）+ `video/`（4.53 MB）时总量 19.48 MB，**剔除音视频后 8.17 MB，仍超预算 0.17 MB**（2026-10-25 清掉 `atk-*` 1.78 MB 与无引用图标 / 角色 0.29 MB 后从 10.24 MB 降到 8.17 MB）。剩下的都是运行时真加载的，再压只能整批降采样重出。
@@ -116,8 +124,9 @@ CHAR     // 12 个动作的中文名 / 英文名
 
 ## 活跃坑
 
-- **「素材就绪」不等于「帧图就绪」**。`Assets.load()` 只管 MANIFEST 里那 48 张静态图；
-  249 张动画帧是 `char-rig.warm()` 与 `enemies-assets.warmKind()` 自己建的。
+- **「素材就绪」不等于「帧图就绪」**。`Assets.load()` 只管 MANIFEST 里那 40 条路径
+  （41 个键，`wpShort`/`wpDagger` 同路径只建一个 `Image`）；
+  199 张动画帧（角色 185 + 敌人 14）是 `char-rig.warm()` 与 `enemies-assets.warmKind()` 自己建的。
   标题页的载入条因此要**两段合起来算**：静态 + 两个模块的 `progress()`。
   只等静态就放行，玩家会看到「进度走满 → 开打 → 角色是青色降级方块」（已实测）。
   `progress()` 只数已建的 Image、不新建 —— 自己再 new 一遍会让解码内存翻倍。
