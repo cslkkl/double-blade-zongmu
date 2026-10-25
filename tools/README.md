@@ -197,6 +197,37 @@
 
 ---
 
+## align_weapon_frames.html + align_apply.py — 手动对齐武器帧（anchorX / footY）
+
+**为什么需要**：`js/anim-data.js` 的 `WEAPON_CLIP` 里每帧一个 `anchorX`（0..1 的横轴锚点），
+切片脚本是用「剪影中线」猜的。同一把武器的四帧，猜出来的值能差 0.5 —— 屏幕上就是走路左右乱跳。
+实测抖动：玉璋刃 `walk` 89px、铃 `attack` 97px、锤 `jump` 84px。自动判据救不了
+（同源教训见 `AGENTS.md` 的「朝向只能人眼看」），所以这一步交给人眼。
+
+- **`align_weapon_frames.html`**（浏览器打开，零依赖，`file://` 直接用）
+  - 做什么：读 `js/anim-data.js` 的现值，把某个武器某状态的所有帧叠在一起，
+    拖到同一基准，导出 JSON。
+  - 输入：`../js/anim-data.js`、`../assets/anim/*.webp`。
+  - 输出：`{"<武器>": {"<状态>": {"anchorX": [...], "footY": [...]}}}`（合法 JSON）。
+  - 不读像素：只画不 `getImageData` —— `file://` 下 `canvas` 会被污染，
+    一读像素就 `SecurityError`。这也是这里刻意不做「一键自动对齐」的原因。
+  - 交互：拖画面 = 移当前帧；`←→↑↓` 1px、`Shift`+方向 10px；`Tab` 换帧；
+    点数字选帧、双击数字设参考帧；「全部锁到参考帧」一次抹平逐帧差。
+  - 验收：左侧「距参考帧」变成 `+0, +0 ✓`；底部预览循环播放时不抖。
+- **`align_apply.py`**（回填）
+  - 做什么：只改 `anchorX` / `footY` 两个字段，不碰 `frames` / `files` / `scaleFix`；写完自动 `node --check`，失败自动回滚。
+  - 用法：`python tools/align_apply.py align.json`（`--dry` 只看 diff；`--report` 不需要导出文件，直接列出当前哪些状态还有逐帧差）。
+  - 安全阀：帧数对不上整段拒绝（导出的是旧数据）；写前存 `.bak`。
+  - 幂等性：可重复跑，同名覆盖；`--report` 纯只读。
+
+**跑完必做**：`node tools/selftest_weapons.mjs && node tools/check-inline.mjs`。
+
+**`footY` 现在可以逐帧**：`char-rig.js` 的 `footOf(def, idx)` 与 `anchorOf` 同构
+（数字 = 整段共用，数组 = 逐帧）。手工对齐时纵向一样会歪 —— 底边贴齐只保证
+「裁剪框」贴齐，不保证脚底在同一行。
+
+---
+
 ## 已废弃
 
 - `prep-assets.ps1` — 第一版 PowerShell 抠图脚本，被 `prep_assets.py` 取代，已从本目录移除。
@@ -213,4 +244,5 @@
 | `prep_interact.py` | `js/assets.js` 的 `chestClosed / chestOpen / mechanismOff / mechanismOn / pickupCowrie / pickupJade` 六个键 |
 | `prep_icons.py` | `js/assets.js` 的 `wp* / it* / icon*` 三族键名、`index.html` 的 `WP_ICON` 映射与 `DROP_ICON_SIZE` |
 | 锚点或 `scaleFix` 相关逻辑 | `docs/ARCHITECTURE.md` 的「跨帧对齐约定」 |
+| `align_apply.py` / `align_weapon_frames.html` | `char-rig.js` 的 `anchorOf` / `footOf`、`js/anim-data.js` 的 `WEAPON_CLIP`、`selftest_weapons.mjs` |
 | `selftest_audio.mjs` | `js/audio.js` 的导出清单；导出增删要同步改用例，否则自检会漏掉新接口 |
