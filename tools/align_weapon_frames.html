@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>武器帧对齐台 · 双刃战士</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#0b0c10;color:#cbbf9e;font:13px/1.6 "Microsoft YaHei","PingFang SC",sans-serif;
+    display:flex;gap:14px;padding:14px;min-height:100vh}
+  h1{font-size:15px;font-weight:600;color:#e8d5a8;letter-spacing:.08em;margin-bottom:2px}
+  .sub{font-size:11.5px;color:#7d6a45;margin-bottom:10px}
+  .panel{background:#12141a;border:1px solid #242833;border-radius:6px;padding:12px 14px}
+  .col-l{flex:0 0 250px;display:flex;flex-direction:column;gap:12px}
+  .col-c{flex:1 1 auto;display:flex;flex-direction:column;gap:10px;min-width:0}
+  label{display:block;font-size:11.5px;color:#8b8071;letter-spacing:.06em;margin:8px 0 4px}
+  select{width:100%;background:#1a1d25;color:#e2d6b8;border:1px solid #303643;
+    border-radius:4px;padding:7px 8px;font:inherit;font-size:13px}
+  button{background:#1e222b;color:#d7c9a4;border:1px solid #333a48;border-radius:4px;
+    padding:7px 11px;font:inherit;font-size:12.5px;cursor:pointer;transition:.14s}
+  button:hover{background:#262b36;border-color:#4a5468;color:#f0e2bc}
+  button.pri{background:#3a2f18;border-color:#8a6e2e;color:#f5d98e}
+  button.pri:hover{background:#4a3c1e;border-color:#b08d3a}
+  button:disabled{opacity:.42;cursor:default}
+  .row{display:flex;gap:6px;flex-wrap:wrap}
+  .row > button{flex:1 1 auto}
+  canvas{display:block;background:
+    repeating-conic-gradient(#15171d 0% 25%, #101218 0% 50%) 50%/22px 22px;
+    border:1px solid #242833;border-radius:4px;max-width:100%;
+    /* align-self 必须写：.col-c 是 flex column，canvas 是 flex 项，
+       交叉轴默认 stretch —— 不写就会被拉到容器宽（1147 而不是 1000），
+       位图被非等比放大一次，拖起来手感发飘、看不清 1px 的差。 */
+    align-self:flex-start}
+  #stage{cursor:grab}
+  #stage.drag{cursor:grabbing}
+  .kv{display:flex;justify-content:space-between;font-size:12px;
+    padding:3px 0;border-bottom:1px dashed #22262f}
+  .kv b{color:#f0e2bc;font-weight:600;font-variant-numeric:tabular-nums}
+  .frames{display:flex;gap:5px;flex-wrap:wrap}
+  .fbtn{min-width:34px;padding:5px 7px;font-size:12px;font-variant-numeric:tabular-nums}
+  .fbtn.on{background:#3a2f18;border-color:#b08d3a;color:#f5d98e}
+  .fbtn.ref{border-color:#5b8a6a;color:#9ede84}
+  textarea{width:100%;height:150px;background:#0d0f13;color:#9fd6b0;border:1px solid #242833;
+    border-radius:4px;padding:8px;font:12px/1.5 Consolas,monospace;resize:vertical}
+  .tip{font-size:11.5px;color:#6b6354;line-height:1.75}
+  .tip b{color:#b6a883}
+  .warn{color:#c96b5a}
+  .ok{color:#9ede84}
+  .sep{height:1px;background:#22262f;margin:10px 0}
+</style>
+</head>
+<body>
+
+<div class="col-l">
+  <div class="panel">
+    <h1>武器帧对齐台</h1>
+    <div class="sub">肉眼拖到同一基准 → 导出数字</div>
+
+    <label>武器</label>
+    <select id="selKey"></select>
+
+    <label>状态</label>
+    <select id="selState"></select>
+
+    <div class="sep"></div>
+
+    <label>参考帧（对齐基准）</label>
+    <div class="frames" id="frameBtns"></div>
+
+    <div class="sep"></div>
+    <div id="readout"></div>
+  </div>
+
+  <div class="panel">
+    <label style="margin-top:0">整段微调</label>
+    <div class="row">
+      <button id="allL">◀ 全部</button>
+      <button id="allR">全部 ▶</button>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button id="allU">▲ 全部</button>
+      <button id="allD">全部 ▼</button>
+    </div>
+    <div class="sep"></div>
+    <div class="row">
+      <button id="snapAll" class="pri">全部锁到参考帧</button>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button id="snapOne">本帧对齐到参考帧</button>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button id="resetAll">撤销本状态全部改动</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <button id="playBtn" class="pri">▶ 播放预览</button>
+    </div>
+    <div class="sub" style="margin:8px 0 4px">走起来抖不抖，看这个</div>
+    <canvas id="prev" width="220" height="230"></canvas>
+  </div>
+</div>
+
+<div class="col-c">
+  <div class="panel" style="flex:0 0 auto">
+    <div class="row" style="align-items:center;justify-content:space-between">
+      <div>
+        <b id="title" style="color:#e8d5a8">—</b>
+        <span class="sub" id="hint" style="margin:0 0 0 10px"></span>
+      </div>
+      <div class="row" style="flex:0 0 auto">
+        <button id="prevF">◀ 上一帧</button>
+        <button id="nextF">下一帧 ▶</button>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="stage" width="1000" height="620"></canvas>
+
+  <div class="panel tip">
+    拖画面 = 移当前帧 · <b>←→↑↓</b> 微调 1px · <b>Shift</b>+方向 = 10px ·
+    <b>Tab</b> 换帧 · 点数字选帧、<b>双击</b>数字设参考帧 ·
+    灰影是其它帧（对齐好之后所有帧应该重合成一个人）<br>
+    验收标准只有一条：左侧 <b>「距参考帧」变成 <span class="ok">+0, +0 ✓</span></b>。
+    竖虚线是身体轴（参考帧的位置），每帧的头、肩、腰、脚都应落在它附近；脚底贴绿线。<br>
+    <span class="warn">换武器/状态时，先把那个状态里每一帧都调成 +0 再导。</span>
+    一次只导一个武器：选武器 → 逐状态调 → 「生成整把武器」→ 发我。
+  </div>
+
+  <div class="panel">
+    <div class="row" style="align-items:center;justify-content:space-between;margin-bottom:8px">
+      <b style="color:#e8d5a8;font-size:13px">导出</b>
+      <div class="row" style="flex:0 0 auto">
+        <button id="genBtn" class="pri">生成本状态数据</button>
+        <button id="genAllBtn">生成整把武器</button>
+        <button id="copyBtn">复制</button>
+      </div>
+    </div>
+    <textarea id="out" readonly placeholder="点「生成本状态数据」或「生成整把武器」，把这里的内容整段发我（合法 JSON）。"></textarea>
+    <div class="tip" id="outTip" style="margin-top:6px"></div>
+  </div>
+</div>
+
+<script src="../js/anim-data.js"></script>
+<script>
+/* ============================================================================
+   武器帧对齐台
+   ----------------------------------------------------------------------------
+   为什么要有这个东西：
+     js/anim-data.js 的 WEAPON_CLIP 里，每个状态有一组 anchorX[]（逐帧一个
+     0..1 的横轴锚点）。这些数是切片脚本用「剪影中线」猜出来的 —— 同一把
+     武器的四帧，猜出来的值能差 0.5（= 画布宽的 50%）。屏幕上就表现为
+     走路时人左右乱跳：剑 54px、玉璋刃 75px。
+
+     自动猜不出正确答案（挑高冠比脸宽、鼻尖只突出几像素、手臂出画会把
+     剪影中心拽走 —— 见 AGENTS.md 里那条「朝向只能人眼看」的同源教训）。
+     所以这里不猜了：人眼看，人手动拖，机器只负责把「你拖了多少」换算成
+     anchorX / footY。
+
+   坐标换算（与 js/char-rig.js 的 drawWeaponState 完全同一套公式）：
+     sc = TARGET_H / h * scaleFix
+     w  = W * sc ,  h_screen = H * sc
+     dx = -anchorX * w        （p.x 为身体轴）
+     dy = -footY   * h_screen （p.y 为脚底）
+   这里把「身体轴」画在画布正中 CX、「脚底」画在 GY，于是：
+     拖动人像向右 mx 像素  →  dx 变大 mx → anchorX 变小 mx / w
+     拖动人像向下 my 像素  →  dy 变大 my → footY   变小 my / h_screen
+   取反号是因为 anchorX 越大，图越往左画。
+
+   导出的是绝对值，不是增量 —— 直接粘回 js/anim-data.js 就能用，
+   不需要再跑一遍切片（重出素材才会）。
+   ========================================================================== */
+(function () {
+  "use strict";
+
+  var TARGET_H = 252;          /* 与 js/char-rig.js 的 TARGET_H 同值 */
+  var CX = 500;                /* 身体轴在画布上的 x */
+  var GY = 560;                /* 脚底线在画布上的 y */
+  var STAGE = document.getElementById("stage");
+  var ctx = STAGE.getContext("2d");
+  var PREV = document.getElementById("prev");
+  var pctx = PREV.getContext("2d");
+
+  var STATES = ["walk", "jump", "attack", "hurt", "pickup"];
+  var STATE_CN = { walk: "走", jump: "跳", attack: "攻", hurt: "受", pickup: "拾" };
+
+  var DATA = window.WEAPON_CLIP || {};
+  var keys = Object.keys(DATA);
+
+  /* 每个 (武器,状态) 的工作副本：{ ax: [], fy: [], ref: 0 }。
+     从 anim-data 的现值出发 —— 打开就是你游戏里看到的样子，
+     你要做的是把它拖正，而不是从零摆。 */
+  var work = {};
+  function ensure(key, state) {
+    var id = key + "|" + state;
+    if (work[id]) return work[id];
+    var def = DATA[key] && DATA[key][state];
+    if (!def) return null;
+    var n = def.frames || (def.files ? def.files.length : 0);
+    var ax = [], fy = [];
+    for (var i = 0; i < n; i++) {
+      var a = def.anchorX;
+      ax.push(typeof a === "number" ? a : (a && typeof a[i] === "number" ? a[i] : 0.5));
+      var f = def.footY;
+      fy.push(typeof f === "number" ? f : (f && typeof f[i] === "number" ? f[i] : 1.0));
+    }
+    work[id] = { ax: ax, fy: fy, ref: 0, origAx: ax.slice(), origFy: fy.slice() };
+    return work[id];
+  }
+
+  /* 图片缓存：file:// 下用相对路径直接给 <img>.src 就行（只是显示，
+     不读像素，所以不会被 canvas 污染规则挡住 —— 这也是这里刻意不做
+     『一键自动对齐』的原因：那需要 getImageData，file:// 下会抛 SecurityError） */
+  var imgs = {};
+  function img(url) {
+    if (imgs[url]) return imgs[url];
+    var im = new Image();
+    im.src = "../" + url;
+    imgs[url] = im;
+    return im;
+  }
+
+  /* ---------------- 当前选择 ---------------- */
+  var curKey = keys[0];
+  var curState = "walk";
+  var curFrame = 0;
+
+  var selKey = document.getElementById("selKey");
+  var selState = document.getElementById("selState");
+  keys.forEach(function (k) {
+    var o = document.createElement("option");
+    o.value = k; o.textContent = k;
+    selKey.appendChild(o);
+  });
+  STATES.forEach(function (s) {
+    var o = document.createElement("option");
+    o.value = s; o.textContent = s + "（" + STATE_CN[s] + "）";
+    selState.appendChild(o);
+  });
+  selKey.value = curKey;
+  selState.value = curState;
+
+  function def() { return DATA[curKey] && DATA[curKey][curState]; }
+  function W() { return ensure(curKey, curState); }
+  function frameCount() { var d = def(); return d ? (d.frames || d.files.length) : 0; }
+
+  /* ---------------- 几何 ---------------- */
+  function geo() {
+    var d = def();
+    if (!d) return null;
+    var fix = typeof d.scaleFix === "number" ? d.scaleFix : 1;
+    var sc = TARGET_H / d.h * fix;
+    return { sc: sc, w: d.w * sc, h: d.h * sc, fix: fix };
+  }
+
+  /* ---------------- 绘制 ---------------- */
+  function clearStage() {
+    ctx.clearRect(0, 0, STAGE.width, STAGE.height);
+    /* 脚底线 */
+    ctx.strokeStyle = "rgba(158,222,132,.34)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath(); ctx.moveTo(40, GY + .5); ctx.lineTo(STAGE.width - 40, GY + .5); ctx.stroke();
+    /* 身体轴 */
+    ctx.strokeStyle = "rgba(245,217,142,.40)";
+    ctx.beginPath(); ctx.moveTo(CX + .5, 40); ctx.lineTo(CX + .5, STAGE.height - 30); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function drawFrame(i, alpha, isRef) {
+    var d = def(), g = geo(), wk = W();
+    if (!d || !g || !wk) return;
+    var url = d.files[i];
+    var im = img(url);
+    var dx = -wk.ax[i] * g.w;
+    var dy = -wk.fy[i] * g.h;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    if (!im.complete || !im.naturalWidth) {
+      /* 没加载完：画个占位框，别让画布一片空让人以为工具坏了 */
+      ctx.strokeStyle = "rgba(201,107,90,.6)";
+      ctx.strokeRect(CX + dx, GY + dy, g.w, g.h);
+      ctx.restore();
+      return;
+    }
+    ctx.drawImage(im, CX + dx, GY + dy, g.w, g.h);
+    /* 当前帧描一圈，看得出边界在哪 */
+    if (alpha >= 1) {
+      ctx.globalAlpha = .5;
+      ctx.strokeStyle = isRef ? "#9ede84" : "#f5d98e";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(CX + dx + .5, GY + dy + .5, g.w - 1, g.h - 1);
+    }
+    ctx.restore();
+  }
+
+  function render() {
+    if (!def()) { clearStage(); return; }
+    clearStage();
+    var n = frameCount(), wk = W();
+    /* 先画所有非当前帧当灰影 —— 对齐好的时候它们应该重合成一个人 */
+    for (var i = 0; i < n; i++) {
+      if (i === curFrame) continue;
+      drawFrame(i, i === wk.ref ? 0.42 : 0.20, i === wk.ref);
+    }
+    /* 当前帧最亮 */
+    drawFrame(curFrame, 1, curFrame === W().ref);
+    renderReadout();
+    renderFrameBtns();
+    renderPrev(performance.now());
+  }
+
+  function renderReadout() {
+    var g = geo(), wk = W(), d = def();
+    if (!g || !wk || !d) { document.getElementById("readout").innerHTML = ""; return; }
+    var i = curFrame, r = wk.ref;
+    /* 屏幕上实际位移 = (原锚点 - 新锚点) × 尺寸 —— 取反是因为 anchorX 越大图越往左。
+       之前这里写成 (新 - 原) × 尺寸，方向整个反了：往右拖 100px 显示 -100px，
+       会让人以为自己拖反了然后往反方向拖。 */
+    var toRefX = -(wk.ax[i] - wk.ax[r]) * g.w;
+    var toRefY = -(wk.fy[i] - wk.fy[r]) * g.h;
+    var fromOrigX = -(wk.ax[i] - wk.origAx[i]) * g.w;
+    var fromOrigY = -(wk.fy[i] - wk.origFy[i]) * g.h;
+    var aligned = Math.abs(toRefX) < 1 && Math.abs(toRefY) < 1;
+    document.getElementById("readout").innerHTML =
+      kv("画布", d.w + " × " + d.h) +
+      kv("scaleFix", g.fix) +
+      kv("屏幕上", Math.round(g.w) + " × " + Math.round(g.h)) +
+      kv("当前帧", (i + 1) + " / " + frameCount()) +
+      kv("anchorX", wk.ax[i].toFixed(4)) +
+      kv("footY", wk.fy[i].toFixed(4)) +
+      kv("距参考帧", "<span class='" + (aligned ? "ok" : "warn") + "'>" +
+         fmtPx(toRefX) + ", " + fmtPx(toRefY) + (aligned ? " ✓" : "") + "</span>") +
+      kv("相对原值", fmtPx(fromOrigX) + ", " + fmtPx(fromOrigY));
+    document.getElementById("title").textContent =
+      curKey + " · " + curState + " · " + frameCount() + " 帧";
+    document.getElementById("hint").textContent =
+      "拖动移动第 " + (i + 1) + " 帧 · 参考帧 " + (wk.ref + 1);
+  }
+  function fmtPx(v) {
+    return (v >= 0 ? "+" : "") + v.toFixed(0);
+  }
+  function kv(k, v) {
+    return "<div class='kv'><span>" + k + "</span><b>" + v + "</b></div>";
+  }
+
+  var frameBtnsEl = document.getElementById("frameBtns");
+  function renderFrameBtns() {
+    var n = frameCount(), wk = W();
+    if (frameBtnsEl.childElementCount === n && frameBtnsEl.dataset.k === curKey + curState) {
+      /* 只更新状态类，避免每帧重建 DOM */
+      for (var i = 0; i < n; i++) {
+        var b = frameBtnsEl.children[i];
+        b.classList.toggle("on", i === curFrame);
+        b.classList.toggle("ref", i === wk.ref);
+      }
+      return;
+    }
+    frameBtnsEl.innerHTML = "";
+    frameBtnsEl.dataset.k = curKey + curState;
+    for (var j = 0; j < n; j++) {
+      (function (idx) {
+        var b = document.createElement("button");
+        b.className = "fbtn";
+        b.textContent = idx + 1;
+        /* 点击 = 选中该帧；双击 = 设为参考帧 */
+        b.onclick = function () { curFrame = idx; render(); };
+        b.ondblclick = function (e) { e.preventDefault(); W().ref = idx; render(); };
+        frameBtnsEl.appendChild(b);
+      })(j);
+    }
+    for (var k = 0; k < n; k++) {
+      frameBtnsEl.children[k].classList.toggle("on", k === curFrame);
+      frameBtnsEl.children[k].classList.toggle("ref", k === wk.ref);
+    }
+  }
+
+  /* ---------------- 预览（抖动就是这个东西看出来的） ---------------- */
+  var playing = true, playT0 = performance.now(), playIdx = 0;
+  function renderPrev(now) {
+    var d = def(), g = geo(), wk = W();
+    pctx.clearRect(0, 0, PREV.width, PREV.height);
+    pctx.fillStyle = "#0d0f13";
+    pctx.fillRect(0, 0, PREV.width, PREV.height);
+    if (!d || !g || !wk) return;
+    var n = frameCount();
+    if (playing) {
+      var fps = (typeof d.fps === "number" && d.fps > 0) ? d.fps : 12;
+      var per = 1000 / fps;
+      playIdx = Math.floor(((now - playT0) % (per * n)) / per) % n;
+    } else {
+      playIdx = curFrame;
+    }
+    /* 预览里把角色缩到 150px 高，脚底线贴底 */
+    var s2 = 150 / g.h;
+    var pw = g.w * s2, ph = g.h * s2;
+    var py = PREV.height - 24;
+    pctx.globalAlpha = 1;
+    var im = img(d.files[playIdx]);
+    if (im.complete && im.naturalWidth) {
+      pctx.drawImage(im, PREV.width / 2 - wk.ax[playIdx] * pw, py - wk.fy[playIdx] * ph, pw, ph);
+    }
+    pctx.fillStyle = "rgba(158,222,132,.30)";
+    pctx.fillRect(20, py, PREV.width - 40, 1);
+    pctx.fillStyle = "rgba(245,217,142,.30)";
+    pctx.fillRect(PREV.width / 2, 10, 1, PREV.height - 20);
+    pctx.fillStyle = "#7d6a45";
+    pctx.font = "11px Consolas,monospace";
+    pctx.fillText("帧 " + (playIdx + 1) + "/" + n, 8, 16);
+  }
+
+  var raf = null;
+  function tick() {
+    if (playing) renderPrev(performance.now());
+    raf = requestAnimationFrame(tick);
+  }
+
+  /* ---------------- 交互：拖动 ---------------- */
+  var dragging = false, lastX = 0, lastY = 0;
+  function canvasXY(e) {
+    var r = STAGE.getBoundingClientRect();
+    return {
+      x: (e.clientX - r.left) * (STAGE.width / r.width),
+      y: (e.clientY - r.top) * (STAGE.height / r.height)
+    };
+  }
+  STAGE.addEventListener("pointerdown", function (e) {
+    var p = canvasXY(e);
+    dragging = true; lastX = p.x; lastY = p.y;
+    STAGE.classList.add("drag");
+    STAGE.setPointerCapture && STAGE.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  STAGE.addEventListener("pointermove", function (e) {
+    if (!dragging) return;
+    var p = canvasXY(e);
+    nudge(p.x - lastX, p.y - lastY);
+    lastX = p.x; lastY = p.y;
+    e.preventDefault();
+  });
+  function endDrag(e) {
+    if (!dragging) return;
+    dragging = false;
+    STAGE.classList.remove("drag");
+    e && e.preventDefault();
+  }
+  STAGE.addEventListener("pointerup", endDrag);
+  STAGE.addEventListener("pointercancel", endDrag);
+  STAGE.addEventListener("pointerleave", endDrag);
+
+  /* 核心：把人像挪 (mx,my) 屏幕像素，换算回 anchorX / footY */
+  function nudge(mx, my, onlyAll) {
+    var g = geo(), wk = W();
+    if (!g || !wk) return;
+    var i = curFrame, n = frameCount();
+    if (onlyAll) {
+      for (var k = 0; k < n; k++) {
+        wk.ax[k] = clamp01(wk.ax[k] - mx / g.w);
+        wk.fy[k] = clamp01(wk.fy[k] - my / g.h);
+      }
+    } else {
+      wk.ax[i] = clamp01(wk.ax[i] - mx / g.w);
+      wk.fy[i] = clamp01(wk.fy[i] - my / g.h);
+    }
+    render();
+  }
+  function clamp01(v) { return v < -1 ? -1 : (v > 2 ? 2 : v); }
+
+  /* 键盘微调 */
+  window.addEventListener("keydown", function (e) {
+    var d = e.shiftKey ? 10 : 1;
+    if (e.key === "Tab") {
+      e.preventDefault();
+      curFrame = (curFrame + (e.shiftKey ? -1 : 1) + frameCount()) % frameCount();
+      render(); return;
+    }
+    if (e.key === "ArrowLeft") { e.preventDefault(); nudge(-d, 0); }
+    else if (e.key === "ArrowRight") { e.preventDefault(); nudge(d, 0); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); nudge(0, -d); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); nudge(0, d); }
+    else if (e.key === "PageUp") { e.preventDefault(); curFrame = Math.max(0, curFrame - 1); render(); }
+    else if (e.key === "PageDown") { e.preventDefault(); curFrame = Math.min(frameCount() - 1, curFrame + 1); render(); }
+  });
+
+  /* ---------------- 按钮 ---------------- */
+  function bind(id, fn) { document.getElementById(id).onclick = fn; }
+  bind("allL", function () { nudge(-1, 0, true); });
+  bind("allR", function () { nudge(1, 0, true); });
+  bind("allU", function () { nudge(0, -1, true); });
+  bind("allD", function () { nudge(0, 1, true); });
+
+  /* 全部锁到参考帧：一次抹平逐帧差 —— 上游要是本来就把身体画在画布同一处，
+     这一步就够了；不够再逐帧微调。 */
+  bind("snapAll", function () {
+    var wk = W(), n = frameCount(), r = wk.ref;
+    for (var i = 0; i < n; i++) { wk.ax[i] = wk.ax[r]; wk.fy[i] = wk.fy[r]; }
+    render();
+  });
+  bind("snapOne", function () {
+    var wk = W(), r = wk.ref;
+    wk.ax[curFrame] = wk.ax[r];
+    wk.fy[curFrame] = wk.fy[r];
+    render();
+  });
+  bind("resetAll", function () {
+    var wk = W(), n = frameCount();
+    for (var i = 0; i < n; i++) { wk.ax[i] = wk.origAx[i]; wk.fy[i] = wk.origFy[i]; }
+    render();
+  });
+
+  bind("prevF", function () { curFrame = (curFrame - 1 + frameCount()) % frameCount(); render(); });
+  bind("nextF", function () { curFrame = (curFrame + 1) % frameCount(); render(); });
+
+  var playBtn = document.getElementById("playBtn");
+  bind("playBtn", function () {
+    playing = !playing;
+    playBtn.textContent = playing ? "⏸ 暂停预览" : "▶ 播放预览";
+    if (playing) playT0 = performance.now();
+    renderPrev(performance.now());
+  });
+
+  /* ---------------- 导出 ----------------
+     导出的必须是**合法 JSON**（键名带引号、有武器名那一层）。
+     早先这里导出的是给 js/anim-data.js 抄的 JS 片段（`walk: {` 这种无引号
+     键名、武器名只写在注释里），粘回 tools/align_apply.py 会当场 JSON 解析
+     失败 —— 「导出 → 回填」必须能一条命令跑完，中间不许有人工改写。 */
+  function r4(v) { return Math.round(v * 10000) / 10000; }
+
+  function stateJson(key, state) {
+    var d = DATA[key][state], wk = ensure(key, state);
+    var n = d.frames || d.files.length;
+    var o = {};
+    o[state] = {
+      anchorX: wk.ax.slice(0, n).map(r4),
+      footY: wk.fy.slice(0, n).map(r4)
+    };
+    var wrap = {};
+    wrap[key] = o;
+    return JSON.stringify(wrap, null, 2);
+  }
+
+  function allJson(key) {
+    var wrap = {};
+    wrap[key] = {};
+    STATES.forEach(function (s) {
+      if (!DATA[key] || !DATA[key][s]) return;
+      var wk = ensure(key, s);
+      var n = DATA[key][s].frames || DATA[key][s].files.length;
+      wrap[key][s] = {
+        anchorX: wk.ax.slice(0, n).map(r4),
+        footY: wk.fy.slice(0, n).map(r4)
+      };
+    });
+    return JSON.stringify(wrap, null, 2);
+  }
+
+  var outEl = document.getElementById("out");
+  var outTip = document.getElementById("outTip");
+
+  bind("genBtn", function () {
+    outEl.value = stateJson(curKey, curState);
+    outTip.innerHTML = "<span class='ok'>已生成 " + curKey + " · " + curState +
+      "（" + frameCount() + " 帧）。复制整段发我，或存成 .json 跑 " +
+      "tools/align_apply.py。</span>";
+  });
+
+  bind("genAllBtn", function () {
+    outEl.value = allJson(curKey);
+    outTip.innerHTML = "<span class='ok'>已生成 " + curKey +
+      " 的全部状态（没动过的状态导出的是原值，可以安全整段发我）。</span>";
+  });
+
+  bind("copyBtn", function () {
+    if (!outEl.value) { outTip.textContent = "先点上面两个「生成」之一。"; return; }
+    outEl.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    if (ok) outTip.innerHTML = "<span class='ok'>已复制到剪贴板。</span>";
+    else outTip.innerHTML = "<span class='warn'>自动复制被浏览器挡了（file:// 常见），已全选，按 Ctrl+C。</span>";
+  });
+
+  /* ---------------- 切换 ---------------- */
+  selKey.onchange = function () { curKey = selKey.value; curFrame = 0; frameBtnsEl.dataset.k = ""; render(); };
+  selState.onchange = function () { curState = selState.value; curFrame = 0; frameBtnsEl.dataset.k = ""; render(); };
+
+  window.addEventListener("resize", function () { render(); });
+
+  render();
+  tick();
+
+  /* 图片加载完成后重画一次（首帧可能是占位框） */
+  Object.keys(imgs).forEach(function (u) {
+    var im = imgs[u];
+    if (im && !im.complete) im.addEventListener("load", function () { render(); });
+  });
+  /* 数据里所有帧都提前建 Image，切武器不用等 */
+  keys.forEach(function (k) {
+    for (var s in DATA[k]) {
+      var d = DATA[k][s];
+      if (!d || !d.files) continue;
+      d.files.forEach(function (u) { img(u).addEventListener("load", function () { render(); }); });
+    }
+  });
+})();
+</script>
+</body>
+</html>
