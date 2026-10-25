@@ -121,6 +121,12 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 - **`PICK_RANGE` 与 `HINT_RANGE` 必须完全相等**：曾经是 80 vs 90，80~90 这一圈里「气泡写着按 G 拾取，按了却捡不起来」。判定与提示用同一个常量，别在 `tryPickup` 里写死数字。
 - **手柄的 `pause` 字段在 `readPad` 里**：`Start`(9) 与 `Back`(8)。这条以前完全没接 —— `togglePause` 只有 Esc / 按钮 / 触屏三个入口，而指南与暂停页都写着「Start」。新增手柄键位时，`readPad` 的空返回也要同步补字段（保持同形）。
 - **机关（`G.mechanisms`）每加新的要先清已激活的**：已激活的金光机关一直立着（用过了还在闪），且避让逻辑每有一个机关就把新落点 +320，会越推越远。宝箱同理但要反过来 —— 未开的留着（玩家还没开），只清已开的。
+- **判「有没有触屏」不能看 `PointerEvent`**：桌面 Chrome / Edge / Firefox 全都支持 PointerEvent，拿它当判据，鼠标点一下页面就切进手机版，玩家看到一圈虚拟键凭空冒出来。正确判据是触摸硬件（`navigator.maxTouchPoints > 0` 或 `ontouchstart` in window）。`PointerEvent` 只用来选事件 API。
+- **鼠标与手指靠 `pointerType` 区分**：`mouse` 不算手指 —— 触摸屏笔记本上用鼠标玩要保持桌面界面。`touch` / `pen` 算。
+- **`index.html` 的 script 标签带 `?v=` 版本号**：文件名不带 hash，浏览器与 CDN 会长期缓存 `js/*.js`。玩家拿到旧版 `touch.js` 就会在桌面上看到手机虚拟键，刷新几次都改不掉。**改了 `js/` 下任何文件就把版本号 +1。**
+- **从主屏图标启动时没有「第一次手指落下」事件**：自动判断会等不到，虚拟键永远不出现。所以有 `mobile.html` 强制入口（`?touch=1`），别指望自动判断覆盖这个场景。
+- **`stateFrame` 的 walk 分支必须取模**：`p.walk` 是累计位移，只增不减，而 `cycle = WALK_CYCLE * n / 4` 只有 3.6 个单位 —— 走约 0.32 秒帧号就越过末帧。原来只夹不取模（夹到 `n-1`），于是第一轮播完后**永久停在最后一帧**：画面读成「滑步 + 僵直」，素材其实是齐的。`drawWalkFrames` 一直有 `% n`，两条路径现在口径一致。
+- **`dt` 被钳在 0.045 秒**（`index.html` 的 loop）。CDP / Playwright 环境下 rAF 常常被节流到 1~2 fps，于是世界以 16 倍慢放 —— 测步频、测动画循环时别用真实时间，要用固定步长复算。
 
 ## 文档地图
 
@@ -130,3 +136,5 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 - 想重新出素材 → [tools/README.md](tools/README.md)。
 - 想投稿 / 录屏 → [文案包.md](文案包.md)、[操作与录屏说明.md](操作与录屏说明.md)、[交付清单.md](交付清单.md)。
 - 想查原作机制 → [双刃战士玩法介绍.md](双刃战士玩法介绍.md)。
+- 想部署上服务器 / 手机端怎么用 → [docs/部署与手机端.md](docs/部署与手机端.md)、[docs/手机端适配.md](docs/手机端适配.md)。
+- 想知道这轮修了什么 → [docs/修改方案汇总.md](docs/修改方案汇总.md)。

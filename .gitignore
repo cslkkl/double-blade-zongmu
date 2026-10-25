@@ -29,3 +29,10 @@ _*.py
 _*.mjs
 _*.ps1
 _*.js
+tmp_*.py
+tmp_*.mjs
+tmp_*.ps1
+tmp_*.js
+# 量帧叠图（队友生成的对照图，只在本机看）
+tmp_*.png
+tmp_*.jpg

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#05060a">
+<meta name="format-detection" content="telephone=no">
+<title>双刃战士 · 纵目</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%; background: #05060a; color: #c9a765;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    overflow: hidden; touch-action: none;
+  }
+  #boot {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 18px; text-align: center;
+  }
+  #boot .t { font-size: 20px; letter-spacing: .35em; color: #e8d5a8; }
+  #boot .s { font-size: 12px; color: #7d6a45; letter-spacing: .2em; }
+  #boot .bar {
+    width: 120px; height: 2px; background: rgba(201,167,101,.2); overflow: hidden;
+  }
+  #boot .bar i {
+    display: block; width: 40%; height: 100%; background: #c9a765;
+    animation: slide 1.1s ease-in-out infinite;
+  }
+  @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+  #fail { display: none; font-size: 13px; color: #c96b5a; line-height: 1.9; padding: 0 30px; }
+</style>
+</head>
+<body>
+<div id="boot">
+  <div class="t">双刃战士 · 纵目</div>
+  <div class="bar"><i></i></div>
+  <div class="s">手机版 · 正在进入</div>
+  <div id="fail"></div>
+</div>
+<script>
+/* 手机版独立入口。
+ *
+ * 为什么要有这个文件：
+ *   index.html 是桌面版入口，触屏适配按设备自动判断 —— 桌面玩家看到的是
+ *   键盘/手柄界面，不会有虚拟键。这个文件是「明确要手机版」的入口：
+ *   带着 ?touch=1 跳过去，强制启用触屏档（虚拟键、触屏图例、横屏提示）。
+ *
+ * 为什么不复制一份 index.html：
+ *   复制就会漂移 —— 改了一处要同步两处，迟早不同步。
+ *   所以这里只做一件事：跳过去。游戏本体永远只有一份。
+ *
+ * 手机上怎么用：
+ *   1. 部署后访问 https://你的域名/mobile.html
+ *   2. 浏览器菜单 →「添加到主屏幕」
+ *   3. 从主屏图标启动，就是纯手机版（无地址栏、横屏全屏）
+ */
+(function () {
+  var target = "index.html?touch=1";
+  /* 同目录直接用相对路径；file:// 双击打开时 index.html 与本文件同级，同样可用。 */
+  try {
+    location.replace(target);
+  } catch (e) {
+    location.href = target;
+  }
+
+  /* 兜底：如果 2 秒后还没跳走（极老的浏览器拦了 replace），给出提示而不是白屏 */
+  setTimeout(function () {
+    var b = document.getElementById("boot");
+    if (!b || !b.firstChild) return;
+    b.innerHTML = '<div class="t">双刃战士 · 纵目</div>' +
+      '<div id="fail">没能自动进入游戏。<br>' +
+      '请直接点开 <a href="index.html?touch=1" style="color:#e8d5a8">index.html?touch=1</a></div>';
+  }, 2000);
+})();
+</script>
+</body>
+</html>

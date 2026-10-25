@@ -389,18 +389,26 @@
   </div>
 </div></div>
 
-<script src="js/assets.js"></script>
-<script src="js/anim-data.js"></script>
-<script src="js/background.js"></script>
-<script src="js/char-rig.js"></script>
-<script src="js/enemies-assets.js"></script>
-<script src="js/fx.js"></script>
-<script src="js/guide.js"></script>
-<script src="js/rumble.js"></script>
-<script src="js/touch.js"></script>
-<script src="js/ui-shell.js"></script>
-<script src="js/audio.js"></script>
-<script src="js/intro-video.js"></script>
+<!-- 脚本版本号：改了 js/ 下任何文件就把这里 +1。
+     为什么必须带：文件名不带 hash，浏览器与 CDN 会长期缓存 js/*.js。
+     玩家拿到旧版 touch.js 就会在桌面上看到手机虚拟键（旧版 available()
+     把「支持 PointerEvent」当成「有触屏」，鼠标一点就切档），
+     而且刷新几次都改不掉 —— 缓存不认文件名。
+     这个项目没有构建步骤（禁 npm / CDN，file:// 要能双击跑），
+     所以版本号靠手改；改 js/ 就 bump 一次。
+     当前版本：20261025-b（b = 修桌面端误入触屏档 + 拆出 mobile.html） -->
+<script src="js/assets.js?v=20261025b"></script>
+<script src="js/anim-data.js?v=20261025b"></script>
+<script src="js/background.js?v=20261025b"></script>
+<script src="js/char-rig.js?v=20261025b"></script>
+<script src="js/enemies-assets.js?v=20261025b"></script>
+<script src="js/fx.js?v=20261025b"></script>
+<script src="js/guide.js?v=20261025b"></script>
+<script src="js/rumble.js?v=20261025b"></script>
+<script src="js/touch.js?v=20261025b"></script>
+<script src="js/ui-shell.js?v=20261025b"></script>
+<script src="js/audio.js?v=20261025b"></script>
+<script src="js/intro-video.js?v=20261025b"></script>
 <script>
 "use strict";
 /* =====================================================================

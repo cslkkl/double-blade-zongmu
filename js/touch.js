@@ -61,15 +61,58 @@
      能力探测
      --------------------------------------------------------------------- */
 
+  /* hasPointer 只回答「能不能用 PointerEvent API」，**不回答有没有触屏**。
+     桌面 Chrome / Edge / Firefox 全都支持 PointerEvent ——
+     拿它当「有触屏」的判据，鼠标点一下页面就会切进触屏档，
+     桌面玩家会看到一堆手机虚拟键凭空冒出来。
+     它只用来选事件 API：能用 PointerEvent 就用 pointer* 事件，
+     否则退回老式 touch* 事件。 */
   var hasPointer = typeof global.PointerEvent === "function";
+
+  /* hasTouchEv 才是「这台设备有触摸硬件」。
+     - "ontouchstart" in window：主流移动浏览器都注入这个
+     - DocumentTouch：老 IE / 老 Safari
+     - navigator.maxTouchPoints > 0：Windows 触摸屏本、iPad、
+       部分 ChromeOS —— 桌面 Chrome 默认是 0 */
   var hasTouchEv = ("ontouchstart" in global) ||
                    (global.DocumentTouch && doc instanceof global.DocumentTouch) ||
                    (global.navigator && global.navigator.maxTouchPoints > 0);
 
-  /* 有触屏 = 能用手指。桌面上带触摸屏的笔记本也算 —— 那不是误判，
-     那些机器确实能点，而且 Touch 只在「真有人用手指」之后才显示。 */
+  /* URL 强制开关：
+       ?touch=1  强制触屏版（手机版入口 mobile.html 跳过来时带这个）
+       ?touch=0  强制桌面版（触摸屏笔记本上想用鼠标玩时用）
+     写进 URL 是因为「这台机器到底算不算触屏」有时很模糊
+     （外接触屏显示器、装了触屏驱动但从来不用手指的台式机），
+     给一个显式开关比猜更可靠。 */
+  var urlTouch = (function () {
+    try {
+      var m = /[?&]touch=([^&#]*)/.exec(global.location && global.location.search || "");
+      if (!m) return null;
+      var v = String(m[1]).toLowerCase();
+      if (v === "1" || v === "true" || v === "on") return true;
+      if (v === "0" || v === "false" || v === "off") return false;
+    } catch (e) { /* 忽略 */ }
+    return null;
+  })();
+
+  /* 有触屏硬件 = 能用手指。桌面上带触摸屏的笔记本也算 ——
+     那不是误判，那些机器确实能点。
+     真正决定「要不要显示虚拟键」的是 everTouched：
+     必须真的来过一个 touch/pen 指针事件，鼠标点击不算。 */
   function available() {
-    return !!(hasPointer || hasTouchEv);
+    if (urlTouch !== null) return urlTouch;
+    return !!hasTouchEv;
+  }
+
+  /* 指针事件是不是「手指或笔」。
+     鼠标的 pointerType 恒为 "mouse" —— 桌面玩家用鼠标点页面时
+     绝不能切进触屏档。笔（pen）算手指：拿笔在触屏上操作的人
+     同样需要虚拟键。空字符串（部分老浏览器不填）按手指算。 */
+  function isFingerEvent(e) {
+    if (!e) return true;
+    var t = e.pointerType;
+    if (t === "mouse") return false;
+    return true;
   }
 
   /* ---------------------------------------------------------------------
@@ -882,10 +925,16 @@
   function hide() { forced = false; lastShown = null; clearAll(); tick(); }
 
   /* 第一次真手指落下：从这一刻起才允许显示按键。
-     捕获阶段监听，任何地方的手指都算，不限于按键区。 */
+     捕获阶段监听，任何地方的手指都算，不限于按键区。
+
+     ⚠️ 鼠标点击必须排除（pointerType === "mouse"）。
+     桌面玩家点一下「开始」就把 everTouched 置上，
+     于是对局中凭空冒出一圈手机虚拟键 —— 那是「电脑端出现手机版界面」
+     的直接原因。触摸笔记本上用鼠标玩也该保持桌面版。 */
   function armFirstTouch() {
     if (!available()) return;
-    var kick = function () {
+    var kick = function (e) {
+      if (!isFingerEvent(e)) return;
       /* 不管是不是第一次，都记一个「刚有手指落下」的标记 ——
          标题页与结算页的「按任意键」靠它（见 takeTap）。 */
       tapPending = true;
@@ -918,6 +967,15 @@
   function init() {
     if (!available()) return false;
     armFirstTouch();
+
+    /* 强制触屏档（?touch=1）：不等手指，直接当成「已经用手指玩过」。
+       手机版入口 mobile.html 就是这样跳进来的 ——
+       手机上用户会先点「添加主屏」再启动，没有第一次手指事件，
+       虚拟键就永远不出现。 */
+    if (urlTouch === true) {
+      everTouched = true;
+      tapPending = true;
+    }
 
     /* DOM 就绪后再建：这个脚本在 <head> 之后、<body> 尾部加载，
        但稳妥起见仍等一次 DOMContentLoaded（已经 ready 就直接建）。 */
@@ -961,8 +1019,14 @@
     anyHeld: anyHeld,
     buzz: buzz,
     init: init,
-    /* 调试用：看当前是按着什么；overlaps 供自动化验收调用 */
-    debug: function () { return { mode: mode, shown: lastShown, pointers: pointers }; },
+    /* 强制触屏档（?touch=1）。给 js/guide.js 用：
+       手机版入口 mobile.html 跳过来时，标题页就该显示触屏版图例，
+       而不是等进了对局（active() 要求 phase === "play"）才切。 */
+    forcedTouch: function () { return urlTouch === true; },
+    /* 调试用：看当前是按着什么；overlaps 供自动化验收调用。
+       device 字段给自动化断言用：'touch' = 触屏档，'off' = 桌面档。 */
+    debug: function () { return { mode: mode, shown: lastShown, pointers: pointers,
+                                 everTouched: everTouched, urlTouch: urlTouch }; },
     overlaps: function () { return checkOverlap(); }
   };
 })(window, document);

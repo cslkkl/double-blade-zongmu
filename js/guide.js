@@ -474,6 +474,11 @@
      模块缺席时永远 false，桌面玩家的行为一点没变。 */
   function touchActive() {
     try {
+      /* 强制触屏档（?touch=1，手机版入口）：直接算触屏。
+         否则标题页会显示键盘图例 —— 玩家在手机上看到「按 A/D 移动」，
+         根本按不出来。active() 要 phase === "play" 才为真，
+         标题阶段必须靠这个强制口。 */
+      if (global.Touch && global.Touch.forcedTouch && global.Touch.forcedTouch()) return true;
       return !!(global.Touch && global.Touch.active && global.Touch.active());
     } catch (e) {
       return false;
