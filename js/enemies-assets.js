@@ -1323,5 +1323,20 @@
     ctx.restore();
   }
 
-  window.EnemyArt = { draw: draw, ready: ready };
+  /* 帧图就绪进度：给标题页的载入条用（与 char-rig.progress 同口径）。
+     不新增 Image，只数 animCache 里已有的，零内存代价。 */
+  function progress() {
+    var total = 0, ok = 0;
+    for (var k = 0; k < KINDS.length; k++) {
+      var arr = animCache[KINDS[k]];
+      if (!arr) continue;
+      for (var f = 0; f < arr.length; f++) {
+        total++;
+        if (imageOk(arr[f])) ok++;
+      }
+    }
+    return { done: ok, total: total };
+  }
+
+  window.EnemyArt = { draw: draw, ready: ready, progress: progress };
 })(window);

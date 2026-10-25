@@ -4629,9 +4629,57 @@ function nudgeLoading(){
   }, 220);
 }
 
+/* ------------------------------------------------------------------
+   两段合起来算一条进度：
+   ① Assets 的 48 张静态图（onProgress 给 settled）
+   ② char-rig / enemies-assets 自己 warm() 出来的 249 张动画帧
+      —— 这段不新建 Image（会翻倍解码内存），只轮询两个模块报的
+      progress()，等它俩都到 100% 再放行。
+
+   只在静态图完成后就放行是错的：那时帧图还没到手，开打第一眼就是
+   青色降级方块。所以两个条件都满足才 ready。
+   ------------------------------------------------------------------ */
+var staticDone = 0, staticTotal = 48;
+var framePollT = 0, startAt = performance.now();
+
+function framesProgress(){
+  var a = (window.CharArt && CharArt.progress) ? CharArt.progress() : null;
+  var b = (window.EnemyArt && EnemyArt.progress) ? EnemyArt.progress() : null;
+  var done = 0, total = 0;
+  if(a){ done += a.done; total += a.total; }
+  if(b){ done += b.done; total += b.total; }
+  return { done: done, total: total };
+}
+
+function pollProgress(){
+  if(G.assetsReady) return;
+
+  var f = framesProgress();
+  var all = staticTotal + f.total;
+  var got = staticDone + f.done;
+  if(all > 0) assetsSettled(Math.min(0.999, got / all));
+
+  var staticOk = staticDone >= staticTotal;
+  var framesOk = f.total > 0 && f.done >= f.total;
+  if(staticOk && framesOk){ assetsReady(); return; }
+
+  if(performance.now() - startAt > ASSET_TIMEOUT){ assetsReady(); return; }
+  framePollT = setTimeout(pollProgress, 120);
+}
+
+/* 帧图在标题页不画，主动催一次预热（warm 幂等，重复调无副作用） */
+setTimeout(function(){
+  if(window.CharArt && CharArt.ready) CharArt.ready();
+  if(window.EnemyArt && EnemyArt.ready) EnemyArt.ready();
+  pollProgress();
+}, 0);
+
 if(window.Assets){
   assetTimeoutT = setTimeout(assetsReady, ASSET_TIMEOUT);
-  Assets.load(assetsSettled).then(assetsReady, assetsReady);
+  Assets.load(function(ratio, settled, total){
+    staticDone = settled;
+    if(total) staticTotal = total;
+  }).then(function(){ staticDone = staticTotal; }, function(){ staticDone = staticTotal; });
 }
 </script>
 </body>

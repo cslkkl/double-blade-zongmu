@@ -70,7 +70,7 @@
 ## char-rig.js
 
 - 职责：玩家逐帧播放器 + 武器专属姿态（站立 / 行走 / 出招） + 两级降级。
-- 关键导出：`window.CharArt = { draw(ctx, p, t), ready(), HEIGHT: 252 }`。
+- 关键导出：`window.CharArt = { draw(ctx, p, t), ready(), progress(), HEIGHT: 252 }`。
 - 依赖谁：`window.ANIM`、`window.ANIM_HOLD`（站立持械）、`window.WEAPON_WALK_CLIP`（行走四帧序列）、`window.WEAPON_ATTACK`（出招单帧）、`window.WEAPON_ATTACK_CLIP`（出招四帧序列）、`window.IMG.pose0`（降级）。
 - 被谁依赖：`index.html` 的 `drawPlayer()`；`ready()` 为假则回落到内联 `drawFighter()`。
 - 关键约束：绘制优先级固定为 **出招序列 → 出招单帧 → 持械行走序列 → 持械站立 → 动画 clip → 降级精灵**。出招那两档必须盖在 attack 族之前，否则换武器时手上仍是老模型；行走那一档必须盖在通用 `walk` clip 之前，否则「站着有武器、一走就空手」。
@@ -81,6 +81,7 @@
 - 关键约束：`pickClip()` 的状态优先级不能乱（`dead → whirl → bow/throw → hurt → pickup → jump → attack 族 → walk → idle`）；出招姿态与持械站立都只在「不属于更高优先级状态」时才接管 —— 旋风 / 投掷 / 受击 / 拾取 / 死亡一律走动画。
 - 关键约束：攻击族三个 clip 的帧号都由 `swingT / swingDur` 推导，不按 fps 自由播放；武器出招序列（`WEAPON_ATTACK_CLIP`）的帧号走同一个 `attackFrame()`，同样是「判定推着画面走」而不是按 fps 放。单帧姿态没有帧序列，靠 `swingT` 做前冲与旋转。
 - 关键约束：`CLIPS` 预热名单是 12 个 clip，新增动作必须同时加进这份名单，否则首帧会闪一下降级画面。`warmHold()` / `warmAtk()` 各自独立预热，`ANIM` 缺席时也照建。
+- `progress()` 返回 `{done, total}`，只数已建的 Image（不新增），供 `index.html` 的载入条统计 —— `Assets` 只管 48 张静态图，这 235 张动画帧是这里 `warm()` 自己建的。不把它算进进度，玩家会「进度走满 → 开打 → 角色是青色降级方块」。
 - 关键约束：可选字段 `p.pickupT`（缺省 0）大于 0 时播 `pickup`，调用方置 0.3 秒后自己倒数。
 - 关键约束：可选字段 `p.__forceClip`（缺省 `null`）是攻击态里的替代 clip 名，只在 `swingT > 0` 时读；且只认 `ANIM` 里真实存在的 clip，不存在则回落 `attack`。调用方收招即清空，别让下一次非攻击状态读到旧值。**该武器有 `WEAPON_ATTACK_CLIP` 或 `WEAPON_ATTACK` 时优先用武器自己的图，`__forceClip` 只是两者都没有时的兜底。**
 - 关键约束：可选字段 `p.__alphaMul`（缺省 1）是前景遮挡淡出的通道 —— 本模块会绝对赋值 `globalAlpha`，外层包一层无效，因子必须在这里乘进 `alpha`；`index.html` 的 `drawPlayer()` 设置后要立刻复位成 1。
@@ -89,11 +90,12 @@
 ## enemies-assets.js
 
 - 职责：四类敌人的帧图绘制 + 完整纯代码降级实现（面具、陶罐、青铜戈、青铜钺、光环）。
-- 关键导出：`window.EnemyArt = { draw(ctx, e, t), ready() }`。
+- 关键导出：`window.EnemyArt = { draw(ctx, e, t), ready(), progress() }`。
 - 依赖谁：`window.ENEMY_ANIM`、`window.IMG`（`maskRelief / potteryJar / brazier / jadeTablet / bellCluster / ivoryTusk`）。
 - 被谁依赖：`index.html` 的 `render()`；`ready()` 为假则回落内联 `drawEnemy()`（仅第一版遗留路径）。
 - 关键约束：BOSS 血条 `artTop` 用帧图时要抬到 `1.6 × h`；`hurt / dead` 定格用「上一帧」；`boss` 目标高是 `1.6 × e.h`，其余是 `e.h`。
 - 改后必测：`node tools/selftest_enemies.mjs`，它会校验对齐、帧号、血条位置、缓存有界、降级不抛异常。
+- `progress()` 与 `CharArt.progress()` 同口径（`{done, total}`，只数不建），供 `index.html` 的载入条统计这 14 张敌人帧。
 
 ## fx.js
 

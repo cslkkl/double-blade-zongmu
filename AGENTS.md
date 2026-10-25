@@ -115,6 +115,12 @@ CHAR     // 12 个动作的中文名 / 英文名
 
 ## 活跃坑
 
+- **「素材就绪」不等于「帧图就绪」**。`Assets.load()` 只管 MANIFEST 里那 48 张静态图；
+  249 张动画帧是 `char-rig.warm()` 与 `enemies-assets.warmKind()` 自己建的。
+  标题页的载入条因此要**两段合起来算**：静态 + 两个模块的 `progress()`。
+  只等静态就放行，玩家会看到「进度走满 → 开打 → 角色是青色降级方块」（已实测）。
+  `progress()` 只数已建的 Image、不新建 —— 自己再 new 一遍会让解码内存翻倍。
+
 - 生图条带的角色身高不一致（walk 比 idle 小 33%），靠 `js/anim-data.js` 的 `scaleFix` 校正。
 - **`anchorX` 是「逐帧身体轴」，`scaleFix` 是「整段一个身高」，两者别混谈。** 走路左右乱跳只可能是 `anchorX`：
   `scaleFix` 一变是整个人忽大忽小（那是另一个已修的 bug），而 `anchorX` 一变是人左右横跳。
