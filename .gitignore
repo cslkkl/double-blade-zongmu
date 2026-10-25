@@ -33,6 +33,7 @@ tmp_*.py
 tmp_*.mjs
 tmp_*.ps1
 tmp_*.js
+tmp_*.json
 # 量帧叠图（队友生成的对照图，只在本机看）
 tmp_*.png
 tmp_*.jpg

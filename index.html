@@ -14,16 +14,38 @@
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{width:100%;height:100%;overflow:hidden;background:#05060a;
     font-family:"Microsoft YaHei","PingFang SC","Source Han Sans SC",sans-serif;
-    -webkit-font-smoothing:antialiased;user-select:none;
-    /* 手机上禁止双指缩放 / 双击放大 / 长按弹菜单 —— 这三个都会把游戏画面顶歪 */
+    -webkit-font-smoothing:antialiased;
+    /* 长按不许选中文字。无前缀 user-select 在 iOS 15 之前的 Safari 上无效，
+       必须并列写 -webkit- 前缀版 —— 手机上跑的多半不是最新 Safari。 */
+    -webkit-user-select:none;-moz-user-select:none;user-select:none;
+    /* iOS 独有：长按弹「拷贝 / 查询 / 分享」菜单的开关。
+       它不认 user-select，是独立的一条，只写 user-select 挡不住。 */
+    -webkit-touch-callout:none;
     touch-action:none;-webkit-text-size-adjust:100%;text-size-adjust:100%}
   /* 手机上不显示滚动条，也不许橡皮筋回弹（回弹会把 fixed 层拽出视口） */
   html,body{overscroll-behavior:none;-webkit-overflow-scrolling:auto}
   #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    overflow:hidden;
+    /* 画面比例 16:9，手机横屏多半更宽（如 844×390 = 2.16:1），左右一定留白。
+       留白用主题底色打底，读起来是「装裱」而不是「黑屏」 */
+    background:radial-gradient(130% 96% at 50% 44%,#1a1509 0%,#0c0a07 58%,#05060a 100%);
+    /* 长按不许选中、不许弹「复制 / 查找 / 分享」菜单、不许拖拽。
+       这三条必须挂在整个 #wrap 上而不是个别文字节点上 —— 手机长按是按在
+       「手指底下那一层」上，只要那一层没禁，浏览器就会把整段文字拎起来。
+       短片跳过、暂停页、结算页全在这层里，一处漏掉就会在那一页复发。
+       -webkit-touch-callout 是 iOS Safari 专有的「长按弹菜单」，它不吃
+       user-select，是独立的一条，所以两条都得写。 */
+    -webkit-user-select:none;-moz-user-select:none;user-select:none;
+    -webkit-touch-callout:none;-webkit-user-drag:none;
     /* 刘海 / 圆角 / home indicator：给画面留出安全区，横屏时左右尤其重要 */
     padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px)
             env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
-  #stage{position:relative;width:1600px;height:900px;transform-origin:center center;
+  /* flex:0 0 auto 是必须的，不是保险 —— flex 项默认 flex-shrink:1，视口比 1600px
+     窄时（手机上永远窄）浏览器会把 #stage 的布局盒压到视口宽，而 transform 的
+     scale 仍按 1600 算，两者叠乘后画面只剩 43% 宽：中间一条窄带、左右黑屏。
+     高度方向不受影响（flex 只缩主轴），所以症状是「高度撑满、宽度腰斩」。 */
+  #stage{position:relative;width:1600px;height:900px;flex:0 0 auto;
+    transform-origin:center center;
     overflow:hidden;background:#0a0b0e;box-shadow:0 0 140px rgba(0,0,0,.95)}
   canvas{position:absolute;inset:0;width:1600px;height:900px;display:block}
   /* canvas 是位图，放大时会糊。低端安卓上 image-rendering:auto 由浏览器选，
@@ -185,7 +207,13 @@
      不需要额外适配）。黑色底 + 视频居中，四周可能出现的黑边不明显。 */
   .ov.intro{background:#05060a;z-index:40;justify-content:center}
   #introVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
-    background:#05060a}
+    background:#05060a;
+    /* 视频本体不吃指针：长按落在视频上时，安卓 Chrome 会把 <video>
+       当媒体元素处理（弹「下载视频 / 画中画」，iOS 更会弹 callout 气泡）。
+       跳过区整屏盖在上面，事件本来也该由它接 —— 这条只是把视频这一层
+       彻底摘出交互树，双保险。 */
+    pointer-events:none;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
   /* 长按跳过的进度环：贴右下角，避开视频自带的字幕（字幕在底部居中）。
      右下角是画面里最少放字的位置，也不挡主要构图。 */
   .iskip{position:absolute;right:38px;bottom:34px;
@@ -396,19 +424,19 @@
      而且刷新几次都改不掉 —— 缓存不认文件名。
      这个项目没有构建步骤（禁 npm / CDN，file:// 要能双击跑），
      所以版本号靠手改；改 js/ 就 bump 一次。
-     当前版本：20261025-c（c = 提整场响度 + 重做 BGM 编曲） -->
-<script src="js/assets.js?v=20261025c"></script>
-<script src="js/anim-data.js?v=20261025c"></script>
-<script src="js/background.js?v=20261025c"></script>
-<script src="js/char-rig.js?v=20261025c"></script>
-<script src="js/enemies-assets.js?v=20261025c"></script>
-<script src="js/fx.js?v=20261025c"></script>
-<script src="js/guide.js?v=20261025c"></script>
-<script src="js/rumble.js?v=20261025c"></script>
-<script src="js/touch.js?v=20261025c"></script>
-<script src="js/ui-shell.js?v=20261025c"></script>
-<script src="js/audio.js?v=20261025c"></script>
-<script src="js/intro-video.js?v=20261025c"></script>
+     当前版本：20261025-d（d = 提整场响度 + 重做 BGM 编曲，合并手机横屏修复 c） -->
+<script src="js/assets.js?v=20261025d"></script>
+<script src="js/anim-data.js?v=20261025d"></script>
+<script src="js/background.js?v=20261025d"></script>
+<script src="js/char-rig.js?v=20261025d"></script>
+<script src="js/enemies-assets.js?v=20261025d"></script>
+<script src="js/fx.js?v=20261025d"></script>
+<script src="js/guide.js?v=20261025d"></script>
+<script src="js/rumble.js?v=20261025d"></script>
+<script src="js/touch.js?v=20261025d"></script>
+<script src="js/ui-shell.js?v=20261025d"></script>
+<script src="js/audio.js?v=20261025d"></script>
+<script src="js/intro-video.js?v=20261025d"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -680,6 +708,23 @@ window.addEventListener("blur", function(){
   if(window.Touch && Touch.clearAll) Touch.clearAll();
   /* 回来后的短暂沉默：与解冻暂停同一条闸，避免「按 Alt+Tab 回来顺手砍一刀」 */
   if(typeof G !== "undefined" && G.phase === "play") G.resumeGrace = 0.18;
+});
+
+/* 长按不许选中文字、不许弹菜单。
+   CSS 的 user-select / -webkit-touch-callout 只是「请求」浏览器别这么做，
+   安卓上的长按菜单与部分 ROM 的选区手柄根本不吃这两条 —— 只有把
+   contextmenu（长按弹菜单）、selectstart（开始选文字）、dragstart
+   （长按后拖出图片 / 视频）三个事件的默认行为掐掉才是硬的。
+
+   为什么全站一律禁止而不是只在短片那层禁：游戏里没有任何一处需要
+   选中或复制文字，而「需要」的那一页永远在下一版冒出来。只在某一层禁，
+   漏掉的那一层就会复发同一个 bug（暂停页的键位说明是最可能的那一层）。 */
+["contextmenu","selectstart","dragstart"].forEach(function(ev){
+  window.addEventListener(ev, function(e){
+    /* 说明抽屉 / 版本号这类「可能想复制」的地方目前也没有，统一吞掉。
+       真要放开某一块，在那块自己 stopPropagation 就行。 */
+    e.preventDefault();
+  }, { capture: true, passive: false });
 });
 
 var PADS = [null,null];
@@ -1260,6 +1305,10 @@ function introSetHoldUI(on, pct){
   var e = introEls();
   if(e.ring) e.ring.style.setProperty("--p", Math.round(pct * 100) + "%");
   if(e.skip) e.skip.classList.toggle("holding", !!on);
+  /* 触屏那边自己那块提示的进度也从这里推 —— 真值只在这一个地方。
+     触屏上右下角这块 .iskip 是收起来的（见 introSyncHint），
+     玩家看到的进度条长在 js/touch.js 的 .tch-skip 上。 */
+  if(window.Touch && Touch.skipProgress) Touch.skipProgress(pct, !!on);
 }
 
 /* 开局前调用：返回 Promise，短片播完 / 被跳过 / 加载失败都会 resolve */
