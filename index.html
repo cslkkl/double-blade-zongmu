@@ -278,6 +278,44 @@
   .blink{animation:blink 1.6s infinite}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
 
+  /* --- 素材载入进度（只在标题页） ---
+     标题页一进来就有一条细线在走，走满才放行开打。
+     为什么要它：素材是 48 个 Image 并发加载，慢网下玩家比图快 ——
+     一按键就进模式选择，开打那一刻背景 / 角色 / 道具还在路上，
+     画面上会先出一批纯代码降级的色块，读起来很糙。
+     进度条本身不阻塞渲染，纯 DOM，缺图也算落地（见 assets.js 的 onProgress）。 */
+  .load-line{
+    margin-top:26px;width:250px;
+    display:flex;flex-direction:column;align-items:center;gap:11px;
+    opacity:1;transition:opacity .5s ease;
+  }
+  .load-line.done{opacity:0}
+  .load-track{
+    position:relative;display:block;width:100%;height:2px;
+    background:rgba(201,167,101,.26);overflow:hidden;
+  }
+  .load-track i{
+    position:absolute;left:0;top:0;bottom:0;width:0;display:block;
+    background:#e0be79;
+    box-shadow:0 0 10px rgba(224,190,121,.75);
+    transition:width .18s linear;
+  }
+  .load-num{
+    font-size:11px;letter-spacing:.2em;color:#a4967a;
+    text-shadow:0 1px 8px rgba(0,0,0,.95);
+    transition:color .2s ease;
+  }
+  /* 未就绪时按键：提示闪一下，别让玩家以为没反应 */
+  .load-line.is-hot .load-num{color:#f0dcac}
+  .load-line.is-hot .load-track{background:rgba(201,167,101,.6)}
+  /* 未就绪时按钮**弱化但不隐藏**：藏起来玩家会以为页面坏了；
+     留着并压到 0.42，点一下会闪提示（nudgeLoading）。就绪后回到 1。 */
+  .ov-title .go{opacity:.42;transition:opacity .45s ease,background .2s ease,border-color .2s ease}
+  .ov-title.ready .go{opacity:1}
+  .ov-title .go{margin-top:20px}
+  body.dev-touch .load-line{width:340px;margin-top:34px}
+  body.dev-touch .load-num{font-size:14px;letter-spacing:.18em}
+
   /* --- 场景化覆盖层：全屏背景图 + scrim 压暗，故事在中央可读 ---
      图挂了 scrim 渐变仍在，页面不白屏（纯 CSS 降级）。 */
   /* scrim 只做「收边 + 保文字可读」，不做压黑：
@@ -366,6 +404,10 @@
       他把自己的脸铸成青铜，沉进祭祀坑，压住坑底的东西。<br>
       <span class="warn">三千年后，锈从坑壁爬了上来。</span>
     </div>
+    <div class="load-line" id="loadLine">
+      <span class="load-track"><i id="loadBar"></i></span>
+      <span class="load-num" id="loadNum">载入素材 0%</span>
+    </div>
     <div class="go" id="btnStart"><span class="blink">●</span> 选择模式 · 开打</div>
     <div class="ov-foot"><b>H</b> 键位说明 · 手柄 <b>Back</b></div>
   </div>
@@ -440,18 +482,18 @@
      所以版本号靠手改；改 js/ 就 bump 一次。
      当前版本：20261025-j（j = BGM 换成 assets/audio/bgm-main.mp3；i = 模式选择页打开即高亮当前项）
      —— 两边曾各自把版本号提到 e，同号两个版本会让缓存分不清，合并后统一顺延。 -->
-<script src="js/assets.js?v=20261025j"></script>
-<script src="js/anim-data.js?v=20261025j"></script>
-<script src="js/background.js?v=20261025j"></script>
-<script src="js/char-rig.js?v=20261025j"></script>
-<script src="js/enemies-assets.js?v=20261025j"></script>
-<script src="js/fx.js?v=20261025j"></script>
-<script src="js/guide.js?v=20261025j"></script>
-<script src="js/rumble.js?v=20261025j"></script>
-<script src="js/touch.js?v=20261025j"></script>
-<script src="js/ui-shell.js?v=20261025j"></script>
-<script src="js/audio.js?v=20261025j"></script>
-<script src="js/intro-video.js?v=20261025j"></script>
+<script src="js/assets.js?v=20261025k"></script>
+<script src="js/anim-data.js?v=20261025k"></script>
+<script src="js/background.js?v=20261025k"></script>
+<script src="js/char-rig.js?v=20261025k"></script>
+<script src="js/enemies-assets.js?v=20261025k"></script>
+<script src="js/fx.js?v=20261025k"></script>
+<script src="js/guide.js?v=20261025k"></script>
+<script src="js/rumble.js?v=20261025k"></script>
+<script src="js/touch.js?v=20261025k"></script>
+<script src="js/ui-shell.js?v=20261025k"></script>
+<script src="js/audio.js?v=20261025k"></script>
+<script src="js/intro-video.js?v=20261025k"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -1009,6 +1051,8 @@ Enemy.prototype.rect = function(){
 var G = {
   phase:"title",
   paused:false,                /* 暂停：只冻结模拟，不换 phase */
+  assetsReady:false,           /* 素材是否已放行（或已超时降级）。见 wantStart() */
+  assetsRatio:0,
   p1:null, p2:null,
   enemies:[], particles:[], slashes:[], drops:[], texts:[], projectiles:[], hits:[],
   chests:[], mechanisms:[], pickups:[],
@@ -1198,6 +1242,9 @@ function restartAll(){ startGame(); }
    UIShell 未加载时退回旧行为，直接按双人开打。 */
 var modeSelectBusy = false;
 function openModeSelect(){
+  /* 素材没就绪就不放行：先闪一下载入提示，让玩家知道在等什么。
+     闸放在这里而不是每个入口 —— 键盘、手柄、触屏三条件最后都汇到这一个函数。 */
+  if(!G.assetsReady){ nudgeLoading(); return; }
   if(!window.UIShell || !window.UIShell.mountModeSelect){ startGame(); return; }
   /* 已经开着就别再叠一层；用 DOM 状态判断，避免"忙"标志把按钮锁死 */
   if(document.querySelector(".uis-mode.uis-on")) return;
@@ -4534,9 +4581,57 @@ if(window.Touch && Touch.init){
 /* UI 覆盖层：按键说明只挂载，用 H 开关（由 ui-shell 自己监听） */
 if(window.UIShell && window.UIShell.mountKeyHelp) UIShell.mountKeyHelp();
 
-/* 预加载素材（失败也不阻塞，自动回退到矢量绘制；缺哪张由 imgReady 逐项判定） */
+/* 预加载素材（失败也不阻塞，自动回退到矢量绘制；缺哪张由 imgReady 逐项判定）。
+   ------------------------------------------------------------------
+   为什么要进度条：48 张图并发下，慢网里玩家比图快 —— 一键进模式选择、
+   开打那一刻背景 / 角色 / 道具还在路上，画面先出一批纯代码色块。
+   所以标题页挂一条细线，走满才放行开打。
+
+   三条闸（缺一条就会回到「很糙」）：
+     1. 成功与失败都算落地 —— 进度必须能到 1，否则缺一张图就永远卡在 99%；
+     2. 8 秒兜底 —— 硬约束「任何缺图都不许白屏」，网太差也得能进游戏；
+     3. 未就绪时按任意键不吞掉，只把提示闪一下 —— 玩家不会以为按键坏了。 */
+var ASSET_TIMEOUT = 8000;
+var loadLineEl = document.getElementById("loadLine");
+var loadBarEl = document.getElementById("loadBar");
+var loadNumEl = document.getElementById("loadNum");
+var assetTimeoutT = 0;
+
+function assetsSettled(ratio){
+  G.assetsRatio = ratio || 1;
+  if(G.assetsReady) return;          /* 已放行：别把「素材就绪」改回百分比 */
+  if(loadBarEl) loadBarEl.style.width = Math.round(G.assetsRatio * 100) + "%";
+  if(loadNumEl) loadNumEl.textContent = "载入素材 " + Math.round(G.assetsRatio * 100) + "%";
+}
+
+function assetsReady(){
+  if(G.assetsReady) return;
+  G.assetsReady = true;
+  if(assetTimeoutT){ clearTimeout(assetTimeoutT); assetTimeoutT = 0; }
+  G.assetsRatio = 1;
+  if(loadBarEl) loadBarEl.style.width = "100%";
+  if(loadNumEl) loadNumEl.textContent = "素材就绪";
+  if(loadLineEl) loadLineEl.classList.add("done");
+  var t = document.getElementById("ovTitle");
+  if(t) t.classList.add("ready");
+}
+
+/* 未就绪时按键：把提示闪一下，让玩家知道在等什么。
+   标题阶段 anyPress 每帧都会调 openModeSelect，所以这里必须节流 ——
+   不节流会每帧造一个 setTimeout，提示一直亮着不闪。 */
+var nudgeT = 0;
+function nudgeLoading(){
+  if(!loadLineEl || G.assetsReady || nudgeT) return;
+  loadLineEl.classList.add("is-hot");
+  nudgeT = setTimeout(function(){
+    nudgeT = 0;
+    if(loadLineEl) loadLineEl.classList.remove("is-hot");
+  }, 220);
+}
+
 if(window.Assets){
-  Assets.load();
+  assetTimeoutT = setTimeout(assetsReady, ASSET_TIMEOUT);
+  Assets.load(assetsSettled).then(assetsReady, assetsReady);
 }
 </script>
 </body>

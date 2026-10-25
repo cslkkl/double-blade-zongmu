@@ -67,27 +67,49 @@
   window.IMG = {};
   var pending = 0, done = 0, failed = [];
 
-  function load() {
+  /* load(onProgress) → Promise<{loaded, failed}>
+     onProgress(ratio, settled, total)：每张图落地调一次。
+     ratio 是 0~1，成功与失败都算「落地」—— 进度必须能走到 1，
+     否则缺一张图就永远停在 99%，标题页的入口也跟着永远锁着。 */
+  function load(onProgress) {
     return new Promise(function (resolve) {
       var keys = Object.keys(MANIFEST);
-      pending = keys.length;
+      var total = keys.length;
+      var settled = 0;
+
+      pending = total;
+      done = 0;
+      failed = [];
+
+      function tick() {
+        settled++;
+        if (typeof onProgress === "function") {
+          try { onProgress(total ? settled / total : 1, settled, total); } catch (e) {}
+        }
+        if (settled >= total) finish(resolve);
+      }
 
       keys.forEach(function (k) {
         var im = new Image();
         im.onload = function () {
           done++; pending--;
-          if (pending <= 0) finish(resolve);
+          tick();
         };
         im.onerror = function () {
           failed.push(k);
           pending--;
-          if (pending <= 0) finish(resolve);
+          tick();
         };
         im.src = MANIFEST[k];
         window.IMG[k] = im;
       });
 
-      if (keys.length === 0) resolve();
+      if (total === 0) {
+        if (typeof onProgress === "function") {
+          try { onProgress(1, 0, 0); } catch (e) {}
+        }
+        finish(resolve);
+      }
     });
   }
 
