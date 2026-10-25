@@ -241,6 +241,24 @@
     return 0.5;
   }
 
+  /* 该帧的 footY，与 anchorOf 同构：数字（整段共用一个）或数组（逐帧一个）。
+     为什么 footY 也要能逐帧：手动对齐时纵向同样会歪 —— 上游条带里
+     身体在画布里的上下位置每帧都不同（底边贴齐只保证「裁剪框」贴齐，
+     不保证脚底在同一行）。anchorX 能逐帧，footY 不能，就等于只修了一半。
+     导出工具见 tools/align_weapon_frames.html。 */
+  function footOf(def, idx) {
+    var f = def && def.footY;
+    if (typeof f === "number" && isFinite(f)) return f;
+    if (f && typeof f.length === "number") {
+      var v = f[idx];
+      if (typeof v === "number" && isFinite(v)) return v;
+      for (var i = 0; i < f.length; i++) {
+        if (typeof f[i] === "number" && isFinite(f[i])) return f[i];
+      }
+    }
+    return 1.0;
+  }
+
   /* 建所有持械帧的 Image（只执行一次；不放在 draw 热路径里）。
      某个 key 缺失只跳过该 key，不影响其它 —— 逐张可用性由 imageOk 判。 */
   function warmHold() {
@@ -1061,7 +1079,7 @@
     var h = srcH * sc;
 
     var ax = anchorOf(def, idx);
-    var fy = typeof def.footY === "number" ? def.footY : 1.0;
+    var fy = footOf(def, idx);
     var dx = -ax * w;
     var dy = -fy * h;
 

@@ -74,10 +74,28 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 - [ ] `slice_anim_extra.py` 写 `scaleFix: 1.0` 只是占位，需按内容高反算后手改（当前三个 clip 已是 0.914 / 0.867 / 0.754）。
 - [ ] 武器出招是多帧序列（`WEAPON_ATTACK_CLIP`，4 帧），但帧号由 `swingT` 推导、不跟 fps：改帧数只改动画密度，不改出手时机。想更顺就重出 `seq-<key>.png` 再跑 `slice_weapon_seq.py`，别在代码里插帧。
 - [ ] 持械行走（`WEAPON_WALK_CLIP`）的画风与原画有差距：新素材是 AI 重出的青铜面具武士，描边更粗、配色更平。要统一就得连 `hold-*` / `atk-*` 一起重出，单改行走会更割裂。
+- [ ] **武器帧的 `anchorX` 还是脚本猜的，31 个状态有逐帧差**（最大跨度 0.61 ≈ 屏幕 97px）：铃 `attack` 97px、玉璋刃 `walk` 89px、匕首 `attack` 85px、锤 `jump` 84px。工具已就位（`tools/align_weapon_frames.html` 人眼拖 → 导出 JSON → `tools/align_apply.py` 回填），累计工作量约 11 把 × 5 状态。`python tools/align_apply.py --report` 查现状。
 
 ## 活跃坑
 
 - 生图条带的角色身高不一致（walk 比 idle 小 33%），靠 `js/anim-data.js` 的 `scaleFix` 校正。
+- **`anchorX` 是「逐帧身体轴」，`scaleFix` 是「整段一个身高」，两者别混谈。** 走路左右乱跳只可能是 `anchorX`：
+  `scaleFix` 一变是整个人忽大忽小（那是另一个已修的 bug），而 `anchorX` 一变是人左右横跳。
+  实测屏幕位移 = `(max(anchorX) - min(anchorX)) × 画布宽 × scaleFix × 252/画布高`。
+- **`anchorX` / `footY` 不许再让脚本猜。** 切片脚本用「剪影中线」定身体轴，但举武器时剪影中心被拽走：
+  同一把武器四帧能猜出 0.26 和 0.82。这与「朝向只能人眼看鼻子」是同一个根因 ——
+  剪影的几何中心不是身体的轴。要改就开 `tools/align_weapon_frames.html` 用眼睛对，
+  导出 JSON 后 `python tools/align_apply.py align.json` 回填。
+- **`js/anim-data.js` 里 `footY` 与 `anchorX` 挤在同一行**（`footY: 1.0, anchorX: [...]`），
+  用 `^\s*anchorX:` 之类的行首锚定正则一个都匹配不到 —— 找字段只能 `\banchorX:`。
+  这个坑让 `align_apply.py --report` 一开始静默输出「全部已对齐」（把 31 个未对齐状态全漏掉）。
+- **`align_weapon_frames.html` 导出必须是合法 JSON**（键名带引号、带武器名那一层）。
+  早先导出的是给人抄的 JS 片段（`walk: {` 无引号 + 武器名只在注释里），
+  `align_apply.py` 当场 JSON 解析失败 —— 「导出 → 回填」中间不许有人工改写。
+- **`file://` 下 `canvas` 会因跨源图片被污染**，一 `getImageData` 就 `SecurityError`。
+  所以对齐工具只画不读像素；别想着在里面加「自动测包围盒」。
+- **`.col-c` 这类 `flex-direction:column` 容器里的 `<canvas>` 会被 `align-items:stretch` 拉宽**，
+  位图被非等比放大一次（1000 → 1147），拖起来手感发飘。要给 `align-self:flex-start`。
 - **`scaleFix` 不是「抄 1.0 就行」**：屏幕身高 = `252 × scaleFix × (内容高 ÷ 画布高)`，画布里的空白不吃像素。
   - 正确算法以 idle 为基准反算：`scaleFix = (idle 内容高 ÷ idle 画布高) ÷ (该 clip 内容高 ÷ 该 clip 画布高)`。
   - 新增动作只填 `1.0` 会让角色切过去时突然变大：`attack-thrust` 曾渲成 240px、`attack-heavy` 208.6px、`pickup` 198px，而 idle 是 181px。
