@@ -291,6 +291,15 @@
 }
 #${LAYER_ID} .tch-rotate .t1{font-size:17px;color:#e6d6b2;letter-spacing:.10em}
 #${LAYER_ID} .tch-rotate .t2{font-size:13px;color:#8b8071;letter-spacing:.06em;line-height:1.9}
+/* 「横屏进入」按钮：只在自动锁屏没成功时才需要玩家点。
+   尺寸按 44px 规范下限再放大一圈（这里是视口坐标，不跟 #stage 缩放）。 */
+#${LAYER_ID} .tch-rotate .tch-rotbtn{
+  margin-top:6px;padding:14px 34px;border-radius:999px;
+  font-size:16px;letter-spacing:.10em;color:#f5d98e;
+  background:rgba(58,47,24,.72);border:1px solid rgba(245,217,142,.72);
+  box-shadow:0 2px 14px rgba(0,0,0,.5);
+  -webkit-tap-highlight-color:transparent;
+}
 
 /* ---- 短片跳过区：整屏都能按 ----
    为什么盖满整屏、而不是只盖下半屏：手机横屏时玩家单手托机、
@@ -536,7 +545,22 @@
     rot.className = "tch-rotate";
     rot.innerHTML = '<div class="ico"></div>' +
       '<div class="t1">请横过来玩</div>' +
-      '<div class="t2">这是横版清版动作游戏<br>竖屏会把画面压成一条窄带</div>';
+      '<div class="t2">这是横版清版动作游戏<br>竖屏会把画面压成一条窄带</div>' +
+      '<div class="tch-rotbtn">横屏进入</div>';
+    /* 「横屏进入」按钮：全屏 + 锁定方向都需要**用户手势**，
+       自动那一次（第一根手指落下）常被浏览器拒，所以给一个明确的入口。
+       点了会进全屏并锁 landscape —— 之后系统就不会再转回竖屏。 */
+    var rotBtn = rot.querySelector(".tch-rotbtn");
+    if (rotBtn) {
+      var fireLock = function (e) {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        unlockAudio();
+        lockLandscape(true);
+      };
+      if (hasPointer) rotBtn.addEventListener("pointerdown", fireLock, { passive: false });
+      else if (hasTouchEv) rotBtn.addEventListener("touchstart", fireLock, { passive: false });
+      rotBtn.addEventListener("click", fireLock, false);
+    }
     root.appendChild(rot);
 
     var host = doc.body || doc.documentElement;
@@ -636,6 +660,47 @@
      尺寸 / 朝向
      --------------------------------------------------------------------- */
 
+  function isPortrait() {
+    return (global.innerHeight || 0) > (global.innerWidth || 0);
+  }
+
+  /* 「手机端默认横屏」：全屏 + 锁 landscape。
+     两个 API 都是尽力而为，任何一步失败都不影响游戏（竖屏遮罩仍在，
+     玩家点「横屏进入」再来一次）：
+       · requestFullscreen **必须在用户手势里同步调用**，而且返回 Promise，
+         被拒只能 catch；
+       · screen.orientation.lock 只有全屏状态下可用，且目前只有安卓 Chrome
+         真支持 —— iOS Safari 完全没有这个 API。
+     所以这里不保证成功，只保证「有机会就锁，失败就静默」。
+     也绝不能在脚本加载时就调：那不是用户手势，100% 被拒还刷一屏红字。 */
+  var lockTried = false;
+  function lockLandscape(force) {
+    if (lockTried && !force) return false;
+    lockTried = true;
+    var de = doc.documentElement;
+    var fs = de.requestFullscreen || de.webkitRequestFullscreen ||
+             de.mozRequestFullScreen || de.msRequestFullscreen;
+    var so = global.screen && global.screen.orientation;
+    var tryLock = function () {
+      if (!so || typeof so.lock !== "function") return false;
+      try {
+        var p = so.lock("landscape");
+        if (p && p.catch) p.catch(function () { /* 被拒 / 不支持：静默 */ });
+        return true;
+      } catch (e) { return false; }
+    };
+    if (fs) {
+      try {
+        var r = fs.call(de);
+        if (r && typeof r.then === "function") {
+          return r.then(function () { tryLock(); return true; })
+                  .catch(function () { return tryLock(); });
+        }
+      } catch (e) { /* 落到下面纯 lock 的尝试 */ }
+    }
+    return tryLock();
+  }
+
   function onResize() {
     if (!layer) return;
     var d = computeSize();
@@ -645,9 +710,9 @@
     layer.style.setProperty("--tch-d", d.toFixed(1) + "px");
     layer.style.setProperty("--tch-y", y.toFixed(1) + "px");
 
-    /* 竖屏：游戏画面会被压成一条窄带，直接给一个「请横过来」的整屏提示 */
-    var portrait = vh > (global.innerWidth || 800);
-    layer.classList.toggle("tch-portrait", portrait);
+    /* 竖屏：游戏画面会被压成一条窄带，直接给一个「请横过来」的整屏提示。
+       遮罩里的「横屏进入」按钮负责把玩家送到横屏（全屏 + 锁方向）。 */
+    layer.classList.toggle("tch-portrait", isPortrait());
   }
 
   /* ---------------------------------------------------------------------
@@ -1000,6 +1065,10 @@
       /* 不管是不是第一次，都记一个「刚有手指落下」的标记 ——
          标题页与结算页的「按任意键」靠它（见 takeTap）。 */
       tapPending = true;
+      /* 「手机端默认横屏」：第一根手指落下是全页最早的可靠用户手势，
+         在这里顺手尝试全屏 + 锁 landscape。失败完全无副作用（竖屏遮罩
+         还在，玩家点「横屏进入」再来一次）。只试一次，之后不再打扰。 */
+      if (!everTouched && isPortrait()) lockLandscape(false);
       if (everTouched) return;
       everTouched = true;
       unlockAudio();

@@ -3,6 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<!-- 手机端默认横屏：国产内核（X5 / UC）只认这两条私有 meta，
+     标准浏览器的横屏由 index.html 里 js/touch.js 的全屏 + orientation.lock 负责。 -->
+<meta name="x5-orientation" content="landscape">
+<meta name="screen-orientation" content="landscape">
+<meta name="x5-fullscreen" content="true">
+<meta name="full-screen" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
