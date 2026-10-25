@@ -19,6 +19,7 @@
 | 渲染层 | `js/` | 素材加载、视差、帧动画、特效、UI、声音 | [js/README.md](js/README.md) · [js/AGENTS.md](js/AGENTS.md) |
 | 素材流水线 | `tools/` | 生图后处理、切片、自检 | [tools/README.md](tools/README.md) · [tools/AGENTS.md](tools/AGENTS.md) |
 | 素材产物 | `assets/` | 生成物，只读，不手改 | [tools/README.md](tools/README.md) |
+| 素材展示页 | `showcase.html` + `showcase.css` + `showcase.js` | 录屏用的素材总览（只读 `js/anim-data.js` 与 `assets/`，不改游戏） | 本文件「素材展示页」一节 |
 
 ## 验证命令（每次收工全跑，全绿才算完）
 
@@ -48,6 +49,40 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 
 `slice_anim.py` 默认只切角色、只删角色帧；敌人用 `--only enemy`。
 `slice_anim.py` 重写整份 `window.ANIM`，会丢掉新增的 3 个动作，跑完必须补 `slice_anim_extra.py`。
+
+## 素材展示页（录屏用）
+
+三个文件，与游戏本体完全解耦：只读 `js/anim-data.js` 与 `assets/`，不改游戏、不改素材。
+
+| 文件 | 职责 |
+|---|---|
+| `showcase.html` | 页面骨架 + 顶栏统计 + 青铜癌按语 |
+| `showcase.css` | 纯白底、1px 细线、青铜绿单一强调色 |
+| `showcase.js` | 从 5 张数据表生成 7 个 tab 的全部格子与播放器 |
+| `serve-showcase.mjs` | 本地静态服务（零依赖，默认 8801） |
+| `启动展示页.bat` | 双击 = 起服务 + 开浏览器 |
+
+```powershell
+node serve-showcase.mjs            # 打开 http://127.0.0.1:8801/showcase.html
+node serve-showcase.mjs --no-open  # 只起服务
+```
+
+**为什么这里要走 http 而不像游戏那样 `file://` 直开**：展示页要扫 alpha 通道算内容框（`getImageData`），
+`file://` 下 canvas 被跨源图片污染，一读就 `SecurityError`。这是全仓唯一的例外。
+
+尺寸口径只有一条：**裁到 alpha 并集框，画布高 = 内容在游戏里的身高 × k**。
+不裁的话 560px 画布配 40% 透明边距，主体被压成一半、还容易被 `overflow` 裁到头脚。
+归一化的分子三族共用：角色 / 武器用 `252 × scaleFix`，敌人用 `index.html` 构造函数里的 `scale`。
+武器组取 **90 分位**而不是最大值 —— 举钺/举锤那一帧尖端高过头顶，按最大值归一会把整行压小一圈。
+
+```js
+/* 同步点：数据表改名了，这三处要一起改 */
+WEAPONS  // 武器中文名 ← index.html 的 WEAPONS 表
+ENEMIES  // 敌人中文名 ← README；第 4 列比例 ← index.html 的构造函数
+CHAR     // 12 个动作的中文名 / 英文名
+```
+
+`node --check showcase.js` 是唯一自动化检查；页面没有列入上面的收工验证链。
 
 ## 验证快照
 
