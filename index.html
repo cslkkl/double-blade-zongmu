@@ -1406,7 +1406,7 @@ function playIntro(){
   /* 起播轻震一下：短片是静音的，这一下是唯一能确认「开始了」的触觉反馈 */
   Rumble.play("all", "intro");   /* 起播轻震：两只手柄都摸一下 */
 
-  return IntroVideo.play({ maxSeconds: 20.5 }).then(function(res){
+  return IntroVideo.play({ maxSeconds: 10.5 }).then(function(res){
     introRunning = false;
     G.intro = false;
     introKeyDownAt = 0;
