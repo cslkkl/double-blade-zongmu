@@ -148,6 +148,10 @@
   var layer = null;
   var btnEls = {};          /* "p1:atk" -> element */
   var built = false;
+  /* 短片跳过区的两个节点：容器（挂 .holding）+ 文字（改文案）。
+     存下来是为了让 tick() 能直接改，不用每帧 querySelector。 */
+  var skipEl = null;
+  var skipLabEl = null;
 
   /* 正在按住的手指：pointerId -> {slot, field, at}。
      同一个 pointerId 只能属于一个按键，这样两个拇指同时按攻击和移动不会串。
@@ -288,11 +292,28 @@
 #${LAYER_ID} .tch-rotate .t1{font-size:17px;color:#e6d6b2;letter-spacing:.10em}
 #${LAYER_ID} .tch-rotate .t2{font-size:13px;color:#8b8071;letter-spacing:.06em;line-height:1.9}
 
-/* ---- 短片跳过区：盖住整屏下半，长按即可 ---- */
+/* ---- 短片跳过区：整屏都能按 ----
+   为什么盖满整屏、而不是只盖下半屏：手机横屏时玩家单手托机、
+   拇指自然落在右下，但另一只手可能正拿着手机边上；「按哪都算」永远比
+   「按对那一块才算」少一次失败。短片期间画面上没有任何别的可交互东西
+   （动作键由 .tch-intro 藏起来了），所以盖满不抢任何东西。
+   更关键的一条：这一层也顺手挡住了底下所有文字 —— 长按落在一个
+   pointer-events:auto 的层上，浏览器就没机会把视频里的字幕、
+   覆盖层的文案拎起来选中。 */
 #${LAYER_ID} .tch-skip{
-  position:absolute;left:0;right:0;bottom:0;height:46%;
+  position:absolute;inset:0;
   display:none;align-items:flex-end;justify-content:center;padding-bottom:24px;
   pointer-events:auto;touch-action:none;
+  /* 这一块是「按住不放」的，长按必然触发浏览器的文字选中与
+     长按菜单（安卓「复制/全选」、iOS 的 callout 气泡）。
+     根容器上已经禁过一次，这里再落一遍：只在根上写，一旦某个后代
+     自己把 user-select 改回来（比如将来加个可复制的版本号），
+     症状会直接回到「按着按着跳出一个复制气泡，跳过还失败了」。 */
+  -webkit-user-select:none;-moz-user-select:none;user-select:none;
+  -webkit-touch-callout:none;-webkit-user-drag:none;
+  /* 长按不要那圈灰色高亮（安卓 Chrome 的 tap highlight），
+     它会在按住的 0.7 秒里一直亮着，看起来像「选中了」 */
+  -webkit-tap-highlight-color:transparent;
 }
 #${LAYER_ID}.tch-intro .tch-skip{display:flex}
 /* 短片期间只留跳过区：动作键与方向键此时按了没有任何作用
@@ -300,10 +321,23 @@
 #${LAYER_ID}.tch-intro .tch-b,
 #${LAYER_ID}.tch-intro .tch-top{display:none}
 #${LAYER_ID} .tch-skip .hint{
+  position:relative;overflow:hidden;
   font-size:13px;letter-spacing:.10em;color:rgba(230,214,178,.62);
   padding:8px 18px;border-radius:999px;
   background:rgba(6,7,10,.62);border:1px solid rgba(201,167,101,.28);
+  transition:color .14s,border-color .14s;
 }
+/* 长按进度：一条从左侧长出来的暖金填充。
+   触屏上右下角那块带进度环的 .iskip 是收起来的（见 index.html 的
+   introSyncHint），所以这块提示是玩家唯一的进度反馈 —— 没有它，
+   玩家按着 0.7 秒里画面毫无变化，会以为「长按没反应」，然后松手。 */
+#${LAYER_ID} .tch-skip .hint::after{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:var(--p,0%);
+  background:linear-gradient(90deg,rgba(245,217,142,.34),rgba(245,217,142,.12));
+  pointer-events:none;
+}
+#${LAYER_ID} .tch-skip .hint .lab{position:relative;z-index:1}
+#${LAYER_ID} .tch-skip.holding .hint{color:#f5d98e;border-color:rgba(245,217,142,.72)}
 `;
 
   /* ---------------------------------------------------------------------
@@ -486,10 +520,16 @@
     skip.className = "tch-skip";
     var hint = doc.createElement("div");
     hint.className = "hint";
-    hint.textContent = "长按此处跳过";
+    /* 文字套一层 .lab：进度填充是 .hint 的 ::after，套一层才能把文字压在填充上面 */
+    var lab = doc.createElement("span");
+    lab.className = "lab";
+    lab.textContent = "长按此处跳过";
+    hint.appendChild(lab);
     skip.appendChild(hint);
     bindSkip(skip);
     root.appendChild(skip);
+    skipEl = skip;
+    skipLabEl = lab;
 
     /* 竖屏提示 */
     var rot = doc.createElement("div");
@@ -872,6 +912,28 @@
     return false;
   }
 
+  /* 长按进度的视觉反馈，由 index.html 的 introTick → introSetHoldUI 转达。
+     为什么要由外部驱动：真值（已按住多少秒 / 阈值多少秒）只存在于
+     index.html 的 introHoldT 与 INTRO_HOLD_SEC，这里再算一遍就成了两份真值，
+     迟早对不上（手柄按住时这里也根本没有手指，算不出来）。
+     pct 0..1；on = 这一帧是否处于按住状态。 */
+  var lastSkipPct = -1;
+  function skipProgress(pct, on) {
+    if (!skipEl) return;
+    var p = Math.max(0, Math.min(1, pct || 0));
+    /* 只在真的变化时写样式：每帧写 CSS 变量会让整块重新合成一次 */
+    if (p !== lastSkipPct) {
+      lastSkipPct = p;
+      var h = skipEl.querySelector(".hint");
+      if (h) h.style.setProperty("--p", (p * 100).toFixed(1) + "%");
+    }
+    skipEl.classList.toggle("holding", !!on);
+    if (skipLabEl) {
+      var txt = (p >= 1) ? "已跳过" : (on ? "继续按住…" : "长按此处跳过");
+      if (skipLabEl.textContent !== txt) skipLabEl.textContent = txt;
+    }
+  }
+
   /* 「刚刚有没有手指落下」。给标题页 / 结算页的「按任意键」用 ——
      那些页面上虚拟键是收起的（覆盖层由 DOM 按钮接管），
      所以不能读 state()，只能读这个一次性标记。
@@ -1015,6 +1077,7 @@
     tick: tick,
     clearAll: clearAll,
     skipHeld: skipHeld,
+    skipProgress: skipProgress,
     takeTap: takeTap,
     anyHeld: anyHeld,
     buzz: buzz,
