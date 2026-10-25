@@ -85,7 +85,22 @@ function makeSandbox() {
   ctx.document = {
     createElement(tag) {
       if (tag === "canvas") stats.canvases++;
-      return { tag, width: 1, height: 1, getContext() { return makeCtx(); } };
+      /* canvas 记住自己画过的源图（src），这样「屏幕上画的是哪一帧」能被断言。
+         没有它，着色缓存（tintedFrame）在第二次命中时只是复用旧 canvas，
+         drawImage 拿不到任何 src —— 帧号断言全部失明。 */
+      const cv = {
+        tag, width: 1, height: 1, src: "",
+        getContext() {
+          const c = makeCtx();
+          const orig = c.drawImage;
+          c.drawImage = (img, ...rest) => {
+            if (img && img.src) cv.src = img.src;
+            orig(img, ...rest);
+          };
+          return c;
+        }
+      };
+      return cv;
     }
   };
   ctx.Image = class {
@@ -367,6 +382,43 @@ if (hasWalkClip) {
   ok(!drawnPng(/^assets\/anim\/walk-\d\.webp$/), "有持械静帧时不该画通用 walk 帧");
   rows.push(["walk", "axe", drawnPng("hold-axe.webp") ? "hold-*" : "-"]);
   console.log("  WEAPON_WALK_CLIP 无 axe → 走路落回持械静帧（符合预期）");
+}
+
+/* 行走必须真的循环起来。
+   回归坑：stateFrame 的 walk 分支原来只把帧号夹到 n-1、没有取模，
+   而 p.walk 是只增的累计位移（index.html 里 += |vx|*dt*0.024）——
+   走完一轮（cycle = WALK_CYCLE * n/4）后帧号永久停在最后一帧，
+   画面读成「滑步 + 僵直」。素材是齐的，是播放逻辑掐死了循环。
+   断言：整整一轮位移内必须把每一帧都播到，且末帧之后必须回到前面的帧。 */
+console.log("=== 3b. 行走循环（取模）===");
+{
+  const keys = Object.keys(WC_ALL).filter((k) => WC_ALL[k] && WC_ALL[k].walk
+    && WC_ALL[k].walk.files && WC_ALL[k].walk.files.length);
+  ok(keys.length > 0, "WEAPON_CLIP 里至少有武器带 walk 序列");
+  for (const k of keys) {
+    const n = WC_ALL[k].walk.files.length;
+    const cycle = 3.6 * n / 4;                    // 与 char-rig 的 WALK_CYCLE 口径一致
+    const seen = new Set();
+    const STEPS = 40;
+    for (let i = 0; i < STEPS; i++) {
+      const ph = (i / STEPS) * cycle;              // 刚好走满一轮
+      clear();
+      CharArt.draw(makeCtx(), player({ vx: 200, padTag: "p2", walk: ph, weapon: { key: k, type: "melee" } }), 9.0);
+      const c = drawnPng(new RegExp("walk-" + k + "-(\\d)\\.webp$"));
+      if (c) seen.add(Number(String(c.src).match(/-(\d)\.webp$/)[1]));
+    }
+    ok(seen.size === n, k + " 走满一轮应播到全部 " + n + " 帧（实际 " + [...seen].sort((a, b) => a - b).join(",") + "）");
+
+    /* 再走半轮：帧号必须回绕，不能钉在末帧 */
+    clear();
+    CharArt.draw(makeCtx(), player({ vx: 200, padTag: "p2", walk: cycle + cycle / 2, weapon: { key: k, type: "melee" } }), 9.5);
+    const mid = drawnPng(new RegExp("walk-" + k + "-(\\d)\\.webp$"));
+    const midIdx = mid ? Number(String(mid.src).match(/-(\d)\.webp$/)[1]) : -1;
+    ok(midIdx >= 0 && midIdx < n - 1,
+       k + " 走过一轮半后应回绕到前面的帧，不能钉在末帧（实际帧 " + midIdx + "，共 " + n + " 帧）");
+    console.log("  " + pad(k, 8) + " 一轮播到 " + [...seen].sort((a, b) => a - b).join(",")
+      + " / 共 " + n + " 帧；一轮半后落在第 " + midIdx + " 帧");
+  }
 }
 
 /* 没有 hold 帧的武器（如 fist 空手）：走路必须回落到 walk 帧 */

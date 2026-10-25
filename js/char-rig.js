@@ -992,9 +992,16 @@
     if (state === "walk") {
       /* 每帧固定覆盖 WALK_CYCLE/4 的位移，与帧数无关 —— 3 帧序列（斧头）
          照搬 4 帧的周期会让步频慢 25%，读起来像滑步。
-         与 drawWalkFrames 用同一个口径。 */
+         与 drawWalkFrames 用同一个口径。
+
+         ⚠️ 必须取模。p.walk 是累计位移，只增不减：全速 470px/s 时约 11.3
+         单位/秒，而 cycle = 3.6 —— 走约 0.32 秒 idx 就越过末帧。
+         这里原来只夹不取模（下面的 idx > n-1 夹到 n-1），于是第一轮播完后
+         永久停在最后一帧：画面看着是「滑步 + 僵直」，素材其实是齐的。
+         drawWalkFrames 一直有 % n，两条路径现在口径一致。 */
       var cycle = WALK_CYCLE * n / 4;
-      idx = Math.floor((p.walk || 0) / cycle * n);
+      idx = Math.floor((p.walk || 0) / cycle * n) % n;
+      if (idx < 0) idx += n;
     } else if (state === "attack") {
       idx = attackFrame(p, n);
       if (idx < 0) idx = 0;
