@@ -1,6 +1,10 @@
 /* =====================================================================
    资源加载器
    用法：Assets.load().then(() => start())
+
+   ⚠️ 加键之前先搜一遍消费方：`IMG.<键名>`。
+   MANIFEST 里每多一个键，每次启动就多读一张图（file:// 下没有缓存协商，
+   实打实读盘）。2026-10-25 清掉 11 个无消费方的键，省了 293 KB 启动白加载。
    ===================================================================== */
 (function () {
   "use strict";
@@ -39,7 +43,9 @@
     /* 标题页 / 通关页全屏场景（ov-title / ov-win 的 CSS 背景同上，仅预热缓存） */
     titleScene:   "assets/ui/title-scene.webp",
     winScene:     "assets/ui/win-scene.webp",
-    /* 拾取图标：统一画布，避免忽大忽小 */
+    /* 拾取图标：统一画布，避免忽大忽小。
+       short 与 dagger 共用同一张图（真值由 index.html 的 ICON 表按武器 key 取），
+       rock 与道具共用 it-rock —— 同路径只加载一次，见下面的 byPath 去重。 */
     wpShort:     "assets/icons/wp-dagger.webp",
     wpDagger:    "assets/icons/wp-dagger.webp",
     wpSword:     "assets/icons/wp-sword.webp",
@@ -48,20 +54,12 @@
     wpSpear:     "assets/icons/wp-spear.webp",
     wpBow:       "assets/icons/wp-bow.webp",
     wpRock:      "assets/icons/it-rock.webp",
-    itCowrie:    "assets/icons/it-cowrie.webp",
     itJade:      "assets/icons/it-jade.webp",
-    itEye:       "assets/icons/it-eye.webp",
     itBell:      "assets/icons/it-bell.webp",
     itJar:       "assets/icons/it-jar.webp",
-    itRock:      "assets/icons/it-rock.webp",
-    iconEye:     "assets/icons/icon-eye.webp",
-    iconMask:    "assets/icons/icon-mask.webp",
-    iconLeiwen:  "assets/icons/icon-leiwen.webp",
-    iconTree:    "assets/icons/icon-tree.webp",    pose0:       "assets/char/pose-0.webp",
-    pose1:       "assets/char/pose-1.webp",
-    charFront:   "assets/char/front.webp",
-    charSide:    "assets/char/side.webp",
-    charBack:    "assets/char/back.webp"
+    /* 角色降级底图：ANIM 缺失或帧图全不可用时才走。pose-0 是主用，
+       其余站姿帧（pose-1 / front / side / back）无消费方，已删。 */
+    pose0:       "assets/char/pose-0.webp"
   };
 
   window.IMG = {};
@@ -70,11 +68,22 @@
   /* load(onProgress) → Promise<{loaded, failed}>
      onProgress(ratio, settled, total)：每张图落地调一次。
      ratio 是 0~1，成功与失败都算「落地」—— 进度必须能走到 1，
-     否则缺一张图就永远停在 99%，标题页的入口也跟着永远锁着。 */
+     否则缺一张图就永远停在 99%，标题页的入口也跟着永远锁着。
+     ⚠️ total / settled 计的是**不同路径数**，不是键数（同路径去重见下）。 */
   function load(onProgress) {
     return new Promise(function (resolve) {
       var keys = Object.keys(MANIFEST);
-      var total = keys.length;
+
+      /* 同一路径只建一个 Image。wpShort / wpDagger 都指向 wp-dagger.webp，
+         各建一个就是白读一次盘；多键共用同一个实例，window.IMG 每个键都有值。 */
+      var waiters = {};                     // src -> [键名...]
+      keys.forEach(function (k) {
+        var src = MANIFEST[k];
+        (waiters[src] || (waiters[src] = [])).push(k);
+      });
+
+      var paths = Object.keys(waiters);
+      var total = paths.length;             // ⚠️ 计的是「不同路径数」，不是键数
       var settled = 0;
 
       pending = total;
@@ -89,19 +98,22 @@
         if (settled >= total) finish(resolve);
       }
 
-      keys.forEach(function (k) {
+      paths.forEach(function (src) {
+        var ks = waiters[src];
         var im = new Image();
         im.onload = function () {
           done++; pending--;
           tick();
         };
         im.onerror = function () {
-          failed.push(k);
+          ks.forEach(function (k) { failed.push(k); });
           pending--;
           tick();
         };
-        im.src = MANIFEST[k];
-        window.IMG[k] = im;
+        im.src = src;
+        /* 先占用：键必须立刻存在（调用方一律用 imgReady() 判就绪，
+           不看键在不在）。加载失败时它留在 window.IMG 里是未就绪实例。 */
+        ks.forEach(function (k) { window.IMG[k] = im; });
       });
 
       if (total === 0) {

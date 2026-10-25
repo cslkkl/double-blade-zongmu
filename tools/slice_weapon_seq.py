@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
 """武器「4 帧出招序列」切片：seq-<key>.png（横向 4 格）-> atk-<key>-<i>.webp + WEAPON_ATTACK_CLIP。
 
+★ 2026-10-25 起**默认不跑**，需显式 --with-atk。
+  WEAPON_CLIP 现在 11 把武器全部带 attack 状态，char-rig.js 的 draw() 第一档
+  就 return，WEAPON_ATTACK / WEAPON_ATTACK_CLIP 两条通道永远轮不到 —— 本脚本产出的
+  50 张 atk-<key>-<i>.webp（1.78 MB）是纯冗余的二重位图降级。数据块与图片已删除。
+  **别在正常出素材时顺手跑它**，否则 1.78 MB 静默回来、且数据块复活。
+  真要恢复旧通道才加 --with-atk（同时用 slice_weapon_assets.py --with-atk 补单帧）。
+
 与第一期 slice_weapon_assets.py 的关系：
   第一期每把武器只有 1 张出招姿态（atk-<key>.webp，写 WEAPON_ATTACK），
   保留作单帧降级；本脚本产出 4 帧序列，写新的 window.WEAPON_ATTACK_CLIP。
@@ -15,8 +22,9 @@ scaleFix 每把武器一个（4 帧共用），按头冠锚取 4 格中位数 �
 anchorX 逐帧一个，偏离 4 帧中位数 > 8% 判误检，用中位数替换并在报告里标出。
 
 用法：
-  python tools/slice_weapon_seq.py           # 正常跑
-  python tools/slice_weapon_seq.py --debug   # 额外写对齐调试图到 _dbg/
+  python tools/slice_weapon_seq.py                    # 什么都不写，只提示（默认）
+  python tools/slice_weapon_seq.py --with-atk         # 恢复旧通道：真切 4 帧序列
+  python tools/slice_weapon_seq.py --with-atk --debug # 额外写对齐调试图到 _dbg/
 """
 import argparse
 import os
@@ -137,7 +145,13 @@ def fmt_clip(recs):
 
 
 # ---------------------------------------------------------------- 主流程
-def main(debug=False):
+def main(debug=False, with_atk=False):
+    if not with_atk:
+        print("=== 出招序列：默认跳过（见文件头 ★）===")
+        print("  WEAPON_ATTACK_CLIP 这条通道已于 2026-10-25 废弃：WEAPON_CLIP")
+        print("  已覆盖全部 11 把武器的 attack，这两条旧通道永远轮不到。")
+        print("  本次没有写任何文件。确实要恢复旧通道请加 --with-atk。")
+        return 0
     if not os.path.isdir(SRC):
         print("!! 源图目录不存在：%s" % SRC)
         return 1
@@ -309,5 +323,7 @@ def main(debug=False):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--debug", action="store_true", help="写对齐调试图到 _dbg/")
+    ap.add_argument("--with-atk", dest="with_atk", action="store_true",
+                    help="恢复已废弃的 WEAPON_ATTACK_CLIP 通道；默认整段跳过，见文件头 ★")
     a = ap.parse_args()
-    sys.exit(main(debug=a.debug))
+    sys.exit(main(debug=a.debug, with_atk=a.with_atk))

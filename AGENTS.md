@@ -38,8 +38,8 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 |---|---|
 | `python tools/slice_anim.py` | 角色 9 动作 → `assets/anim/`（重写 `window.ANIM`） |
 | `python tools/slice_anim_extra.py` | 新增 3 动作 → `assets/anim/`（就地替换 / 追加三个 clip） |
-| `python tools/slice_weapon_assets.py` | 武器站立帧 / 出招姿态 / 专属特效 → `assets/anim/hold-*`、`atk-*`、`assets/fx/`（就地写 4 个数据块） |
-| `python tools/slice_weapon_seq.py` | 武器出招四帧序列 → `assets/anim/atk-<key>-<0..3>`（写 `WEAPON_ATTACK_CLIP`） |
+| `python tools/slice_weapon_assets.py` | 武器站立帧 / 专属特效 → `assets/anim/hold-*`、`assets/fx/`（就地写 `ANIM_HOLD` / `WEAPON_FX` / `HIT_MATERIAL` 三块）**加 `--with-atk` 才产出已废弃的 `atk-*`** |
+| `python tools/slice_weapon_seq.py` | **默认不写任何文件**（旧 `WEAPON_ATTACK_CLIP` 通道已废弃）；`--with-atk` 才切 `atk-<key>-<0..3>` |
 | `python tools/slice_weapon_walk.py --src <目录>` | 武器持械行走四帧 → `assets/anim/walk-<key>-<0..3>`（写 `WEAPON_WALK_CLIP`） |
 | `python tools/prep_interact.py` | 宝箱 / 机关 / 拾取物 → `assets/interact/` |
 | `python tools/prep_icons.py` | 武器 / 物品 / 界面图标 → `assets/icons/` |
@@ -84,6 +84,13 @@ CHAR     // 12 个动作的中文名 / 英文名
 
 `node --check showcase.js` 是唯一自动化检查；页面没有列入上面的收工验证链。
 
+**改素材 / 删素材时必须回头查这批手写清单**：`showcase.js` 的 `BG` / `PROPS` / `INTERACT` /
+`ICONS` / `UIS` / `APPS` / `CHARSHEET` / `GENERIC_FX` 都是手写的（浏览器不能列目录），
+删了图不删行就是 404 空框；三处**算式**（顶栏统计、武器表页脚、全集页脚）原本是硬编常数，
+现在都从数据表实时算。`WSTATES` 会按 `WEAPON_ATTACK` / `WEAPON_ATTACK_CLIP` 是否存在动态增删，
+列数写进 CSS 变量 `--wcols` —— **`.wt` 的 `repeat(8, …)` 不许改回常数**，
+否则状态列一变就整张表行行错位（已实测）。
+
 ## 验证快照
 
 - 2026-10-24（武器视觉 + 出招序列 + 暂停 + 指南模块化 + 攻击/拾取分家后）：`check-inline` 通过；`selftest_enemies` 0 失败；`selftest_audio` 0 失败；`selftest_weapons` 0 失败；`node --check` 9/9 通过。
@@ -94,29 +101,32 @@ CHAR     // 12 个动作的中文名 / 英文名
 - **2026-10-25（提音量 + 重做 BGM 编曲后）**：`check-inline` 通过（内联脚本 139514 字符）；`selftest_enemies` / `selftest_audio`（29 项）/ `selftest_weapons` 全 0 失败；`node --check` 12/12 通过；链接检查 31 文件 75 链接 0 错。浏览器实测：`file://` 直开、进单人模式、开局 BGM 起、挥砍与跳跃出声、控制台 0 报错 0 警告。离线渲染 A/B：同场景 RMS +2.8 dB、峰值 +2.6 dB、**0 个削波样本**（峰值 -19.3 dB，离满量程还差 19 dB）。动机核验：档 0 走 D–G–F–A，档 3 走 D5–C5–A4–G4–A–G–F–D，低音线 D3/A2，档 3 drone 顶到 Eb3。
 - **2026-10-25（刀光朝向定案 + 刃口高光锚定后）**：`check-inline` 通过（内联脚本 140318 字符）；`selftest_enemies` / `selftest_audio` / `selftest_weapons`（新增 5b/5c 两节）全 0 失败；`node --check` 12/12 通过；链接检查 30 文件 75 链接 0 错。朝向回归防线实测有效：把 `slashMirror` 临时改回 `facing < 0` 当场 14 项失败。像素探针（900×460，两朝向并排）：`facing=+1` 质心 `mass_x=+4.61`、`facing=-1` 为 `-5.32`（都在锚点身前），互为镜像偏差 `dx=0.71 / dy=0.03`。版本号 `20261025d` → `e`。
 - **2026-10-25（BGM 换成外部音轨后）**：`check-inline` 通过（内联脚本 138516 字符）；`selftest_enemies` / `selftest_audio`（43 项，新增第 9 节音轨断言 16 项）/ `selftest_weapons` 全 0 失败；`node --check` 12/12 通过。BGM 改为 `assets/audio/bgm-main.mp3`（256 kbps / 48 kHz 立体声 / 222 秒 / 6.8 MB，`<audio>` 元素循环播放），音轨缺席或被拦时退回原程序化 BGM。人耳实测：`file://` 直开、进单人模式即出声。
-- 规模：`index.html` 约 4350 行；`js/` 12 个模块；`assets/` 330 个文件 25.1 MB。
-- 素材分布：`anim/` 249、`fx/` 13、`icons/` 16、`icon/` 10、`ui/` 10、`interact/` 6、`props/` 8、`char/` 5、根 11。
-- 素材预算：单帧 ≤ 60 KB（实测最大 55.4 KB）、总量 ≤ 8 MB（上调依据见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 的「素材流水线」）。**当前 18.32 MB 超预算 10.3 MB**，2026-10-25 已清掉未引用的 15.78 MB（`promo/` 与 `bg-fg.webp`），剩下的都是运行时真加载的。
-- 帧数：角色 12 个 clip 共 43 帧；敌人 4 类共 14 帧；武器站立帧 11、出招单帧 10、出招序列 10 把 × 4 帧、持械行走 11 把（其中斧头 3 帧，见活跃坑）。
+- **2026-10-25（清死键 + 删 atk-* + 封住会复活的生成入口后）**：`check-inline` 通过（内联脚本 142602 字符）；`selftest_enemies` / `selftest_audio` / `selftest_weapons` 全 0 失败；`node --check` 12/12 通过；链接检查 30 文件 78 链接 0 错。素材：`assets/` 330 文件 21.55 MB → **270 文件 19.48 MB**，剔音视频 10.24 → **8.17 MB**。`MANIFEST` 52 键 / 50 路径 → **41 键 / 40 路径**（`Assets.load()` 加同路径去重）。浏览器实测 `file://` 直开：**41/41 图全部 ready、控制台 0 报错 0 警告**；运行时逐帧抓 `drawImage` 确认挥砍走 `attack-short-0..3`、走路 `walk-short-*`、跳跃 `jump-short-*`、受击 `hurt-short`、拾取 `pickup-short`，**`atk-*` 命中 0 次**（无悬空引用）。版本号 `20261025j` → `k`。
+- **2026-10-26（合上游 `l` + 素材总览页对齐后）**：`check-inline` 通过（内联脚本 146336 字符）；`selftest_enemies` / `selftest_audio` / `selftest_weapons` 全 0 失败；`node --check` 12/12 + `showcase.js` 通过；链接检查 30 文件 75 链接 0 错。合并时 3 处冲突逐条按语义解（版本号取 `m`、`Assets.load()` 同时保 `onProgress` 与同路径去重、`js/README.md` 取并集）。`file://` 实测载入链：**41/41 静态图 ready + `CharArt.progress` 185/185 + `EnemyArt.progress` 14/14**，载入条走满才放行，控制台 0 报错 0 警告。展示页（`node serve-showcase.mjs`，http）7 个 tab 全查：**0 张 404、0 报错**，顶栏统计 **199 帧 / 268 文件 / 49 组 / 11 武器**。运行时引用的 248 条路径 0 缺失。
+- 规模：`index.html` 约 4543 行；`js/` 12 个模块；`assets/` 270 个文件 19.48 MB。
+- 素材分布：`anim/` 199、`fx/` 13、`icons/` 10、`icon/` 10、`ui/` 10、`interact/` 6、`props/` 8、`char/` 1、`audio/` 1、`video/` 1、根 10。
+- 素材预算：单帧 ≤ 60 KB（实测最大 55.4 KB）、总量 ≤ 8 MB（上调依据见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 的「素材流水线」）。**8 MB 只算游戏素材**：含 `audio/`（6.78 MB）+ `video/`（4.53 MB）时总量 19.48 MB，**剔除音视频后 8.17 MB，仍超预算 0.17 MB**（2026-10-25 清掉 `atk-*` 1.78 MB 与无引用图标 / 角色 0.29 MB 后从 10.24 MB 降到 8.17 MB）。剩下的都是运行时真加载的，再压只能整批降采样重出。
+- 帧数：角色 12 个 clip 共 43 帧；敌人 4 类共 14 帧；武器站立帧 11、持械行走 11 把（其中斧头 3 帧，见活跃坑）。**出招只剩一套**：`WEAPON_CLIP.attack` 每把 4 帧（11 把 = 44 帧），旧的 `atk-<key>` 单帧与 `atk-<key>-<i>` 序列已删。
 - 关卡：6 阵共 85 体。
 - 无 CI，以上为本机手工结果；改完代码重跑一遍再写结论。
 
 ## 待办
 
-- [ ] `js/assets.js` 里 `pose1` / `charFront` / `charSide` / `charBack` 四个键无消费方，每次启动白加载约 265 KB。
-- [ ] `js/assets.js` 里 `itCowrie` / `itEye` 与 `iconEye` / `iconMask` / `iconLeiwen` / `iconTree` 六个图标键无消费方（`assets/icons/` 16 张里 6 张只占体积）。
-- [ ] `js/assets.js` 里 `wpShort` 与 `wpDagger` 指向同一张 `wp-dagger.webp`，`wpRock` 与 `itRock` 指向同一张 `it-rock.webp` —— 48 个键只有 46 条不同路径。
+- [x] ~~`js/assets.js` 里 `pose1` / `charFront` / `charSide` / `charBack` 四个键无消费方~~ —— 2026-10-25 已删（连文件，省 260 KB）。
+- [x] ~~`itCowrie` / `itEye` 与 `iconEye` / `iconMask` / `iconLeiwen` / `iconTree` 六个图标键无消费方~~ —— 2026-10-25 已删（连文件，省 33 KB）；`prep_icons.py` 加了 `DEAD_ITEMS` / `WRITE_UI_ICONS` 开关，防止重跑复活。
+- [x] ~~`wpShort` 与 `wpDagger` 同路径、`wpRock` 与 `itRock` 同路径~~ —— 2026-10-25 删掉 `itRock`（无人读），并在 `Assets.load()` 加同路径去重：现在 41 键 / 40 条路径，`wpShort`/`wpDagger` 共用同一个 `Image`。
+- [x] ~~`atk-*` 50 张（1.78 MB）是纯冗余的二重位图降级~~ —— 2026-10-25 已删图 + 删 `WEAPON_ATTACK` / `WEAPON_ATTACK_CLIP` 数据块；两个生成脚本加了 `--with-atk` 默认关。
 - [ ] `FX.drawHudPanel` 无调用方（`FX.drawWhirl` 已接进 `drawWhirlAsset`）。
-- [ ] 物品族图标长边占比 0.41~0.65，与 `prep_icons.py` 设定的 0.84 不符，重跑一次可对齐；重跑后要人眼确认六个物品的相对大小。
-- [ ] `slice_anim_extra.py` 写 `scaleFix: 1.0` 只是占位，需按内容高反算后手改（当前三个 clip 已是 0.914 / 0.867 / 0.754）。
-- [ ] 武器出招是多帧序列（`WEAPON_ATTACK_CLIP`，4 帧），但帧号由 `swingT` 推导、不跟 fps：改帧数只改动画密度，不改出手时机。想更顺就重出 `seq-<key>.png` 再跑 `slice_weapon_seq.py`，别在代码里插帧。
-- [ ] 持械行走（`WEAPON_WALK_CLIP`）的画风与原画有差距：新素材是 AI 重出的青铜面具武士，描边更粗、配色更平。要统一就得连 `hold-*` / `atk-*` 一起重出，单改行走会更割裂。
-- [ ] **武器帧的 `anchorX` 还是脚本猜的，31 个状态有逐帧差**（最大跨度 0.61 ≈ 屏幕 97px）：铃 `attack` 97px、玉璋刃 `walk` 89px、匕首 `attack` 85px、锤 `jump` 84px。工具已就位（`tools/align_weapon_frames.html` 人眼拖 → 导出 JSON → `tools/align_apply.py` 回填），累计工作量约 11 把 × 5 状态。`python tools/align_apply.py --report` 查现状。
+- [ ] 物品族图标长边占比 0.41~0.65，与 `prep_icons.py` 设定的 0.84 不符（说明这批是更早版本脚本的产物）。重跑一次可对齐；重跑后要人眼确认四个物品的相对大小（`it-rock` 只有 79×79，是四张里最小的）。
+- [ ] 持械行走（`WEAPON_WALK_CLIP`）的画风与原画有差距：新素材是 AI 重出的青铜面具武士，描边更粗、配色更平。要统一就得连 `hold-*` 一起重出，单改行走会更割裂。
+- [ ] **武器帧的 `anchorX` 还是脚本猜的**：`python tools/align_apply.py --report` 实测 **13 个状态屏幕抖动 > 16px**，最大 92.7px（铃 `attack`）；其后是锤 `jump` 68.2、石 `jump` 67.4、石 `attack` 62.1、锤 `attack` 60.2、矛 `attack` 54.2、匕首 `attack` 78.3、剑 `attack` 36.9、斧 `jump` 36.8、刃 `attack` 33.5、斧 `attack` 29.4、罐 `attack` 20.6、短剑 `attack` 19.7。工具已就位（`tools/align_weapon_frames.html` 人眼拖 → 导出 JSON → `tools/align_apply.py` 回填），需人眼逐状态对。
+- [ ] `slice_anim_extra.py` 的 `scaleFix` 现在**不会被重跑覆盖**（沿用旧值 + 打印包围盒反算值供对照），但它也算不出正确值 —— 弯腰 / 蹲低的 clip 按包围盒归一化会把人放大到站高。新增 clip 时脚本会写 `1.0` 占位并警告，必须人眼实测后手改。
 
 ## 活跃坑
 
-- **「素材就绪」不等于「帧图就绪」**。`Assets.load()` 只管 MANIFEST 里那 48 张静态图；
-  249 张动画帧是 `char-rig.warm()` 与 `enemies-assets.warmKind()` 自己建的。
+- **「素材就绪」不等于「帧图就绪」**。`Assets.load()` 只管 MANIFEST 里那 40 条路径
+  （41 个键，`wpShort`/`wpDagger` 同路径只建一个 `Image`）；
+  199 张动画帧（角色 185 + 敌人 14）是 `char-rig.warm()` 与 `enemies-assets.warmKind()` 自己建的。
   标题页的载入条因此要**两段合起来算**：静态 + 两个模块的 `progress()`。
   只等静态就放行，玩家会看到「进度走满 → 开打 → 角色是青色降级方块」（已实测）。
   `progress()` 只数已建的 Image、不新建 —— 自己再 new 一遍会让解码内存翻倍。

@@ -72,34 +72,15 @@ axe     : { w: 543, h: 560, anchorX: 0.5212, footY: 1.0, scaleFix: 0.708,
             file: "assets/anim/hold-bell.webp" }
 };
 
-/* >>> slice_weapon_assets: WEAPON_ATTACK >>> */
-/* 攻击姿态帧：键集合固定，bell 不在其中（沿用 jar 姿态，由上层兜底）。
-   scaleFix 按「头冠顶 → 脚底」反算：身体高度的屏幕长度与 idle 一致。
-   武器举过头顶的格（axe/hammer）画布会高很多，scaleFix 因此偏大，属正常。 */
-window.WEAPON_ATTACK = {
-  short   : { w: 477, h: 479, anchorX: 0.6567, footY: 1.0, scaleFix: 0.723,
-            file: "assets/anim/atk-short.webp" },
-  dagger  : { w: 560, h: 452, anchorX: 0.5687, footY: 1.0, scaleFix: 0.723,
-            file: "assets/anim/atk-dagger.webp" },
-  sword   : { w: 560, h: 538, anchorX: 0.4696, footY: 1.0, scaleFix: 0.752,
-            file: "assets/anim/atk-sword.webp" },
-  axe     : { w: 363, h: 560, anchorX: 0.5096, footY: 1.0, scaleFix: 1.078,
-            file: "assets/anim/atk-axe.webp" },
-  hammer  : { w: 560, h: 481, anchorX: 0.5411, footY: 1.0, scaleFix: 0.72,
-            file: "assets/anim/atk-hammer.webp" },
-  spear   : { w: 560, h: 446, anchorX: 0.3241, footY: 1.0, scaleFix: 0.724,
-            file: "assets/anim/atk-spear.webp" },
-  bow     : { w: 386, h: 552, anchorX: 0.4197, footY: 1.0, scaleFix: 0.784,
-            file: "assets/anim/atk-bow.webp" },
-  rock    : { w: 392, h: 503, anchorX: 0.5319, footY: 1.0, scaleFix: 0.717,
-            file: "assets/anim/atk-rock.webp" },
-  blade   : { w: 537, h: 503, anchorX: 0.5121, footY: 1.0, scaleFix: 0.717,
-            file: "assets/anim/atk-blade.webp" },
-  jar     : { w: 357, h: 552, anchorX: 0.5658, footY: 1.0, scaleFix: 0.793,
-            file: "assets/anim/atk-jar.webp" }
-};
-/* <<< slice_weapon_assets: WEAPON_ATTACK <<< */
-
+/* ⚠️ 旧的 WEAPON_ATTACK（单帧出招姿态）与 WEAPON_ATTACK_CLIP（4 帧出招序列）
+   两个数据块已于 2026-10-25 删除，连带 assets/anim/atk-*.webp 50 张（1.78 MB）。
+   原因：WEAPON_CLIP 现在 11 把武器全部带 attack 状态，char-rig.js 的 draw()
+   第一档就 return，那两条通道永远轮不到 —— 是纯冗余的二重位图降级，而项目
+   要求的「纯代码降级」在 drawLegacy，不缺这一层。
+   渲染侧函数（drawWeaponAtkFrames / drawWeaponAtk）**保留**作挂点：数据块若
+   被补回来就自动生效，缺席时它们自带 `if (!C) return false` 掉到下一档。
+   要恢复素材：`tools/slice_weapon_assets.py --with-atk` 与
+   `tools/slice_weapon_seq.py --with-atk`（两者默认都不写，防止误跑把 1.78 MB 长回来）。 */
 
 /* >>> slice_weapon_assets: WEAPON_FX >>> */
 /* 武器刀光：r 为建议半径，arc 为挥砍弧张开角度（弧度）。
@@ -129,45 +110,6 @@ window.HIT_MATERIAL = {
   airy   : "assets/fx/hit-airy.webp"
 };
 /* <<< slice_weapon_assets: HIT_MATERIAL <<< */
-
-/* >>> slice_weapon_assets: WEAPON_ATTACK_CLIP >>> */
-/* 4 帧出招序列。与 WEAPON_ATTACK（单帧降级）并存。
-   同一把武器的 4 帧共用同一画布 w/h 与同一个 scaleFix（否则播放会跳）。
-   anchorX 逐帧一个：身体轴线随姿势前后移，逐帧取才不漂。 */
-window.WEAPON_ATTACK_CLIP = {
-  short   : { frames: 4, w: 347, h: 560, scaleFix: 0.997, footY: 1.0,
-            anchorX: [0.6268, 0.6268, 0.6268, 0.6268],
-            files: ["assets/anim/atk-short-0.webp", "assets/anim/atk-short-1.webp", "assets/anim/atk-short-2.webp", "assets/anim/atk-short-3.webp"] },
-  dagger  : { frames: 4, w: 547, h: 526, scaleFix: 0.715, footY: 1.0,
-            anchorX: [0.5622, 0.5622, 0.5622, 0.5622],
-            files: ["assets/anim/atk-dagger-0.webp", "assets/anim/atk-dagger-1.webp", "assets/anim/atk-dagger-2.webp", "assets/anim/atk-dagger-3.webp"] },
-  sword   : { frames: 4, w: 365, h: 560, scaleFix: 0.926, footY: 1.0,
-            anchorX: [0.5699, 0.5699, 0.5699, 0.5699],
-            files: ["assets/anim/atk-sword-0.webp", "assets/anim/atk-sword-1.webp", "assets/anim/atk-sword-2.webp", "assets/anim/atk-sword-3.webp"] },
-  axe     : { frames: 4, w: 327, h: 560, scaleFix: 0.951, footY: 1.0,
-            anchorX: [0.5, 0.5, 0.5107, 0.5],
-            files: ["assets/anim/atk-axe-0.webp", "assets/anim/atk-axe-1.webp", "assets/anim/atk-axe-2.webp", "assets/anim/atk-axe-3.webp"] },
-  hammer  : { frames: 4, w: 284, h: 560, scaleFix: 0.97, footY: 1.0,
-            anchorX: [0.4701, 0.4701, 0.4701, 0.4701],
-            files: ["assets/anim/atk-hammer-0.webp", "assets/anim/atk-hammer-1.webp", "assets/anim/atk-hammer-2.webp", "assets/anim/atk-hammer-3.webp"] },
-  spear   : { frames: 4, w: 559, h: 405, scaleFix: 0.718, footY: 1.0,
-            anchorX: [0.4548, 0.4658, 0.4658, 0.4767],
-            files: ["assets/anim/atk-spear-0.webp", "assets/anim/atk-spear-1.webp", "assets/anim/atk-spear-2.webp", "assets/anim/atk-spear-3.webp"] },
-  bow     : { frames: 4, w: 391, h: 560, scaleFix: 0.796, footY: 1.0,
-            anchorX: [0.4316, 0.4357, 0.4357, 0.4399],
-            files: ["assets/anim/atk-bow-0.webp", "assets/anim/atk-bow-1.webp", "assets/anim/atk-bow-2.webp", "assets/anim/atk-bow-3.webp"] },
-  rock    : { frames: 4, w: 407, h: 560, scaleFix: 0.724, footY: 1.0,
-            anchorX: [0.5461, 0.4969, 0.5215, 0.5215],
-            files: ["assets/anim/atk-rock-0.webp", "assets/anim/atk-rock-1.webp", "assets/anim/atk-rock-2.webp", "assets/anim/atk-rock-3.webp"] },
-  blade   : { frames: 4, w: 429, h: 559, scaleFix: 0.722, footY: 1.0,
-            anchorX: [0.5746, 0.5408, 0.5577, 0.5577],
-            files: ["assets/anim/atk-blade-0.webp", "assets/anim/atk-blade-1.webp", "assets/anim/atk-blade-2.webp", "assets/anim/atk-blade-3.webp"] },
-  jar     : { frames: 4, w: 378, h: 530, scaleFix: 0.745, footY: 1.0,
-            anchorX: [0.629, 0.5909, 0.5529, 0.5909],
-            files: ["assets/anim/atk-jar-0.webp", "assets/anim/atk-jar-1.webp", "assets/anim/atk-jar-2.webp", "assets/anim/atk-jar-3.webp"] }
-};
-/* <<< slice_weapon_assets: WEAPON_ATTACK_CLIP <<< */
-
 /* >>> slice_weapon_assets: WEAPON_CLIP >>> */
 /* 每把武器一套独立动作。查不到某个 state 时，渲染层逐级回落到公共 clip。
    ★ 同一把武器所有状态共用**同一张画布 w/h 与同一个 scaleFix**：

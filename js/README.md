@@ -14,19 +14,20 @@
 
 ## assets.js
 
-- 职责：清单式预加载 48 个键的静态图到 `window.IMG`，失败不阻塞启动。
+- 职责：清单式预加载 **41 个键 / 40 条不同路径** 的静态图到 `window.IMG`，失败不阻塞启动。
 - 关键导出：`window.Assets = { load, MANIFEST }`，`load()` 返回 `Promise<{loaded, failed}>`。
 - 依赖谁：只用浏览器 `Image`，不依赖任何本地模块。
 - 被谁依赖：`background.js`、`fx.js`、`enemies-assets.js` 读 `window.IMG`；`char-rig.js` 降级读 `IMG.pose0`；`index.html` 读图标键、宝箱 / 机关 / 拾取物键，启动时调 `load()` 并只打印结果。
 - 关键约束：`MANIFEST` 只收静态图；逐帧动画的帧图由 `anim-data.js` 自己列，不在这里。
-- 关键约束：`bgFg`（`assets/bg-fg.webp`，16:9 整图前景）已从清单移除，该 webp 文件保留在 `assets/` 里备回滚，不参与加载。
+- **同一路径只建一个 `Image`**：`load()` 先按路径归并（`waiters`），`wpShort` / `wpDagger` 都指向 `wp-dagger.webp` 时共用同一个实例，`pending` 计的是**不同路径数**而不是键数。新增重复路径的键不会再多读一次盘。
 - 键名规则（新增键必须照此归族，否则查不到也删不干净）：
-  - `wp*` — 武器图标，`assets/icons/wp-*.webp`，画布 256。
-  - `it*` — 物品图标，`assets/icons/it-*.webp`，画布 192。
-  - `icon*` — 界面图标，`assets/icons/icon-*.webp`，画布 128。
+  - `wp*` — 武器图标，`assets/icons/wp-*.webp`，画布 256（`wpShort` 与 `wpDagger` 共用 `wp-dagger.webp`）。
+  - `it*` — 物品图标，`assets/icons/it-*.webp`，画布 192（只剩 `itJade` / `itBell` / `itJar`）。
   - `pickup*` — 世界里的拾取物实体，`assets/interact/pickup-*.webp`。
   - `chest*` / `mechanism*` — 宝箱与机关的双态图，`assets/interact/`。
-- 改后必测：新增键必须同时确认消费方读得到；删键前 grep 全仓确认无人引用。
+  - `hudCard` / `portraitP1` / `titleScene` / `winScene` — **没有 `IMG.*` 读取点，但必须留着**：它们是给 `index.html` 的 CSS 背景与头像预热浏览器缓存用的，删了会多一次首帧请求。
+- **2026-10-25 删掉的 11 个键**（省 293 KB 启动白加载，均无消费方）：`pose1` / `charFront` / `charSide` / `charBack`（260 KB）、`itCowrie` / `itEye` / `iconEye` / `iconMask` / `iconLeiwen` / `iconTree`（33 KB）、`itRock`（与 `wpRock` 同路径且无人读）。`pose0` 保留 —— 它是 `ANIM` 缺失时的降级底图。
+- 改后必测：新增键必须同时确认消费方读得到；删键前 grep 全仓确认无人引用（`IMG.<键名>`）。删完还要同步封掉会重新生成它的脚本（`prep_icons.py` 的 `DEAD_ITEMS` / `WRITE_UI_ICONS`）。
 
 ## anim-data.js
 
@@ -71,7 +72,7 @@
 
 - 职责：玩家逐帧播放器 + 武器专属姿态（站立 / 行走 / 出招） + 两级降级。
 - 关键导出：`window.CharArt = { draw(ctx, p, t), ready(), progress(), HEIGHT: 252 }`。
-- 依赖谁：`window.ANIM`、`window.ANIM_HOLD`（站立持械）、`window.WEAPON_WALK_CLIP`（行走四帧序列）、`window.WEAPON_ATTACK`（出招单帧）、`window.WEAPON_ATTACK_CLIP`（出招四帧序列）、`window.IMG.pose0`（降级）。
+- 依赖谁：`window.ANIM`、`window.WEAPON_CLIP`（每把武器 5 状态，**出招主通道**）、`window.ANIM_HOLD`（站立持械）、`window.WEAPON_WALK_CLIP`（行走四帧序列）、`window.IMG.pose0`（降级）。`window.WEAPON_ATTACK` / `window.WEAPON_ATTACK_CLIP` 两个旧通道的数据块已于 2026-10-25 删除，渲染函数仍保留作挂点（自带 `if (!C) return null`）。
 - 被谁依赖：`index.html` 的 `drawPlayer()`；`ready()` 为假则回落到内联 `drawFighter()`。
 - 关键约束：绘制优先级固定为 **出招序列 → 出招单帧 → 持械行走序列 → 持械站立 → 动画 clip → 降级精灵**。出招那两档必须盖在 attack 族之前，否则换武器时手上仍是老模型；行走那一档必须盖在通用 `walk` clip 之前，否则「站着有武器、一走就空手」。
 - 关键约束：走路的三级落回是 **`WEAPON_WALK_CLIP` → `ANIM_HOLD` 静帧（叠位移浮沉）→ 通用 `walk` clip**。缺一级就落下一级，任何一级缺失都不许变成空手。跳跃**不**接管 —— 离地时腿是收起来的，站姿会穿帮。
@@ -79,13 +80,13 @@
 - 关键约束：序列的 `scaleFix` 是**一个数**（四帧共用同一画布），`anchorX` 是**逐帧数组**。前者写错会让连击里忽大忽小，后者写成单个数会让挥砍时人左右漂。
 - 关键约束：帧号由 `attackFrame(p, n)` 推导，与 attack 族同一套算法 —— 有几帧不影响判定时机，改帧数只改动画密度。
 - 关键约束：`pickClip()` 的状态优先级不能乱（`dead → whirl → bow/throw → hurt → pickup → jump → attack 族 → walk → idle`）；出招姿态与持械站立都只在「不属于更高优先级状态」时才接管 —— 旋风 / 投掷 / 受击 / 拾取 / 死亡一律走动画。
-- 关键约束：攻击族三个 clip 的帧号都由 `swingT / swingDur` 推导，不按 fps 自由播放；武器出招序列（`WEAPON_ATTACK_CLIP`）的帧号走同一个 `attackFrame()`，同样是「判定推着画面走」而不是按 fps 放。单帧姿态没有帧序列，靠 `swingT` 做前冲与旋转。
+- 关键约束：攻击族三个 clip 的帧号都由 `swingT / swingDur` 推导，不按 fps 自由播放；`WEAPON_CLIP.attack`（每把武器 4 帧）同样走「判定推着画面走」而不是按 fps 放。单帧姿态没有帧序列，靠 `swingT` 做前冲与旋转。
 - 关键约束：`CLIPS` 预热名单是 12 个 clip，新增动作必须同时加进这份名单，否则首帧会闪一下降级画面。`warmHold()` / `warmAtk()` 各自独立预热，`ANIM` 缺席时也照建。
-- `progress()` 返回 `{done, total}`，只数已建的 Image（不新增），供 `index.html` 的载入条统计 —— `Assets` 只管 48 张静态图，这 235 张动画帧是这里 `warm()` 自己建的。不把它算进进度，玩家会「进度走满 → 开打 → 角色是青色降级方块」。
+- `progress()` 返回 `{done, total}`，只数已建的 Image（不新增），供 `index.html` 的载入条统计 —— `Assets` 只管 40 条路径的静态图，这 **185 张**动画帧是这里 `warm()` 自己建的（12 个公共 clip 43 + 持械站立 11 + `WEAPON_CLIP` 131）。不把它算进进度，玩家会「进度走满 → 开打 → 角色是青色降级方块」。
 - 关键约束：可选字段 `p.pickupT`（缺省 0）大于 0 时播 `pickup`，调用方置 0.3 秒后自己倒数。
-- 关键约束：可选字段 `p.__forceClip`（缺省 `null`）是攻击态里的替代 clip 名，只在 `swingT > 0` 时读；且只认 `ANIM` 里真实存在的 clip，不存在则回落 `attack`。调用方收招即清空，别让下一次非攻击状态读到旧值。**该武器有 `WEAPON_ATTACK_CLIP` 或 `WEAPON_ATTACK` 时优先用武器自己的图，`__forceClip` 只是两者都没有时的兜底。**
+- 关键约束：可选字段 `p.__forceClip`（缺省 `null`）是攻击态里的替代 clip 名，只在 `swingT > 0` 时读；且只认 `ANIM` 里真实存在的 clip，不存在则回落 `attack`。调用方收招即清空，别让下一次非攻击状态读到旧值。**该武器有 `WEAPON_CLIP.attack`（当前 11 把全有）就优先用武器自己的图，`__forceClip` 只在它缺席时兜底。**
 - 关键约束：可选字段 `p.__alphaMul`（缺省 1）是前景遮挡淡出的通道 —— 本模块会绝对赋值 `globalAlpha`，外层包一层无效，因子必须在这里乘进 `alpha`；`index.html` 的 `drawPlayer()` 设置后要立刻复位成 1。
-- 改后必测：`pickClip` 十二种状态的映射、三个攻击 clip 与判定同步、`WEAPON_ATTACK_CLIP` → `WEAPON_ATTACK` → `ANIM_HOLD` 三级中某一级缺失时是否逐级落回、走路三级（行走序列 → 持械静帧 → 通用 walk）是否都拿得到武器、行走帧号是否随 `p.walk` 变化、帧图缺失时是否落到 `pose0` 再到纯代码、`__alphaMul` 在四条路径上都生效、各 clip 屏幕身高是否仍落在 178~181px。
+- 改后必测：`pickClip` 十二种状态的映射、三个攻击 clip 与判定同步、`WEAPON_CLIP.attack` 缺席时是否逐级落回（旧两档已无素材，直接落到公共 `attack` 族）、走路三级（行走序列 → 持械静帧 → 通用 walk）是否都拿得到武器、行走帧号是否随 `p.walk` 变化、帧图缺失时是否落到 `pose0` 再到纯代码、`__alphaMul` 在四条路径上都生效、各 clip 屏幕身高是否仍落在 178~181px。
 
 ## enemies-assets.js
 
@@ -193,7 +194,7 @@
 
 | 改动位置 | 必须同步检查 |
 |---|---|
-| `anim-data.js` | `char-rig` 的 `CLIPS` / `ANIM_HOLD` / `WEAPON_WALK_CLIP` / `WEAPON_ATTACK` / `WEAPON_ATTACK_CLIP` 键集合、`enemies-assets` 的 `KINDS`、`fx` 的 `WEAPON_FX` / `HIT_MATERIAL`、`scaleFix` 是否仍按内容高反算、各 clip 屏幕身高是否仍在 178~181px |
+| `anim-data.js` | `char-rig` 的 `CLIPS` / `ANIM_HOLD` / `WEAPON_WALK_CLIP` / `WEAPON_CLIP` 键集合、`enemies-assets` 的 `KINDS`、`fx` 的 `WEAPON_FX` / `HIT_MATERIAL`、`scaleFix` 是否仍按内容高反算、各 clip 屏幕身高是否仍在 178~181px |
 | `assets.js` | `background` 的 `PROPS`/`CORE_KEYS`/`PROP_KEYS`、`fx` 的 `ready()` 名单、`char-rig` 的 `pose0` 降级、`index.html` 的 `WP_ICON` 与宝箱 / 机关 / 拾取物键名 |
 | `background.js` | `index.html` 的 `Background.ready()` 守卫、内联 `drawBG()` 兜底常量、`PROPS` 的世界坐标与 `PROP_KEYS` 名单是否与 `assets.js` 对得上（`drawFront()` / `occluders()` 已删除，别再往回调） |
 | `char-rig.js` | `index.html` 的 `drawPlayer()` 守卫、`__alphaMul` 是否仍被乘进 `alpha`（通用钩子，当前无调用方）、`__forceClip` 是否仍在收招时清空、`Player` 字段（`swingT / swingDur / throwT / whirlT / hurtT / pickupT / onGround`）是否改名 |

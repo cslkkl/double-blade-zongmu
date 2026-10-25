@@ -1,11 +1,18 @@
 # -*- coding: utf-8 -*-
 """新增武器素材一次性流水线：持械帧 / 攻击姿态帧 / 武器特效 / 打击材质。
 
-七张源图 -> 三类产物 + 四个数据块（就地写 js/anim-data.js）：
+七张源图 -> 三类产物 + 数据块（就地写 js/anim-data.js）：
   window.ANIM_HOLD      追加 short / blade / jar / bell（原有 7 键原样保留）
-  window.WEAPON_ATTACK  short dagger sword axe hammer spear bow rock blade jar
   window.WEAPON_FX      short dagger sword axe hammer spear bow rock blade jar bell
   window.HIT_MATERIAL   jade bronze blunt airy
+  window.WEAPON_ATTACK  ← **默认不写**，需 --with-atk（2026-10-25 起已废弃，见下）
+
+★ WEAPON_ATTACK 为什么默认关：WEAPON_CLIP 现在 11 把武器全部带 attack 状态，
+  char-rig.js 的 draw() 第一档就 return，WEAPON_ATTACK / WEAPON_ATTACK_CLIP
+  两条通道永远轮不到 —— 那 50 张 atk-*.webp（1.78 MB）是纯冗余的二重位图降级，
+  而项目硬约束要求的「纯代码降级」在 drawLegacy，不缺这一层。
+  数据块与图片已删除。**别在正常出素材时顺手打开它**，否则 1.78 MB 静默回来。
+  确实要恢复旧通道才加 --with-atk（同时得跑 slice_weapon_seq.py --with-atk）。
 
 scaleFix 用「腰带锚定」反算，不用内容包围盒高 —— 攻击姿态里武器尖端高过头顶，
 包围盒高会把角色算成小人。腰带在腰上，任何姿态都够不到：
@@ -14,8 +21,9 @@ scaleFix 用「腰带锚定」反算，不用内容包围盒高 —— 攻击姿
 偏离中位数 > 6% 的格判为误检，用该图中位数替换并在报告里标出来。
 
 用法：
-  python tools/slice_weapon_assets.py            # 正常跑
-  python tools/slice_weapon_assets.py --debug    # 额外把腰带/锚点叠加图写到 _dbg/
+  python tools/slice_weapon_assets.py                 # 正常跑（不动 atk）
+  python tools/slice_weapon_assets.py --debug         # 额外把腰带/锚点叠加图写到 _dbg/
+  python tools/slice_weapon_assets.py --with-atk      # 连旧的 WEAPON_ATTACK 一起写（默认关）
 """
 import argparse
 import os
@@ -541,7 +549,7 @@ def load_cells(png, n):
     return cells, bounds, segs
 
 
-def main(debug=False):
+def main(debug=False, with_atk=False):
     if not os.path.isdir(SRC):
         print("!! 源图目录不存在：%s" % SRC)
         return 1
@@ -712,14 +720,17 @@ def main(debug=False):
             elif not any(png in str(m) for m in missing):
                 missing.append("%s#%s" % (png, key))
 
-    print("\n=== 攻击姿态帧 atk ===")
-    for png, jobs in ATK_SHEETS:
-        got = build_sheet(png, jobs, "atk")
-        for key, _ in jobs:
-            if key in got:
-                atk_recs[key] = got[key]
-            else:
-                missing.append("%s#%s" % (png, key))
+    if with_atk:
+        print("\n=== 攻击姿态帧 atk（--with-atk）===")
+        for png, jobs in ATK_SHEETS:
+            got = build_sheet(png, jobs, "atk")
+            for key, _ in jobs:
+                if key in got:
+                    atk_recs[key] = got[key]
+                else:
+                    missing.append("%s#%s" % (png, key))
+    else:
+        print("\n=== 攻击姿态帧 atk：跳过（默认关，见文件头 ★；要写加 --with-atk）===")
 
     # ---------------------------------------------------------------- 特效
     print("\n=== 武器刀光 wp-slash-* ===")
@@ -808,7 +819,9 @@ def main(debug=False):
 
     hit_blocks = {k: hit_recs[k] for k in HIT_ORDER if k in hit_recs}
 
-    # 先把三个旧块全删掉，再按固定顺序重建 —— 保证任意次重跑结果字节一致
+    # 先把三个旧块全删掉，再按固定顺序重建 —— 保证任意次重跑结果字节一致。
+    # WEAPON_ATTACK 也在其中：默认不重建（atk_recs 为空 → atk_blocks 为空），
+    # 所以正常跑会把它清掉且不回写，与「这条通道已废弃」一致。
     for name in ("WEAPON_ATTACK", "WEAPON_FX", "HIT_MATERIAL"):
         src = _drop_block(src, name)
     src = src.rstrip()
@@ -877,5 +890,7 @@ def main(debug=False):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--debug", action="store_true", help="写腰带/锚点叠加调试图到 _dbg/")
+    ap.add_argument("--with-atk", dest="with_atk", action="store_true",
+                    help="连旧的 WEAPON_ATTACK（atk-<key>.webp）一起写；默认关，见文件头 ★")
     a = ap.parse_args()
-    sys.exit(main(debug=a.debug))
+    sys.exit(main(debug=a.debug, with_atk=a.with_atk))
