@@ -3,138 +3,639 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>双刃战士 · 纵目</title>
-<meta name="theme-color" content="#0a0b0e">
+<title>双刃战士 · 纵目 — 入口</title>
+<meta name="description" content="三星堆青铜人头像主题的双人同屏横版动作游戏：桌面端、手机端、素材总览。">
+<meta name="theme-color" content="#ffffff">
 <link rel="icon" href="play/assets/icon/favicon.ico">
 <style>
+  /* ==================================================================
+     Swiss International Style — 项目二级索引
+     ------------------------------------------------------------------
+     配色：#000 / #fff / #ff0000。无圆角、无阴影、无渐变。
+     交互只改颜色与边框色；唯一的位移是按钮箭头。
+     全部过渡 150ms ease-out。左对齐，标题超大粗体紧凑行高。
+     ================================================================== */
+
   :root{
-    color-scheme:dark;
-    --ink:#0a0b0e;
-    --line:#1d211f;
-    --bronze:#8aa08f;
-    --bronze-dim:#5c6f63;
-    --patina:#3d6b57;
-    --patina-lit:#7bb59c;
-    --gold:#c6b998;
-    --mute:#6a7268;
+    --ink:#000000;
+    --paper:#ffffff;
+    --red:#ff0000;
+    --line:#cccccc;
+    --wash:#f0f0f0;
+    --mute:#666666;
+    --pad:clamp(20px, 4vw, 64px);
   }
-  *{margin:0;padding:0;box-sizing:border-box}
-  html,body{min-height:100%}
+
+  *,*::before,*::after{box-sizing:border-box}
+
+  html{-webkit-text-size-adjust:100%}
+
   body{
-    background:var(--ink);
-    color:var(--gold);
-    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Source Han Sans SC",sans-serif;
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Helvetica Neue",Helvetica,Arial,"Liberation Sans",
+                "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    font-size:16px;
+    line-height:1.5;
     -webkit-font-smoothing:antialiased;
-    padding:clamp(28px,6vh,68px) clamp(20px,5vw,48px);
-    display:flex;align-items:center;justify-content:center;
   }
-  main{width:min(880px,100%)}
 
-  .hd{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:clamp(28px,5vh,48px)}
-  h1{
-    font-size:clamp(26px,4vw,40px);font-weight:300;letter-spacing:.02em;line-height:1.15;
-    color:#f0e4c6;
+  .wrap{
+    max-width:1440px;
+    margin:0 auto;
+    padding-left:var(--pad);
+    padding-right:var(--pad);
   }
-  h1 small{display:block;margin-top:10px;font-size:10px;letter-spacing:.34em;text-transform:uppercase;color:var(--bronze-dim)}
-  .meta{font-size:10px;letter-spacing:.24em;color:var(--mute);text-align:right;line-height:2.1;white-space:nowrap}
 
-  ul{list-style:none}
-  li{margin-bottom:10px}
-  a.entry{
-    display:grid;grid-template-columns:52px 1fr auto;align-items:center;gap:20px;
-    text-decoration:none;padding:22px 24px;
-    border:1px solid var(--line);border-radius:2px;
-    background:linear-gradient(180deg,rgba(61,107,87,.05),rgba(61,107,87,0));
-    transition:border-color .2s ease,background .2s ease,transform .2s ease;
+  code{
+    font-family:inherit;
+    font-size:0.94em;
+    border-bottom:1px solid var(--line);
   }
-  a.entry:hover,a.entry:focus-visible{
-    border-color:rgba(123,181,156,.5);
-    background:linear-gradient(180deg,rgba(61,107,87,.16),rgba(61,107,87,.02));
-    outline:none;
+
+  /* ------------------------------------------------------------ 导航 */
+
+  .nav{border-bottom:1px solid var(--ink)}
+
+  .nav-in{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:16px;
+    padding-top:18px;
+    padding-bottom:18px;
   }
-  .no{
-    font-size:11px;letter-spacing:.2em;color:var(--bronze-dim);
+
+  .crumb{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    font-size:13px;
+    letter-spacing:0.02em;
+  }
+
+  .crumb a{
+    color:var(--ink);
+    text-decoration:none;
+    border-bottom:1px solid transparent;
+    transition:border-color 150ms ease-out,color 150ms ease-out;
+  }
+
+  .crumb a:hover{color:var(--red);border-bottom-color:var(--red)}
+
+  .crumb span{color:var(--mute)}
+
+  .nav-meta{
+    font-size:10px;
+    letter-spacing:0.2em;
+    text-transform:uppercase;
+    color:var(--mute);
+    font-variant-numeric:tabular-nums;
+    white-space:nowrap;
+  }
+
+  /* ------------------------------------------------------------ 标题块（红底）
+
+     Hero 用纯红实色块，黑字压在上面：对比度 5.25:1，过 WCAG AA。 */
+
+  .hero{
+    background:var(--red);
+    color:var(--ink);
+  }
+
+  .hero-in{
+    padding-top:clamp(40px,7vh,88px);
+    padding-bottom:clamp(36px,6vh,72px);
+  }
+
+  /* 一行标题：按可用宽度反算字号，宁可小一档也不折行。
+     line-height 用 1 —— 汉字没有上下伸部，压到 0.9 以下会切到头顶。 */
+  .hero h1{
+    margin:0;
+    font-size:clamp(26px,7.2vw,118px);
+    font-weight:700;
+    letter-spacing:-0.035em;
+    line-height:1;
+    white-space:nowrap;
+  }
+
+  .hero-sub{
+    display:grid;
+    grid-template-columns:repeat(12,1fr);
+    gap:16px;
+    margin-top:clamp(24px,3.6vh,40px);
+    padding-top:14px;
+    border-top:1px solid var(--ink);
+  }
+
+  .hero-sub p{
+    grid-column:span 7;
+    margin:0;
+    font-size:clamp(13px,1.15vw,15px);
+    line-height:1.75;
+    max-width:58ch;
+  }
+
+  .hero-sub dl{
+    grid-column:span 5;
+    justify-self:end;
+    margin:0;
+    display:flex;
+    gap:clamp(18px,2.6vw,40px);
+  }
+
+  .hero-sub dt{
+    font-size:10px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+  }
+
+  .hero-sub dd{
+    margin:6px 0 0;
+    font-size:clamp(17px,1.7vw,23px);
+    font-weight:700;
+    letter-spacing:-0.02em;
     font-variant-numeric:tabular-nums;
   }
-  .txt b{display:block;font-size:19px;font-weight:600;letter-spacing:.04em;color:#f0e4c6;transition:color .2s ease}
-  a.entry:hover .txt b{color:var(--patina-lit)}
-  .txt span{display:block;margin-top:6px;font-size:12px;line-height:1.6;color:var(--mute)}
-  .txt em{font-style:normal;color:var(--bronze);letter-spacing:.1em;margin-right:8px}
-  .go{
-    font-size:10px;letter-spacing:.22em;color:var(--mute);
-    display:flex;align-items:center;gap:8px;white-space:nowrap;
-    transition:color .2s ease;
-  }
-  a.entry:hover .go{color:var(--patina-lit)}
-  .go::after{content:"→";font-size:13px;letter-spacing:0}
 
-  footer{
-    margin-top:clamp(30px,5vh,46px);padding-top:18px;border-top:1px solid var(--line);
-    display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
-    font-size:10.5px;letter-spacing:.16em;color:var(--mute);
-  }
-  footer a{color:var(--bronze-dim);text-decoration:none;transition:color .2s}
-  footer a:hover{color:var(--gold)}
+  /* ------------------------------------------------------------ 三个入口 */
 
-  @media (max-width:560px){
-    a.entry{grid-template-columns:34px 1fr;gap:12px;padding:18px 16px}
-    .go{display:none}
-    .txt b{font-size:17px}
-    .meta{text-align:left}
-    footer{font-size:10px}
+  .entries{
+    padding-top:clamp(40px,7vh,88px);
+    padding-bottom:clamp(40px,7vh,88px);
+  }
+
+  .entries-hd{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:16px;
+    padding-bottom:12px;
+    border-bottom:1px solid var(--ink);
+  }
+
+  .entries-hd h2{
+    margin:0;
+    font-size:clamp(13px,1.15vw,15px);
+    font-weight:700;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+  }
+
+  .entries-hd span{
+    font-size:10px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--mute);
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(12,1fr);
+    gap:clamp(12px,1.6vw,20px);
+    margin-top:clamp(20px,3vh,32px);
+  }
+
+  /* 卡片：直角、1px 黑框、无阴影。
+     hover 只做三件事：背景转 #f0f0f0、边框转红、标签转红 + 箭头右移。 */
+  .card{
+    grid-column:span 4;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    min-height:clamp(190px,20vw,240px);
+    border:1px solid var(--ink);
+    background:var(--paper);
+    padding:clamp(16px,1.8vw,24px);
+    text-decoration:none;
+    color:var(--ink);
+    transition:background-color 150ms ease-out,border-color 150ms ease-out;
+  }
+
+  .card:hover,
+  .card:focus-visible{
+    background:var(--wash);
+    border-color:var(--red);
+  }
+
+  .card-top{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:12px;
+  }
+
+  .card-no{
+    font-size:11px;
+    letter-spacing:0.14em;
+    color:var(--mute);
+    font-variant-numeric:tabular-nums;
+    transition:color 150ms ease-out;
+  }
+
+  .card:hover .card-no{color:var(--red)}
+
+  .card-tag{
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--mute);
+    transition:color 150ms ease-out;
+  }
+
+  .card:hover .card-tag{color:var(--red)}
+
+  .card-mid{margin-top:clamp(24px,3vw,36px)}
+
+  .card h3{
+    margin:0;
+    font-size:clamp(18px,1.9vw,24px);
+    font-weight:700;
+    letter-spacing:-0.02em;
+    line-height:1.15;
+  }
+
+  .card p{
+    margin:8px 0 0;
+    font-size:clamp(12px,1vw,13px);
+    line-height:1.7;
+    color:var(--mute);
+    max-width:34ch;
+  }
+
+  .card-go{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:12px;
+    margin-top:clamp(20px,2.6vw,32px);
+    padding-top:12px;
+    border-top:1px solid var(--line);
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    transition:border-color 150ms ease-out;
+  }
+
+  .card:hover .card-go{border-top-color:var(--red)}
+
+  /* 与一级索引同一套口径：静止态先退后 8px，hover 时把这段轨道填满 */
+  .card-arrow{
+    display:block;
+    font-size:17px;
+    line-height:1;
+    margin-right:8px;
+    transition:transform 150ms ease-out,color 150ms ease-out;
+  }
+
+  .card:hover .card-arrow,
+  .card:focus-visible .card-arrow{
+    transform:translateX(8px);
+    color:var(--red);
+  }
+
+  /* ------------------------------------------------------------ 数据 */
+
+  .facts{
+    padding-bottom:clamp(40px,7vh,88px);
+  }
+
+  .facts-grid{
+    display:grid;
+    grid-template-columns:repeat(12,1fr);
+    gap:clamp(12px,1.6vw,20px);
+    border-top:1px solid var(--ink);
+    padding-top:clamp(16px,2.4vh,24px);
+  }
+
+  .fact{grid-column:span 2}
+
+  .fact dt{
+    font-size:10px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--mute);
+  }
+
+  .fact dd{
+    margin:8px 0 0;
+    font-size:clamp(24px,3.4vw,44px);
+    font-weight:700;
+    letter-spacing:-0.035em;
+    line-height:1;
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* ------------------------------------------------------------ 关于 */
+
+  .about{
+    padding-bottom:clamp(48px,8vh,104px);
+  }
+
+  .about-grid{
+    display:grid;
+    grid-template-columns:repeat(12,1fr);
+    gap:clamp(16px,2.4vw,40px);
+    border-top:1px solid var(--ink);
+    padding-top:20px;
+  }
+
+  .about-main{grid-column:span 7}
+  .about-side{grid-column:span 5}
+
+  .about h2{
+    margin:0 0 12px;
+    font-size:clamp(15px,1.3vw,17px);
+    font-weight:700;
+    letter-spacing:0.02em;
+  }
+
+  .about p{
+    margin:0 0 12px;
+    font-size:13.5px;
+    line-height:1.85;
+    max-width:62ch;
+  }
+
+  .about p.mute{color:var(--mute)}
+
+  .about b{font-weight:700}
+
+  .about em{
+    font-style:normal;
+    color:var(--red);
+    font-weight:700;
+  }
+
+  .about-side dl{
+    margin:0;
+    display:grid;
+    grid-template-columns:1fr;
+    gap:0;
+  }
+
+  .about-side .kv{
+    display:flex;
+    justify-content:space-between;
+    gap:16px;
+    padding:9px 0;
+    border-bottom:1px solid var(--line);
+    font-size:12px;
+  }
+
+  .about-side .kv dt{color:var(--mute);letter-spacing:0.04em}
+  .about-side .kv dd{margin:0;font-variant-numeric:tabular-nums}
+
+  /* ------------------------------------------------------------ 页脚 */
+
+  .foot{
+    background:var(--ink);
+    color:var(--paper);
+  }
+
+  .foot-in{
+    display:grid;
+    grid-template-columns:repeat(12,1fr);
+    gap:clamp(16px,2.4vw,40px);
+    padding-top:clamp(32px,5vh,56px);
+    padding-bottom:clamp(32px,5vh,56px);
+  }
+
+  .foot-a{grid-column:span 6}
+  .foot-b{grid-column:span 3}
+  .foot-c{grid-column:span 3;justify-self:end}
+
+  .foot .mark{
+    font-size:clamp(15px,1.6vw,18px);
+    font-weight:700;
+    letter-spacing:-0.01em;
+  }
+
+  .foot p{
+    margin:10px 0 0;
+    font-size:12px;
+    line-height:1.8;
+    color:#b3b3b3;
+    max-width:46ch;
+  }
+
+  .foot h4{
+    margin:0 0 10px;
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:#b3b3b3;
+  }
+
+  .foot ul{list-style:none;margin:0;padding:0}
+  .foot li{margin-bottom:7px}
+
+  .foot a{
+    color:var(--paper);
+    text-decoration:none;
+    font-size:13px;
+    transition:color 150ms ease-out;
+  }
+
+  .foot a:hover{color:var(--red)}
+
+  /* ------------------------------------------------------------ 焦点与动效 */
+
+  a:focus-visible{
+    outline:2px solid var(--ink);
+    outline-offset:3px;
+  }
+
+  .foot a:focus-visible{outline-color:var(--paper)}
+
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important}
+    .card:hover .card-arrow,
+    .card:focus-visible .card-arrow{transform:none}
+  }
+
+  /* ------------------------------------------------------------ 窄屏 */
+
+  @media (max-width:980px){
+    .card{grid-column:span 6}
+    .fact{grid-column:span 3}
+    .about-main,.about-side{grid-column:span 12}
+  }
+
+  /* 极窄屏兜底：nowrap 的标题在 240px 以下会顶出横向滚动条 */
+  @media (max-width:420px){
+    .hero h1{white-space:normal;font-size:26px;line-height:1.15}
+  }
+
+  @media (max-width:700px){
+    .hero-sub p,
+    .hero-sub dl{grid-column:span 12}
+    .hero-sub dl{justify-self:start;margin-top:6px;flex-wrap:wrap}
+    .card{grid-column:span 12;min-height:0}
+    .fact{grid-column:span 4}
+    .foot-a,.foot-b,.foot-c{grid-column:span 12;justify-self:start}
   }
 </style>
 </head>
 <body>
-<main>
-  <div class="hd">
-    <h1>
-      双刃战士 · 纵目
-      <small>Sanxingdui · Double Blade</small>
-    </h1>
-    <div class="meta">
-      6 阵 · 11 把武器 · 4 类敌人<br>
-      328 张素材
+
+<nav class="nav">
+  <div class="wrap nav-in">
+    <div class="crumb">
+      <a href="/">zlzayn.site</a>
+      <span>/</span>
+      <span>双刃战士 · 纵目</span>
+    </div>
+    <span class="nav-meta">Sanxingdui / 2026</span>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap hero-in">
+    <h1>双刃战士 · 纵目</h1>
+    <div class="hero-sub">
+      <p>
+        三星堆青铜人头像主题的双人同屏横版动作游戏。
+        两个人挤在一台电脑前，各握双刃，一路砍过去。
+      </p>
+      <dl>
+        <div><dt>阵次</dt><dd>06</dd></div>
+        <div><dt>武器</dt><dd>11</dd></div>
+        <div><dt>素材</dt><dd>328</dd></div>
+      </dl>
     </div>
   </div>
+</header>
 
-  <ul>
-    <li>
-      <a class="entry" href="play/">
-        <span class="no">01</span>
-        <span class="txt">
-          <b>桌面端</b>
-          <span><em>DESKTOP</em>键盘或手柄 · 双人同屏 · 零安装直开</span>
-        </span>
-        <span class="go">开始</span>
-      </a>
-    </li>
-    <li>
-      <a class="entry" href="play/mobile.html">
-        <span class="no">02</span>
-        <span class="txt">
-          <b>手机端</b>
-          <span><em>MOBILE</em>屏幕虚拟键 · 建议横屏 · 可添加到主屏</span>
-        </span>
-        <span class="go">开始</span>
-      </a>
-    </li>
-    <li>
-      <a class="entry" href="showcase/">
-        <span class="no">03</span>
-        <span class="txt">
-          <b>素材总览</b>
-          <span><em>ASSET SHOWCASE</em>249 帧动画 + 79 张静态 · 7 个分区 · 点开看大图</span>
-        </span>
-        <span class="go">查看</span>
-      </a>
-    </li>
-  </ul>
+<main>
+  <section class="wrap entries">
+    <div class="entries-hd">
+      <h2>Enter</h2>
+      <span>三个入口</span>
+    </div>
 
-  <footer>
-    <span>东莞市博物馆 × 碳基社区 · AI 创作者进馆计划</span>
-    <a href="/">← 返回站点首页</a>
-  </footer>
+    <div class="grid">
+      <a class="card" href="play/">
+        <div class="card-top">
+          <span class="card-no">01</span>
+          <span class="card-tag">Desktop</span>
+        </div>
+        <div class="card-mid">
+          <h3>桌面端</h3>
+          <p>键盘或手柄，双人同屏。方向键与攻击键分属两人，互不干扰。</p>
+        </div>
+        <div class="card-go">
+          <span>开始</span>
+          <span class="card-arrow" aria-hidden="true">→</span>
+        </div>
+      </a>
+
+      <a class="card" href="play/mobile.html">
+        <div class="card-top">
+          <span class="card-no">02</span>
+          <span class="card-tag">Mobile</span>
+        </div>
+        <div class="card-mid">
+          <h3>手机端</h3>
+          <p>屏幕虚拟键，建议横屏。可添加到主屏，从图标启动即全屏。</p>
+        </div>
+        <div class="card-go">
+          <span>开始</span>
+          <span class="card-arrow" aria-hidden="true">→</span>
+        </div>
+      </a>
+
+      <a class="card" href="showcase/">
+        <div class="card-top">
+          <span class="card-no">03</span>
+          <span class="card-tag">Showcase</span>
+        </div>
+        <div class="card-mid">
+          <h3>素材总览</h3>
+          <p>249 帧动画与 79 张静态素材，分 7 个区陈列，可以逐格放大看。</p>
+        </div>
+        <div class="card-go">
+          <span>查看</span>
+          <span class="card-arrow" aria-hidden="true">→</span>
+        </div>
+      </a>
+    </div>
+  </section>
+
+  <section class="wrap facts">
+    <dl class="facts-grid">
+      <div class="fact"><dt>动作</dt><dd>12</dd></div>
+      <div class="fact"><dt>动画帧</dt><dd>249</dd></div>
+      <div class="fact"><dt>敌人</dt><dd>04</dd></div>
+      <div class="fact"><dt>关卡阵次</dt><dd>06</dd></div>
+      <div class="fact"><dt>投掷物</dt><dd>04</dd></div>
+      <div class="fact"><dt>双人同屏</dt><dd>02</dd></div>
+    </dl>
+  </section>
+
+  <section class="wrap about">
+    <div class="about-grid">
+      <div class="about-main">
+        <h2>青铜上的绿，与吃掉青铜的东西</h2>
+        <p>
+          <b>青铜器表面的绿是一层保护膜。</b>碱式碳酸铜，致密、稳定，把金属基体封在里面 ——
+          正是它让一件铜器在祭祀坑里躺三千年，挖出来还能看出眉眼。
+        </p>
+        <p>
+          <b>但长成浅绿粉末的那层不是。</b>它叫<em>青铜癌</em>：粉状锈，成分以氯铜矿为主，
+          带着氯离子自己催化自己 —— 生成物又去腐蚀新的铜，循环不停，一路把铜吃掉，
+          最后器物从里往外酥空、塌成齑粉。博物馆最怕的就是它，一旦见粉就得立刻除氯、
+          缓蚀、密封干燥。
+        </p>
+        <p class="mute">
+          游戏里锈从坑壁爬上来、漫过祭祀坑、钻进兵俑的甲片，讲的就是这个。
+          锈不是背景色，它是一个还在进行的反应。
+        </p>
+      </div>
+
+      <div class="about-side">
+        <h2>资料</h2>
+        <dl>
+          <div class="kv"><dt>原型</dt><dd>青铜人头像</dd></div>
+          <div class="kv"><dt>年代</dt><dd>商代 · 距今 3200—3000 年</dd></div>
+          <div class="kv"><dt>出土</dt><dd>三星堆八号祭祀坑 · 2022</dd></div>
+          <div class="kv"><dt>藏地</dt><dd>三星堆博物馆</dd></div>
+          <div class="kv"><dt>玩法</dt><dd>横版清版 · 六阵递进</dd></div>
+        </dl>
+        <p class="mute" style="margin-top:14px;font-size:11.5px;line-height:1.8;color:#666">
+          锈蚀、双刃与神树场景为游戏化艺术处理，非考古复原。
+        </p>
+      </div>
+    </div>
+  </section>
 </main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <div class="foot-a">
+      <span class="mark">双刃战士 · 纵目</span>
+      <p>东莞市博物馆 × 碳基社区「AI 创作者进馆计划」参赛作品（AI 编程赛道）。</p>
+    </div>
+    <div class="foot-b">
+      <h4>入口</h4>
+      <ul>
+        <li><a href="play/">桌面端</a></li>
+        <li><a href="play/mobile.html">手机端</a></li>
+        <li><a href="showcase/">素材总览</a></li>
+      </ul>
+    </div>
+    <div class="foot-c">
+      <h4>索引</h4>
+      <ul>
+        <li><a href="/">← 返回站点首页</a></li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
 </body>
 </html>

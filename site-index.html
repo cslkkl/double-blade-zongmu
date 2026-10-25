@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>zlzayn.site — 作品索引</title>
+<meta name="description" content="zlzayn.site 的作品索引：三星堆横版动作游戏、数据可视化、AI 项目作品集。">
+<meta name="theme-color" content="#ffffff">
+<style>
+  /* ==================================================================
+     Swiss International Style — 站点一级索引
+     ------------------------------------------------------------------
+     配色只用 #000 / #fff / #ff0000。无圆角、无阴影、无渐变。
+     交互只改颜色与边框色；唯一的位移是箭头。过渡 150ms ease-out。
+     左对齐。索引页只写访客需要的信息，运维细节见站点根 README.md。
+     ================================================================== */
+
+  :root{
+    --ink:#000000;
+    --paper:#ffffff;
+    --red:#ff0000;
+    --line:#cccccc;
+    --wash:#f0f0f0;
+    --mute:#666666;
+    --pad:clamp(20px, 4vw, 64px);
+  }
+
+  *,*::before,*::after{box-sizing:border-box}
+
+  html{-webkit-text-size-adjust:100%}
+
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Helvetica Neue",Helvetica,Arial,"Liberation Sans",
+                "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    font-size:16px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .wrap{
+    max-width:1440px;
+    margin:0 auto;
+    padding-left:var(--pad);
+    padding-right:var(--pad);
+  }
+
+  /* ------------------------------------------------------------ 导航 */
+
+  .nav{border-bottom:1px solid var(--ink)}
+
+  .nav-in{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:16px;
+    padding-top:18px;
+    padding-bottom:18px;
+  }
+
+  .mark{
+    font-size:clamp(15px,1.6vw,19px);
+    font-weight:700;
+    letter-spacing:-0.01em;
+    text-decoration:none;
+    color:var(--ink);
+  }
+
+  .nav-meta{
+    font-size:10px;
+    letter-spacing:0.2em;
+    text-transform:uppercase;
+    color:var(--mute);
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* ------------------------------------------------------------ 首屏 */
+
+  .hero{
+    padding-top:clamp(56px,11vh,140px);
+    padding-bottom:clamp(44px,8vh,96px);
+  }
+
+  /* 汉字没有上下伸部，行高不能压到拉丁那种 0.84 —— 单行也要留呼吸 */
+  .hero h1{
+    margin:0;
+    font-size:clamp(42px,9.4vw,140px);
+    font-weight:700;
+    letter-spacing:-0.04em;
+    line-height:1;
+  }
+
+  /* ------------------------------------------------------------ 索引列表 */
+
+  .index{
+    padding-bottom:clamp(56px,10vh,128px);
+  }
+
+  .index-hd{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:16px;
+    padding-bottom:12px;
+    border-bottom:1px solid var(--ink);
+  }
+
+  .index-hd h2{
+    margin:0;
+    font-size:clamp(13px,1.15vw,15px);
+    font-weight:700;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+  }
+
+  .index-hd span{
+    font-size:10px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--mute);
+    font-variant-numeric:tabular-nums;
+  }
+
+  .rows{list-style:none;margin:0;padding:0}
+
+  .row{
+    border-bottom:1px solid var(--line);
+    transition:background-color 150ms ease-out,border-color 150ms ease-out;
+  }
+
+  .row a{
+    display:grid;
+    grid-template-columns:56px minmax(0,1.3fr) minmax(0,1fr) 32px;
+    align-items:baseline;
+    gap:clamp(12px,2vw,32px);
+    padding:clamp(24px,3.6vh,40px) 0;
+    text-decoration:none;
+    color:var(--ink);
+  }
+
+  /* 结构线激活：底线转红、背景上浮一档灰，编号与类别标签转红 */
+  .row:hover,
+  .row:focus-within{
+    background:var(--wash);
+    border-bottom-color:var(--red);
+  }
+
+  .no{
+    font-size:11px;
+    letter-spacing:0.14em;
+    color:var(--mute);
+    font-variant-numeric:tabular-nums;
+    transition:color 150ms ease-out;
+  }
+
+  .row:hover .no,
+  .row:focus-within .no{color:var(--red)}
+
+  .name{
+    font-size:clamp(20px,2.5vw,34px);
+    font-weight:700;
+    letter-spacing:-0.028em;
+    line-height:1.1;
+  }
+
+  .desc{
+    font-size:clamp(12px,1.05vw,14px);
+    line-height:1.7;
+    color:var(--mute);
+    max-width:48ch;
+  }
+
+  .desc b{
+    display:block;
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--ink);
+    margin-bottom:7px;
+    transition:color 150ms ease-out;
+  }
+
+  .row:hover .desc b,
+  .row:focus-within .desc b{color:var(--red)}
+
+  /* 箭头列 32px，箭头静止时不贴右边界，先退后 8px ——
+     hover 时的位移正好把这 8px 填满，末端停在网格线上，不探出内容区。
+     运动的量必须在静止态就预留好，否则位移就是把元素挤出网格。 */
+  .arrow{
+    display:block;
+    font-size:18px;
+    line-height:1;
+    justify-self:end;
+    margin-right:8px;
+    transition:transform 150ms ease-out,color 150ms ease-out;
+  }
+
+  .row:hover .arrow,
+  .row:focus-within .arrow{
+    transform:translateX(8px);
+    color:var(--red);
+  }
+
+  /* ------------------------------------------------------------ 页脚 */
+
+  .foot{
+    background:var(--ink);
+    color:var(--paper);
+  }
+
+  .foot-in{
+    display:grid;
+    grid-template-columns:repeat(12,1fr);
+    gap:clamp(16px,2.4vw,40px);
+    padding-top:clamp(32px,5vh,56px);
+    padding-bottom:clamp(32px,5vh,56px);
+  }
+
+  .foot-a{grid-column:span 6}
+  .foot-b{grid-column:span 3}
+  .foot-c{grid-column:span 3;justify-self:end}
+
+  .foot .mark{color:var(--paper)}
+
+  .foot p{
+    margin:10px 0 0;
+    font-size:12px;
+    line-height:1.8;
+    color:#b3b3b3;
+    max-width:40ch;
+  }
+
+  .foot h4{
+    margin:0 0 10px;
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:#b3b3b3;
+  }
+
+  .foot ul{list-style:none;margin:0;padding:0}
+  .foot li{margin-bottom:7px}
+
+  .foot a{
+    color:var(--paper);
+    text-decoration:none;
+    font-size:13px;
+    transition:color 150ms ease-out;
+  }
+
+  .foot a:hover{color:var(--red)}
+
+  /* ------------------------------------------------------------ 焦点与动效 */
+
+  a:focus-visible,
+  .row a:focus-visible{
+    outline:2px solid var(--ink);
+    outline-offset:3px;
+  }
+
+  .foot a:focus-visible{outline-color:var(--paper)}
+
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important}
+    .row:hover .arrow,
+    .row:focus-within .arrow{transform:none}
+  }
+
+  /* ------------------------------------------------------------ 窄屏 */
+
+  @media (max-width:860px){
+    .row a{grid-template-columns:40px minmax(0,1fr) 28px;gap:12px}
+    .desc{grid-column:2 / -1;margin-top:6px}
+    .foot-a{grid-column:span 12}
+    .foot-b,.foot-c{grid-column:span 6;justify-self:start}
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap nav-in">
+    <a class="mark" href="/">zlzayn.site</a>
+    <span class="nav-meta">Index</span>
+  </div>
+</nav>
+
+<main>
+  <section class="wrap hero">
+    <h1>作品索引</h1>
+  </section>
+
+  <section class="wrap index">
+    <div class="index-hd">
+      <h2>Projects</h2>
+      <span>04</span>
+    </div>
+
+    <ul class="rows">
+      <li class="row">
+        <a href="/zongmu/">
+          <span class="no">01</span>
+          <span class="name">双刃战士 · 纵目</span>
+          <span class="desc">
+            <b>Action Game</b>
+            三星堆青铜人头像主题的双人同屏横版动作。键盘或手柄，也能在手机上玩。
+          </span>
+          <span class="arrow" aria-hidden="true">→</span>
+        </a>
+      </li>
+      <li class="row">
+        <a href="/tidytuesday/">
+          <span class="no">02</span>
+          <span class="name">TidyTuesday 可视化</span>
+          <span class="desc">
+            <b>Data Visualization</b>
+            每周数据集的图表合集，按周归档。
+          </span>
+          <span class="arrow" aria-hidden="true">→</span>
+        </a>
+      </li>
+      <li class="row">
+        <a href="/ai-portfolio/">
+          <span class="no">03</span>
+          <span class="name">AI 项目作品集</span>
+          <span class="desc">
+            <b>Portfolio</b>
+            AI 项目索引与说明。
+          </span>
+          <span class="arrow" aria-hidden="true">→</span>
+        </a>
+      </li>
+      <li class="row">
+        <a href="/hc-activity/">
+          <span class="no">04</span>
+          <span class="name">2048</span>
+          <span class="desc">
+            <b>Game</b>
+            极简的数字合并，手指划或方向键操作。
+          </span>
+          <span class="arrow" aria-hidden="true">→</span>
+        </a>
+      </li>
+    </ul>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <div class="foot-a">
+      <span class="mark">zlzayn.site</span>
+      <p>个人作品站。</p>
+    </div>
+    <div class="foot-b">
+      <h4>项目</h4>
+      <ul>
+        <li><a href="/zongmu/">双刃战士 · 纵目</a></li>
+        <li><a href="/tidytuesday/">TidyTuesday</a></li>
+        <li><a href="/ai-portfolio/">作品集</a></li>
+        <li><a href="/hc-activity/">2048</a></li>
+      </ul>
+    </div>
+    <div class="foot-c">
+      <h4>更多</h4>
+      <ul>
+        <li><a href="/zongmu/showcase/">素材总览</a></li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
