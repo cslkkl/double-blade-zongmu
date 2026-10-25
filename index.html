@@ -2,7 +2,11 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- maximum-scale=1 / user-scalable=no 是「双击放大」的第一道闸。
+     安卓 Chrome、Safari、以及大部分国产浏览器认这两条；不认的那批
+     （老 WebView、部分 ROM 浏览器）由 index.html 里的双击守卫兜底 ——
+     JS 那一道才是唯一所有内核都吃得下的。 -->
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- 手机端默认横屏。
      这两条是国产浏览器内核（X5 / UC）专有的私有 meta，标准里没有，
      但微信、QQ、UC、部分国产 ROM 的浏览器**只认它们** ——
@@ -434,20 +438,20 @@
      而且刷新几次都改不掉 —— 缓存不认文件名。
      这个项目没有构建步骤（禁 npm / CDN，file:// 要能双击跑），
      所以版本号靠手改；改 js/ 就 bump 一次。
-     当前版本：20261025-g（g = 手机端默认横屏：X5 私有 meta + 全屏锁方向 + 「横屏进入」按钮；f = 刀光凸背朝向）
+     当前版本：20261025-h（h = 掐掉双击放大 / 双指缩放 / 整页捏合；g = 手机端默认横屏）
      —— 两边曾各自把版本号提到 e，同号两个版本会让缓存分不清，合并后统一顺延。 -->
-<script src="js/assets.js?v=20261025g"></script>
-<script src="js/anim-data.js?v=20261025g"></script>
-<script src="js/background.js?v=20261025g"></script>
-<script src="js/char-rig.js?v=20261025g"></script>
-<script src="js/enemies-assets.js?v=20261025g"></script>
-<script src="js/fx.js?v=20261025g"></script>
-<script src="js/guide.js?v=20261025g"></script>
-<script src="js/rumble.js?v=20261025g"></script>
-<script src="js/touch.js?v=20261025g"></script>
-<script src="js/ui-shell.js?v=20261025g"></script>
-<script src="js/audio.js?v=20261025g"></script>
-<script src="js/intro-video.js?v=20261025g"></script>
+<script src="js/assets.js?v=20261025h"></script>
+<script src="js/anim-data.js?v=20261025h"></script>
+<script src="js/background.js?v=20261025h"></script>
+<script src="js/char-rig.js?v=20261025h"></script>
+<script src="js/enemies-assets.js?v=20261025h"></script>
+<script src="js/fx.js?v=20261025h"></script>
+<script src="js/guide.js?v=20261025h"></script>
+<script src="js/rumble.js?v=20261025h"></script>
+<script src="js/touch.js?v=20261025h"></script>
+<script src="js/ui-shell.js?v=20261025h"></script>
+<script src="js/audio.js?v=20261025h"></script>
+<script src="js/intro-video.js?v=20261025h"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -737,6 +741,68 @@ window.addEventListener("blur", function(){
     e.preventDefault();
   }, { capture: true, passive: false });
 });
+
+/* ---------------- 双击放大 / 双指缩放：掐掉 ----------------
+   为什么光靠 CSS 和 meta 不够：
+     `touch-action:none` 与 `user-scalable=no` 是**建议**，安卓 Chrome 与
+     Safari 认，但老 WebView、部分国产 ROM 浏览器、以及一些定制内核不认 ——
+     玩家报告「双击会放大」就是这批。只有 JS 层的 preventDefault 是所有内核
+     都吃得下的那一道。
+
+   为什么只掐「第二次落下的抬手」而不是无脑掐 touchstart：
+     一局里同时两根手指是**正常玩法**（双人同屏、单人两只拇指同时按方向与
+     刀）。在 touchstart 上 preventDefault 会连带把 pointerdown 一起吞掉，
+     虚拟键当场失灵。所以这里只认「单指、短时间内、同一位置附近」的第二次
+     抬手，多指一律放过：
+       · 第一条手指照常走完整链路（含 click 合成），按钮不受影响；
+       · 第二次抬手才 preventDefault —— 顺手也吞掉它合成的那一下 click，
+         免得一个双击把按钮激活两次。
+
+   另外两条是老 Safari 的独立通道，与上面互不覆盖：
+     gesturestart / gesturechange —— iOS 上「整页」双指缩放走的是这三个事件，
+       不吃 touch-action；它们只在特意捏合时触发，不干扰对局，吞掉无副作用。
+     dblclick —— 桌面触控板 / 鼠标双击，吞掉可以避免顺带选中一片文字。 */
+(function(){
+  var DBL_MS = 320;        /* 两次落下的最大间隔；浏览器自己的判定约 300ms */
+  var DBL_PX = 30;         /* 两次落点允许的漂移，太严会让「手抖的双击」漏过 */
+  var lastAt = 0, lastX = 0, lastY = 0;
+
+  function ptOf(e){
+    var t = e.changedTouches && e.changedTouches[0];
+    if (!t) return null;
+    return { x: t.clientX, y: t.clientY };
+  }
+
+  window.addEventListener("touchend", function(e){
+    /* 多指：这是玩法，不是手势，整段放过（否则 pointer 事件会被连带吞掉） */
+    if (!e.changedTouches || e.changedTouches.length !== 1) { lastAt = 0; return; }
+    if (e.touches && e.touches.length > 0) { lastAt = 0; return; }
+    var p = ptOf(e);
+    if (!p) return;
+    var now = (window.performance && performance.now) ? performance.now() : Date.now();
+    if (lastAt && (now - lastAt) <= DBL_MS &&
+        Math.abs(p.x - lastX) <= DBL_PX && Math.abs(p.y - lastY) <= DBL_PX) {
+      /* 第二次抬手：这一次就是「双击」，掐掉缩放与合成 click */
+      if (e.cancelable) e.preventDefault();
+      lastAt = 0;
+      return;
+    }
+    lastAt = now; lastX = p.x; lastY = p.y;
+  }, { capture: true, passive: false });
+
+  /* iOS 的整页捏合缩放（不吃 touch-action） */
+  ["gesturestart","gesturechange","gestureend"].forEach(function(ev){
+    window.addEventListener(ev, function(e){
+      if (e.cancelable) e.preventDefault();
+    }, { capture: true, passive: false });
+  });
+
+  /* 桌面双击：避免顺手选中一片文字（缩放在桌面本来就没有） */
+  window.addEventListener("dblclick", function(e){
+    if (e.cancelable) e.preventDefault();
+  }, { capture: true, passive: false });
+})();
+
 
 var PADS = [null,null];
 /* 手柄列表与「按哪个设备显示提示」都归 js/guide.js 管：它自己轮询、自己判断
