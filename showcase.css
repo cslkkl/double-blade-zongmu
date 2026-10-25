@@ -30,7 +30,9 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-::selection { background: #d8e8e0; }
+/* 选中文字：默认的浏览器蓝与这套白底 + 青铜绿不搭。
+   用页面唯一的强调色做实底（白字 6.11:1），不引入新色相。 */
+::selection { background: #3d6b57; color: #ffffff; }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: #e4e4e4; }

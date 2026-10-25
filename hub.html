@@ -5,24 +5,32 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>双刃战士 · 纵目 — 入口</title>
 <meta name="description" content="三星堆青铜人头像主题的双人同屏横版动作游戏：桌面端、手机端、素材总览。">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#f7f4ec">
 <link rel="icon" href="play/assets/icon/favicon.ico">
 <style>
   /* ==================================================================
-     Swiss International Style — 项目二级索引
+     项目二级索引 — 瑞士式骨架，青铜配色
      ------------------------------------------------------------------
-     配色：#000 / #fff / #ff0000。无圆角、无阴影、无渐变。
-     交互只改颜色与边框色；唯一的位移是按钮箭头。
-     全部过渡 150ms ease-out。左对齐，标题超大粗体紧凑行高。
+     排版骨架仍是瑞士国际风格（严格网格、无圆角、无阴影、无渐变、
+     左对齐、箭头是唯一位移、150ms ease-out），但颜色不再用黑白红，
+     而是取自游戏自己的背景层 assets/bg-mid.webp：
+
+       深墨绿 #273b2f / #1e2a20   坑壁与柱影
+       金黄   #e8b75f / #bf9a50   夕照与台基高光
+       陶土棕 #7c5a2a / #a77b3a   夯土与陶器
+
+     也就是说：本站一级索引走黑白红，进了项目就走项目自己的色。
      ================================================================== */
 
   :root{
-    --ink:#000000;
-    --paper:#ffffff;
-    --red:#ff0000;
-    --line:#cccccc;
-    --wash:#f0f0f0;
-    --mute:#666666;
+    --ink:#1e2a20;      /* 深墨绿：正文与边框 */
+    --paper:#f7f4ec;    /* 暖白：底色（不是纯白，带一点土调） */
+    --gold:#e8b75f;     /* 金黄：hero 底色 / 深底上的链接 hover */
+    --clay:#7c5a2a;     /* 陶土棕：浅底上的 hover 文字与边框 */
+    --patina:#3d6b57;   /* 青铜绿：语义色，与素材总览页共用同一个值 */
+    --line:#d9d3c2;     /* 暖灰：分隔线 */
+    --wash:#efe9d9;     /* hover 背景 */
+    --mute:#6b6555;     /* 弱化文字 */
     --pad:clamp(20px, 4vw, 64px);
   }
 
@@ -82,7 +90,7 @@
     transition:border-color 150ms ease-out,color 150ms ease-out;
   }
 
-  .crumb a:hover{color:var(--red);border-bottom-color:var(--red)}
+  .crumb a:hover{color:var(--clay);border-bottom-color:var(--clay)}
 
   .crumb span{color:var(--mute)}
 
@@ -100,7 +108,7 @@
      Hero 用纯红实色块，黑字压在上面：对比度 5.25:1，过 WCAG AA。 */
 
   .hero{
-    background:var(--red);
+    background:var(--gold);
     color:var(--ink);
   }
 
@@ -216,7 +224,7 @@
   .card:hover,
   .card:focus-visible{
     background:var(--wash);
-    border-color:var(--red);
+    border-color:var(--clay);
   }
 
   .card-top{
@@ -234,7 +242,7 @@
     transition:color 150ms ease-out;
   }
 
-  .card:hover .card-no{color:var(--red)}
+  .card:hover .card-no{color:var(--clay)}
 
   .card-tag{
     font-size:10px;
@@ -245,7 +253,30 @@
     transition:color 150ms ease-out;
   }
 
-  .card:hover .card-tag{color:var(--red)}
+  .card:hover .card-tag{color:var(--clay)}
+
+  /* 卡片图标做成「标题前面的符号」，与文字同一行 ——
+     不单独占一行，卡片高度不变。
+     线性几何、currentColor 描边，hover 时只跟着颜色变量走。 */
+  .card h3{
+    display:flex;
+    align-items:center;
+    gap:9px;
+  }
+  .card-icon{
+    flex:none;
+    display:block;
+    width:22px;
+    height:22px;
+    color:var(--ink);
+    transition:color 150ms ease-out;
+  }
+  .card:hover .card-icon,
+  .card:focus-visible .card-icon{color:var(--clay)}
+  .card-icon path,
+  .card-icon rect,
+  .card-icon line,
+  .card-icon circle{stroke:currentColor;stroke-width:1.9;fill:none;vector-effect:non-scaling-stroke}
 
   .card-mid{margin-top:clamp(24px,3vw,36px)}
 
@@ -280,7 +311,7 @@
     transition:border-color 150ms ease-out;
   }
 
-  .card:hover .card-go{border-top-color:var(--red)}
+  .card:hover .card-go{border-top-color:var(--clay)}
 
   /* 与一级索引同一套口径：静止态先退后 8px，hover 时把这段轨道填满 */
   .card-arrow{
@@ -294,7 +325,7 @@
   .card:hover .card-arrow,
   .card:focus-visible .card-arrow{
     transform:translateX(8px);
-    color:var(--red);
+    color:var(--clay);
   }
 
   /* ------------------------------------------------------------ 数据 */
@@ -364,9 +395,14 @@
 
   .about b{font-weight:700}
 
+  /* 语义色 ≠ 主题色。
+     青铜癌是浅绿粉末（氯铜矿），拿陶土棕去标它是说反了；
+     这个词必须用绿，而且要和素材总览页的「青铜癌」同一个绿
+     （showcase.css 的 .gloss em 也是 #3d6b57），否则同一个项目里
+     同一句话会出现两种颜色。 */
   .about em{
     font-style:normal;
-    color:var(--red);
+    color:var(--patina);
     font-weight:700;
   }
 
@@ -441,7 +477,17 @@
     transition:color 150ms ease-out;
   }
 
-  .foot a:hover{color:var(--red)}
+  /* 深墨绿底上陶土棕只有 2.5:1，看不清 —— 深底上的 hover 一律用金黄 */
+  .foot a:hover{color:var(--gold)}
+
+  /* ------------------------------------------------------------ 选中文字
+
+     默认蓝在这套青铜配色里同样出戏。选中用 hero 那一块的金黄实底
+     配墨绿字（8.08:1），既醒目又不引入新的色相。
+     深色页脚反过来用金黄底 + 墨绿字，保证任何底色上都读得清。 */
+
+  ::selection{background:var(--gold);color:var(--ink)}
+  .foot ::selection{background:var(--gold);color:var(--ink)}
 
   /* ------------------------------------------------------------ 焦点与动效 */
 
@@ -525,7 +571,14 @@
           <span class="card-tag">Desktop</span>
         </div>
         <div class="card-mid">
-          <h3>桌面端</h3>
+          <h3>
+            <svg class="card-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <rect x="2" y="3" width="20" height="14"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+            桌面端
+          </h3>
           <p>键盘或手柄，双人同屏。方向键与攻击键分属两人，互不干扰。</p>
         </div>
         <div class="card-go">
@@ -540,7 +593,13 @@
           <span class="card-tag">Mobile</span>
         </div>
         <div class="card-mid">
-          <h3>手机端</h3>
+          <h3>
+            <svg class="card-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <rect x="2" y="7" width="20" height="10"></rect>
+              <line x1="4.5" y1="12" x2="6.5" y2="12"></line>
+            </svg>
+            手机端
+          </h3>
           <p>屏幕虚拟键，建议横屏。可添加到主屏，从图标启动即全屏。</p>
         </div>
         <div class="card-go">
@@ -555,7 +614,14 @@
           <span class="card-tag">Showcase</span>
         </div>
         <div class="card-mid">
-          <h3>素材总览</h3>
+          <h3>
+            <svg class="card-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <rect x="3" y="4" width="18" height="16"></rect>
+              <line x1="12" y1="4" x2="12" y2="20"></line>
+              <line x1="3" y1="12" x2="12" y2="12"></line>
+            </svg>
+            素材总览
+          </h3>
           <p>249 帧动画与 79 张静态素材，分 7 个区陈列，可以逐格放大看。</p>
         </div>
         <div class="card-go">

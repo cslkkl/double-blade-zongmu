@@ -220,8 +220,14 @@
   }
 
   .foot-a{grid-column:span 6}
-  .foot-b{grid-column:span 3}
-  .foot-c{grid-column:span 3;justify-self:end}
+  .foot-b{grid-column:span 6}
+
+  /* 5 个项目排成两列，比竖着拉 5 行短 */
+  .foot-cols{
+    columns:2;
+    column-gap:clamp(16px,2.4vw,40px);
+  }
+  .foot-cols li{break-inside:avoid}
 
   .foot .mark{color:var(--paper)}
 
@@ -254,6 +260,16 @@
 
   .foot a:hover{color:var(--red)}
 
+  /* ------------------------------------------------------------ 选中文字
+
+     默认的浏览器蓝（#3390ff 那一档）在这套黑白红里非常突兀。
+     这里只做一件事：把选中态变成「墨黑实底 + 白字」，
+     与页面唯一的对比色一致，不引入新色相。
+     深色页脚上反过来用白底黑字，否则选中的字和背景一起黑掉。 */
+
+  ::selection{background:var(--ink);color:var(--paper)}
+  .foot ::selection{background:var(--paper);color:var(--ink)}
+
   /* ------------------------------------------------------------ 焦点与动效 */
 
   a:focus-visible,
@@ -276,7 +292,8 @@
     .row a{grid-template-columns:40px minmax(0,1fr) 28px;gap:12px}
     .desc{grid-column:2 / -1;margin-top:6px}
     .foot-a{grid-column:span 12}
-    .foot-b,.foot-c{grid-column:span 6;justify-self:start}
+    .foot-b{grid-column:span 12}
+    .foot-cols{columns:1}
   }
 </style>
 </head>
@@ -297,7 +314,7 @@
   <section class="wrap index">
     <div class="index-hd">
       <h2>Projects</h2>
-      <span>04</span>
+      <span>05</span>
     </div>
 
     <ul class="rows">
@@ -313,8 +330,19 @@
         </a>
       </li>
       <li class="row">
-        <a href="/tidytuesday/">
+        <a href="/tarot/">
           <span class="no">02</span>
+          <span class="name">虚幻塔罗牌</span>
+          <span class="desc">
+            <b>3D Web App</b>
+            鼠标或手势控制的立体塔罗牌，抽牌结果存在本地，下次打开还在。
+          </span>
+          <span class="arrow" aria-hidden="true">→</span>
+        </a>
+      </li>
+      <li class="row">
+        <a href="/tidytuesday/">
+          <span class="no">03</span>
           <span class="name">TidyTuesday 可视化</span>
           <span class="desc">
             <b>Data Visualization</b>
@@ -325,7 +353,7 @@
       </li>
       <li class="row">
         <a href="/ai-portfolio/">
-          <span class="no">03</span>
+          <span class="no">04</span>
           <span class="name">AI 项目作品集</span>
           <span class="desc">
             <b>Portfolio</b>
@@ -336,7 +364,7 @@
       </li>
       <li class="row">
         <a href="/hc-activity/">
-          <span class="no">04</span>
+          <span class="no">05</span>
           <span class="name">2048</span>
           <span class="desc">
             <b>Game</b>
@@ -349,6 +377,9 @@
   </section>
 </main>
 
+<!-- 页脚只放两栏：品牌 + 与上面同级的项目列表。
+     索引是逐层递进的：这一层只指向每个项目的入口，
+     项目内部有哪些页面，由那个项目自己的入口页决定。 -->
 <footer class="foot">
   <div class="wrap foot-in">
     <div class="foot-a">
@@ -357,17 +388,12 @@
     </div>
     <div class="foot-b">
       <h4>项目</h4>
-      <ul>
+      <ul class="foot-cols">
         <li><a href="/zongmu/">双刃战士 · 纵目</a></li>
+        <li><a href="/tarot/">虚幻塔罗牌</a></li>
         <li><a href="/tidytuesday/">TidyTuesday</a></li>
         <li><a href="/ai-portfolio/">作品集</a></li>
         <li><a href="/hc-activity/">2048</a></li>
-      </ul>
-    </div>
-    <div class="foot-c">
-      <h4>更多</h4>
-      <ul>
-        <li><a href="/zongmu/showcase/">素材总览</a></li>
       </ul>
     </div>
   </div>
