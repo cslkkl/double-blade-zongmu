@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>双刃战士 · 纵目</title>
+<meta name="theme-color" content="#0a0b0e">
+<link rel="icon" href="play/assets/icon/favicon.ico">
+<style>
+  :root{
+    color-scheme:dark;
+    --ink:#0a0b0e;
+    --line:#1d211f;
+    --bronze:#8aa08f;
+    --bronze-dim:#5c6f63;
+    --patina:#3d6b57;
+    --patina-lit:#7bb59c;
+    --gold:#c6b998;
+    --mute:#6a7268;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{min-height:100%}
+  body{
+    background:var(--ink);
+    color:var(--gold);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Source Han Sans SC",sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding:clamp(28px,6vh,68px) clamp(20px,5vw,48px);
+    display:flex;align-items:center;justify-content:center;
+  }
+  main{width:min(880px,100%)}
+
+  .hd{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:clamp(28px,5vh,48px)}
+  h1{
+    font-size:clamp(26px,4vw,40px);font-weight:300;letter-spacing:.02em;line-height:1.15;
+    color:#f0e4c6;
+  }
+  h1 small{display:block;margin-top:10px;font-size:10px;letter-spacing:.34em;text-transform:uppercase;color:var(--bronze-dim)}
+  .meta{font-size:10px;letter-spacing:.24em;color:var(--mute);text-align:right;line-height:2.1;white-space:nowrap}
+
+  ul{list-style:none}
+  li{margin-bottom:10px}
+  a.entry{
+    display:grid;grid-template-columns:52px 1fr auto;align-items:center;gap:20px;
+    text-decoration:none;padding:22px 24px;
+    border:1px solid var(--line);border-radius:2px;
+    background:linear-gradient(180deg,rgba(61,107,87,.05),rgba(61,107,87,0));
+    transition:border-color .2s ease,background .2s ease,transform .2s ease;
+  }
+  a.entry:hover,a.entry:focus-visible{
+    border-color:rgba(123,181,156,.5);
+    background:linear-gradient(180deg,rgba(61,107,87,.16),rgba(61,107,87,.02));
+    outline:none;
+  }
+  .no{
+    font-size:11px;letter-spacing:.2em;color:var(--bronze-dim);
+    font-variant-numeric:tabular-nums;
+  }
+  .txt b{display:block;font-size:19px;font-weight:600;letter-spacing:.04em;color:#f0e4c6;transition:color .2s ease}
+  a.entry:hover .txt b{color:var(--patina-lit)}
+  .txt span{display:block;margin-top:6px;font-size:12px;line-height:1.6;color:var(--mute)}
+  .txt em{font-style:normal;color:var(--bronze);letter-spacing:.1em;margin-right:8px}
+  .go{
+    font-size:10px;letter-spacing:.22em;color:var(--mute);
+    display:flex;align-items:center;gap:8px;white-space:nowrap;
+    transition:color .2s ease;
+  }
+  a.entry:hover .go{color:var(--patina-lit)}
+  .go::after{content:"→";font-size:13px;letter-spacing:0}
+
+  footer{
+    margin-top:clamp(30px,5vh,46px);padding-top:18px;border-top:1px solid var(--line);
+    display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
+    font-size:10.5px;letter-spacing:.16em;color:var(--mute);
+  }
+  footer a{color:var(--bronze-dim);text-decoration:none;transition:color .2s}
+  footer a:hover{color:var(--gold)}
+
+  @media (max-width:560px){
+    a.entry{grid-template-columns:34px 1fr;gap:12px;padding:18px 16px}
+    .go{display:none}
+    .txt b{font-size:17px}
+    .meta{text-align:left}
+    footer{font-size:10px}
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="hd">
+    <h1>
+      双刃战士 · 纵目
+      <small>Sanxingdui · Double Blade</small>
+    </h1>
+    <div class="meta">
+      6 阵 · 11 把武器 · 4 类敌人<br>
+      328 张素材
+    </div>
+  </div>
+
+  <ul>
+    <li>
+      <a class="entry" href="play/">
+        <span class="no">01</span>
+        <span class="txt">
+          <b>桌面端</b>
+          <span><em>DESKTOP</em>键盘或手柄 · 双人同屏 · 零安装直开</span>
+        </span>
+        <span class="go">开始</span>
+      </a>
+    </li>
+    <li>
+      <a class="entry" href="play/mobile.html">
+        <span class="no">02</span>
+        <span class="txt">
+          <b>手机端</b>
+          <span><em>MOBILE</em>屏幕虚拟键 · 建议横屏 · 可添加到主屏</span>
+        </span>
+        <span class="go">开始</span>
+      </a>
+    </li>
+    <li>
+      <a class="entry" href="showcase/">
+        <span class="no">03</span>
+        <span class="txt">
+          <b>素材总览</b>
+          <span><em>ASSET SHOWCASE</em>249 帧动画 + 79 张静态 · 7 个分区 · 点开看大图</span>
+        </span>
+        <span class="go">查看</span>
+      </a>
+    </li>
+  </ul>
+
+  <footer>
+    <span>东莞市博物馆 × 碳基社区 · AI 创作者进馆计划</span>
+    <a href="/">← 返回站点首页</a>
+  </footer>
+</main>
+</body>
+</html>

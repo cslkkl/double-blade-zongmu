@@ -1374,5 +1374,29 @@
   warm();
   armPoll();
 
-  window.CharArt = { draw: draw, ready: ready, HEIGHT: TARGET_H };
+  /* 帧图就绪进度：给标题页的载入条用。
+     为什么要暴露它：Assets 只清单了 48 张静态图，249 张动画帧是这里
+     warm() 自己建的 —— 不把这段算进进度，玩家就会看到「进度走满 → 开打
+     → 角色是青色降级方块」。不新增 Image，只数已有的，零内存代价。 */
+  function progress() {
+    var total = 0, ok = 0;
+    function one(im) {
+      total++;
+      if (imageOk(im)) ok++;
+    }
+    function many(arr) {
+      if (!arr) return;
+      for (var i = 0; i < arr.length; i++) one(arr[i]);
+    }
+    var k;
+    for (k in frameCache) many(frameCache[k]);
+    for (k in holdCache) one(holdCache[k]);
+    for (k in atkCache) one(atkCache[k]);
+    for (k in atkClipCache) many(atkClipCache[k]);
+    for (k in walkClipCache) many(walkClipCache[k]);
+    for (k in stateCache) many(stateCache[k]);
+    return { done: ok, total: total };
+  }
+
+  window.CharArt = { draw: draw, ready: ready, progress: progress, HEIGHT: TARGET_H };
 })();

@@ -65,7 +65,12 @@
   window.IMG = {};
   var pending = 0, done = 0, failed = [];
 
-  function load() {
+  /* load(onProgress) → Promise<{loaded, failed}>
+     onProgress(ratio, settled, total)：每张图落地调一次。
+     ratio 是 0~1，成功与失败都算「落地」—— 进度必须能走到 1，
+     否则缺一张图就永远停在 99%，标题页的入口也跟着永远锁着。
+     ⚠️ total / settled 计的是**不同路径数**，不是键数（同路径去重见下）。 */
+  function load(onProgress) {
     return new Promise(function (resolve) {
       var keys = Object.keys(MANIFEST);
 
@@ -78,19 +83,32 @@
       });
 
       var paths = Object.keys(waiters);
-      pending = paths.length;               // ⚠️ 计的是「不同路径数」，不是键数
+      var total = paths.length;             // ⚠️ 计的是「不同路径数」，不是键数
+      var settled = 0;
+
+      pending = total;
+      done = 0;
+      failed = [];
+
+      function tick() {
+        settled++;
+        if (typeof onProgress === "function") {
+          try { onProgress(total ? settled / total : 1, settled, total); } catch (e) {}
+        }
+        if (settled >= total) finish(resolve);
+      }
 
       paths.forEach(function (src) {
         var ks = waiters[src];
         var im = new Image();
         im.onload = function () {
           done++; pending--;
-          if (pending <= 0) finish(resolve);
+          tick();
         };
         im.onerror = function () {
           ks.forEach(function (k) { failed.push(k); });
           pending--;
-          if (pending <= 0) finish(resolve);
+          tick();
         };
         im.src = src;
         /* 先占用：键必须立刻存在（调用方一律用 imgReady() 判就绪，
@@ -98,7 +116,12 @@
         ks.forEach(function (k) { window.IMG[k] = im; });
       });
 
-      if (paths.length === 0) resolve();
+      if (total === 0) {
+        if (typeof onProgress === "function") {
+          try { onProgress(1, 0, 0); } catch (e) {}
+        }
+        finish(resolve);
+      }
     });
   }
 
