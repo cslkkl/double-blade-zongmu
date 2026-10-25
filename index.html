@@ -487,18 +487,18 @@
        j = BGM 换成 assets/audio/bgm-main.mp3；i = 模式选择页打开即高亮当前项。
      —— 两边曾各自把版本号提到 e，同号两个版本会让缓存分不清，合并后统一顺延；
         这次也撞在一起（本地 k、上游 l），取两者之外的 m。 -->
-<script src="js/assets.js?v=20261025m"></script>
-<script src="js/anim-data.js?v=20261025m"></script>
-<script src="js/background.js?v=20261025m"></script>
-<script src="js/char-rig.js?v=20261025m"></script>
-<script src="js/enemies-assets.js?v=20261025m"></script>
-<script src="js/fx.js?v=20261025m"></script>
-<script src="js/guide.js?v=20261025m"></script>
-<script src="js/rumble.js?v=20261025m"></script>
-<script src="js/touch.js?v=20261025m"></script>
-<script src="js/ui-shell.js?v=20261025m"></script>
-<script src="js/audio.js?v=20261025m"></script>
-<script src="js/intro-video.js?v=20261025m"></script>
+<script src="js/assets.js?v=20261026b"></script>
+<script src="js/anim-data.js?v=20261026b"></script>
+<script src="js/background.js?v=20261026b"></script>
+<script src="js/char-rig.js?v=20261026b"></script>
+<script src="js/enemies-assets.js?v=20261026b"></script>
+<script src="js/fx.js?v=20261026b"></script>
+<script src="js/guide.js?v=20261026b"></script>
+<script src="js/rumble.js?v=20261026b"></script>
+<script src="js/touch.js?v=20261026b"></script>
+<script src="js/ui-shell.js?v=20261026b"></script>
+<script src="js/audio.js?v=20261026b"></script>
+<script src="js/intro-video.js?v=20261026b"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -506,9 +506,18 @@
    横版双人清版动作 · 单文件 · 零依赖 · 离线可运行 · 支持双人手柄
    ===================================================================== */
 
-var W = 1600, H = 900;
+var BASE_W = 1600, H = 900;
 var GROUND = 706;
 var WORLD_W = 3400;
+
+/* 逻辑视口宽度 W 是**可变的**：手机横屏比 16:9 宽很多（844×390 = 2.16:1），
+   固定 1600 会左右各留一条黑边（实测 17.9% 的屏幕宽度是空的）。
+   做法是高度永远 900（所以角色身高、精灵比例、所有判定距离一个像素都不变），
+   只把宽度按实际比例加宽 —— 等于「多看到一段关卡」，不是拉伸也不是裁切。
+   MAX_W 是上限：21:9 的手机（2.33:1）需要 2100，再宽就只是把背景放大。
+   桌面保持 1600 不变，见 isTouchUI()。 */
+var MAX_W = 2100;
+var W = BASE_W;
 
 /* 关卡节奏：喘息秒数、同屏敌人上限、交互半径。都是判定数字，与美术无关。 */
 var BREATHER = 3.0;             /* 每阵之间的喘息，玩家可以走动、开箱、回气 */
@@ -536,9 +545,43 @@ var $stage = document.getElementById("stage");
       这里仍然照常缩放，保证即使玩家不转屏也能看到画面（而不是白屏）。
 
    缩放用 transform 而不是改 canvas 的 width/height：canvas 内部分辨率必须
-   保持 1600×900，所有绘制坐标、碰撞盒、判定半径都是以它为单位写的。
-   改内部分辨率等于把整个游戏的坐标系缩掉，那是重写，不是适配。 */
+   与逻辑分辨率一致，所有绘制坐标、碰撞盒、判定半径都是以它为单位写的。
+   改内部分辨率等于把整个游戏的坐标系缩掉，那是重写，不是适配。
+
+   ④ **加宽逻辑视口（手机专属）**：见上面的 MAX_W 注释。宽度 W 只在触屏设备上
+      按实际比例加宽，且量化到 8px 一档 —— 地址栏收展会高频触发 fit()，
+      每改一次 W 都要重设 canvas.width（会清空画布），逐像素抖动会闪。
+      8 个逻辑像素在手机上约 3.4 个物理像素，肉眼看不出来。 */
 var fitScale = 1;
+
+/* 是不是「手机/平板」这一档 —— 只看触摸硬件，不看 PointerEvent
+   （桌面浏览器全都支持 PointerEvent，拿它当判据会让鼠标点一下就变手机版）。
+   与 js/touch.js 的 available() 同口径，优先读它，读不到再自己判。 */
+function isTouchUI(){
+  try{
+    if(window.Touch && typeof Touch.available === "function") return !!Touch.available();
+  }catch(e){ /* 忽略：退回硬件判据 */ }
+  return (navigator.maxTouchPoints > 0) || ("ontouchstart" in window);
+}
+
+/* 把逻辑宽度落到 #stage 与 canvas 上。
+   ⚠️ 重设 cv.width 会清空画布并把 ctx 的样式（fillStyle / lineWidth / 变换）
+   全部复位 —— 所以只在 W 真的变了才调，别每帧调。下一帧整套重画，视觉无感。 */
+function applyLogicalWidth(w){
+  $stage.style.width = w + "px";
+  cv.width = w;
+  cv.style.width = w + "px";
+}
+
+/* 按视口比例算逻辑宽度。桌面与 4:3 平板返回 1600（不等于「加宽」就不动）。 */
+function logicalWidthFor(availW, availH){
+  if(!isTouchUI()) return BASE_W;
+  var want = H * (availW / availH);
+  if(!(want > BASE_W)) return BASE_W;           // 比 16:9 窄（iPad 4:3）：不加宽
+  if(want > MAX_W) want = MAX_W;
+  return Math.round(want / 8) * 8;              // 量化，避免地址栏收展时反复清画布
+}
+
 function fit(){
   var vw, vh;
   var vv = window.visualViewport;
@@ -561,6 +604,13 @@ function fit(){
 
   var availW = Math.max(1, vw - padL - padR);
   var availH = Math.max(1, vh - padT - padB);
+
+  /* 先定逻辑宽度，再算缩放 —— 顺序不能反：s 的分母就是 W */
+  var logiW = logicalWidthFor(availW, availH);
+  if(logiW !== W){
+    W = logiW;
+    applyLogicalWidth(W);
+  }
 
   var s = Math.min(availW / W, availH / H);
   /* 兜底：视口还没量出来（0 或极小）时给一个安全值，别把画面缩成看不见的点 */
