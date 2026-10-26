@@ -228,6 +228,23 @@
 
 ---
 
+## assemble_promo.py + assemble_promo_land.py + make_promo_land_frames.py — 宣传短片
+
+与游戏无关的一组脚本：把图生视频的片段拼成投稿用的宣传片。产物在 `assets/promo/`，
+**已写进 `.gitignore`**（二十余 MB 渲染物，运行期不加载）。
+
+| 脚本 | 做什么 | 产物 |
+|---|---|---|
+| `assemble_promo.py` | 五段竖屏片段 + 字幕卡 + 配乐，剪成 20 秒 | `assets/promo/short.mp4` |
+| `make_promo_land_frames.py` | 裁掉水印、重采样成 1600×900，出横屏首帧 | `assets/promo/land/*.jpg` |
+| `assemble_promo_land.py` | 横屏版：字幕卡、配乐、拼接 | `assets/promo/short_land.mp4` |
+
+- 输入：`clip_01_corrosion.mp4` … `clip_05_face2.mp4` 需自备（图生视频产物，不入库）。
+- 依赖：`ffmpeg` 在 PATH；Python 侧 `Pillow` / `numpy`；字体取系统路径 `C:/Windows/Fonts/msyh*.ttc`。
+- 中间文件全在 `assets/promo/{text,work,land}`，可随时删，脚本会重建。
+- 幂等性：可重复跑，同名覆盖。
+- **不在收工验证链里**：不动 `index.html`、不动 `js/`、不动 `assets/` 的运行期素材。
+
 ## 已废弃
 
 - `prep-assets.ps1` — 第一版 PowerShell 抠图脚本，被 `prep_assets.py` 取代，已从本目录移除。
