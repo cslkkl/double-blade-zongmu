@@ -155,6 +155,23 @@
     ["btn-disabled", "按钮",     "禁用"]
   ];
 
+  /* 手机虚拟键的三层美术：2 张青铜盘 + 8 张暗刻金线纹样（t = touch）。
+     单独一张表而不是并进 UIS，是因为它不在 assets/ui/ 下 —— 并进去会拼出
+     assets/ui/plate.webp 这种 404 路径。这 10 张也不进 js/assets.js 的 MANIFEST，
+     由 js/touch.js 自建缓存、只在有触屏时加载，所以这一份清单是手写的。 */
+  var TOUCH = [
+    ["plate",           "按键底盘",     "正圆 · 动作键"],
+    ["plate-sq",        "按键底盘 · 方", "圆角方盘 · 走键"],
+    ["glyph-left",      "按键纹样 · 左", "青铜箭头"],
+    ["glyph-right",     "按键纹样 · 右", "青铜箭头"],
+    ["glyph-jump",      "按键纹样 · 跳", "太阳神鸟"],
+    ["glyph-atk",       "按键纹样 · 刀", "青铜钺"],
+    ["glyph-skill",     "按键纹样 · 技", "太阳轮"],
+    ["glyph-act",       "按键纹样 · 拾", "玉璧"],
+    ["glyph-drop",      "按键纹样 · 丢", "落箭 + 羽"],
+    ["glyph-give",      "按键纹样 · 递", "双面具"]
+  ];
+
   var APPS = [
     ["icon-16.png",         "16"],
     ["icon-32.png",         "32"],
@@ -946,7 +963,8 @@
   function buildUi() {
     var frag = document.createDocumentFragment();
     frag.appendChild(secHead("06", "界面", "Interface",
-      "图标 " + ICONS.length + " · 界面资源 " + UIS.length + " · 应用图标 " + APPS.length));
+      "图标 " + ICONS.length + " · 界面资源 " + UIS.length +
+      " · 虚拟键 " + TOUCH.length + " · 应用图标 " + APPS.length));
 
     frag.appendChild(groupHead("图标", "Icon", "拾取 / HUD / 符号", ICONS.length + " 张"));
     var g1 = gridOf(8);
@@ -963,6 +981,14 @@
       g2.appendChild(imageCell("assets/ui/" + r[0] + ".webp", r[1], r[2] || "webp", 230));
     });
     frag.appendChild(g2);
+
+    frag.appendChild(groupHead("手机虚拟键", "Touch Button",
+      "盘 + 暗刻纹样 + 文字三层；不进 MANIFEST，触屏档才加载", TOUCH.length + " 张"));
+    var g5 = gridOf(5);
+    TOUCH.forEach(function (r) {
+      g5.appendChild(imageCell("assets/touch/" + r[0] + ".webp", r[1], r[2], 150));
+    });
+    frag.appendChild(g5);
 
     frag.appendChild(groupHead("应用图标", "App Icon",
       "PWA / 桌面快捷方式，不属于游戏内素材", APPS.length + " 张"));
@@ -1155,7 +1181,7 @@
     n += Object.keys(HITM).length;
     n += GENERIC_FX.length;
     n += BG.length + PROPS.length + INTERACT.length
-       + ICONS.length + UIS.length + CHARSHEET.length + APPS.length;
+       + ICONS.length + UIS.length + TOUCH.length + CHARSHEET.length + APPS.length;
     return n;
   }
 

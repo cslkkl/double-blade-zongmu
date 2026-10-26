@@ -149,20 +149,22 @@
 
 - 职责：触屏虚拟按键层。布局、按下 / 抬起、指针回收、竖屏遮罩、安卓振动、**设备判定**、按键美术。
 - 关键导出：`window.Touch = { available, active, state, setMode, show, hide, tick, clearAll, skipHeld, takeTap, anyHeld, buzz, init, forcedTouch, setWeapon, debug, overlaps }`。
-- 依赖谁：只用 `document`、`window`、`navigator`、PointerEvent / TouchEvent，以及自建缓存读的 `assets/touch/` 10 张图。**不读 `window.IMG`**，也不进 `js/assets.js` 的 `MANIFEST`。
+- 依赖谁：只用 `document`、`window`、`navigator`、PointerEvent / TouchEvent。美术图分两条来源：**盘与纹样**由本模块自建缓存读 `assets/touch/` 那 10 张；**攻击键的武器图标**不自己建 Image，只读 `Assets.MANIFEST[key]` 取路径、读 `window.IMG[key]` 判就绪（与 `index.html` 的 `imgReady()` 同口径）。10 张虚拟键图**不进** `js/assets.js` 的 `MANIFEST`。
 - 被谁依赖：`index.html` 的 `update()`（把 `Touch.state(tag)` 并进 `in1/in2`）、`loop()`（`Touch.tick()`）、`syncHUD()`（一行 `Touch.setWeapon(tag, iconKey)`）；`js/guide.js`（`touchActive()` 判设备档）。
 - **美术是三层结构，各层职责互斥**（详见 [../docs/手机端适配.md](../docs/手机端适配.md) 的「十、按键美术」一节）：
   - **底 = 青铜盘**：`plate`（正圆，给动作键）/ `plate-sq`（圆角方盘，`border-radius:26%`，给 `.tch-b.dir` 走键）。深青绿锈 + 外圈金色云雷纹，**中心留空**给文字。
   - **中 = 暗刻金线纹样**：`glyph-<field>` 8 张，**低不透明度**压在文字下面，只给铸造质感。
   - **上 = 原有文字标签**：`◀ ▶ 跳 刀 技 拾 丢 递 ❚❚ ?`。这一层没有降级 —— 它就是降级本身。
 - 关键约束：**降级链逐级退回，任何一层缺失都不许白屏、不许按钮变透明**：盘缺 → 今天那套径向渐变圆钮；纹样缺 → 不画纹样、文字照旧；武器图标缺 → 攻击键退回「atk 纹样 + 刀字」。三层**各自独立判**，不许用「只要有一层缺就整键退回纯 CSS」的粗暴写法（盘明明在，却因为它旁边的纹样缺了就把盘一起扔掉）。
-- 关键约束：**8 个纹样只做质感、不承担识别**。48px 的小键上纯图形对「跳 / 技 / 拾」辨识度不足，文字是最终兜底 —— 所以纹样必须低不透明度，且不得盖住或替换文字。
+- 关键约束：**8 个纹样只做质感、不承担识别**。48px 的小键上纯图形对「跳 / 技 / 拾」辨识度不足，文字是最终兜底 —— 所以纹样必须低不透明度（现在是 `.52`，在 844×390 上校准过：`.44` 看不见、`1.0` 抢读），且不得盖住或替换文字。
+- 关键约束：**武器图标的 `z-index` 必须高于按下态的 `::after` 金雾**。有贴图的键，按下反馈改成在盘上盖一层金雾（`.tch-b.art.on::after`）；`::after` 生成在所有子元素之后，不显式抬 `.tch-wp` 的层级，按下去那一下刀斧会被金雾糊成一片金（实测过）。文字 `.tch-lab` 是 `z-index:2`，仍在最上层。
 - 关键约束：**这 10 张图不进 `MANIFEST`**。启动期静态图预算是 41 键 / 40 条路径（见本页 `assets.js` 一节），虚拟键图只有真触屏才需要，塞进去等于让桌面玩家白等 10 次解码。`js/touch.js` 自建 Image 缓存，只在 `available()` 为真时建。
 - **`setWeapon(tag, iconKey)` 是攻击键跟随武器的唯一入口**：`iconKey` 是 `js/assets.js` 的 `MANIFEST` 键名（如 `wpAxe` / `itJar`），不是文件路径 —— 路径由本模块从 `Assets.MANIFEST` 查，不许在这里抄第二份武器 → 图片的表。
-  - 语义是**幂等赋值**：同一个 `iconKey` 重复调用不重绘、不重建 Image，只有值真的变了才换图，所以调用方每帧调也不会抖。
-  - `iconKey` 为 `null`（空手）或图未就绪时，键面退回「金线 atk 纹样 + 刀字」。
+  - 语义是**幂等赋值**：缓存并比对 `(键名, 路径, 是否已就绪)` **三元组**，完全相同就立刻 `return`、不碰 DOM。存三元组而不是只存键名，是因为图标可能「先没就绪、后解码完」—— 只比键名会永久卡在 bare 态。所以调用方每帧调是免费的。
+  - `iconKey` 为 `null`（空手）或图未就绪时，键面退回「金线 atk 纹样 + 刀字」。`Assets` 整份缺席、或 `MANIFEST` 里没这个键，走同一条路。
+  - 入参归一：`tag` 非 `"p2"` 一律当 `p1`；`iconKey` 非字符串一律当空手。
   - 调用点在 `index.html` 的 `syncHUD()` **一处**，`p1` / `p2` 各一次。别在别处再调，否则两名玩家的攻击键会互相覆盖。
-- 关键约束：`debug()` 除 `mode / shown / pointers / everTouched / urlTouch` 外还带美术字段（盘 / 纹样 / 攻击键武器图各自是否已就绪），供自动化验收与排障读。它只读缓存状态，不触发建图。
+- 关键约束：`debug()` 除 `mode / shown / pointers / everTouched / urlTouch` 外多一个 `art` 字段（本轮新增，供自动化验收与排障）：`plate` / `glyph` 是已加载张数（配 `plateTotal: 2` / `glyphTotal: 8`，缺图时为 0）、`atk` 是 `{p1, p2}` 各自 `"armed"`（键面是武器图标）还是 `"bare"`（atk 纹样 + 刀字）、`icon` 是 `{p1, p2}` 各自当前挂的图标键名（空手为 `null`）。它只读缓存状态，不触发建图。
 - 关键约束：**判「有没有触屏」只看触摸硬件**（`navigator.maxTouchPoints > 0` 或 `ontouchstart` in window），**不看 `PointerEvent`**。桌面 Chrome / Edge / Firefox 全都支持 PointerEvent，拿它当判据会让鼠标点一下就切进手机版，玩家看到一圈虚拟键凭空冒出来。`PointerEvent` 只用来选事件 API。
 - 关键约束：**鼠标与手指靠 `pointerType` 区分**：`mouse` 不算手指（触摸屏笔记本上用鼠标玩要保持桌面界面），`touch` / `pen` 算。判在 `armFirstTouch()` 的 kick 里。
 - 关键约束：URL 强制开关 `?touch=1` / `?touch=0`。`?touch=1` 时 `everTouched` 直接置真 —— 从主屏图标启动时没有「第一次手指落下」事件，自动判断会等不到，虚拟键永远不出现。
