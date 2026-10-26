@@ -65,8 +65,15 @@
 - 依赖谁：`window.IMG` 的 3 张核心背景 + 7 个道具键。
 - 被谁依赖：`index.html` 的 `render()`；`ready()` 为假或 `draw()` 返回 `false` 时回落到内联 `drawBG()`。
 - 关键约束：只在屏幕坐标系算偏移，不做世界坐标平移；道具世界坐标写在模块内 `PROPS`；`save/restore` 必须成对；道具加载失败不阻塞背景整体，逐张回落纯代码。
+- **`W` 是视图宽度、可以是变量**（手机加宽逻辑视口，见 [../docs/手机端适配.md](../docs/手机端适配.md)）。三层各用不同策略，改之前先对清楚：
+  - **远景**：等比缩放（`_farSc = W / 素材宽`），把图内地平线对齐 `GROUND`，溢出向上裁。
+    **绝对不许拉伸成 `W × H`** —— 图里有个正圆太阳，横向拉 22% 就是椭圆。
+    光晕的圆心 / 半径也乘 `_farSc`（`_farSc` / `_farY` 是模块级缓存，供 `drawSunGlow()` 用）。
+  - **中景**：**保持素材原尺寸平铺**。等比放大到视图宽会让高度超过 `GROUND`，
+    贴地面线后顶到画外 —— 天空被吃掉、柱子变粗、编钟横梁被裁断（已实测）。
+  - **地面**：本来就按 `groundY` 反算宽高比，等比平铺，不用动。
 - **没有前景遮挡层**：`drawFront()` / `occluders()` 已于 2026-10-25 删除。原来那 3 座高大遮挡物画在角色之上，人走过去被完全盖住，只好给角色加一条 52% 硬淡出；那条淡出进出无过渡、判定只看 x 不看高度，走过道具旁边就闪一下半透明，读起来像 bug，整套删掉。遮挡物素材仍留在中景 `PROPS`（`maskRelief` / `brazier` / `sacredTree`）。
-- 改后必测：三档视差系数、道具底部是否贴 `GROUND`、`ready()` 对新键的判定、核心图任一失败时是否整层让位给 `drawBG()`。
+- 改后必测：三档视差系数、道具底部是否贴 `GROUND`、`ready()` 对新键的判定、核心图任一失败时是否整层让位给 `drawBG()`、**手机加宽后远景太阳是否仍是正圆、中景接缝是否可接受**。
 
 ## char-rig.js
 
@@ -166,7 +173,7 @@
 - 关键约束：`big` 键（1.22 倍直径）与相邻键的 y 差要 ≥ 1.26 倍直径。`checkOverlap()` 在布局重建时两两求交并 `console.warn` —— 这是这类布局 bug 的唯一自动化防线，别删。
 - 关键约束：手机上 `pointerup` 会丢（手指滑出屏幕 / 来电 / 系统通知 / 切 App / 锁屏）。三道兜底缺一不可：一次性键 8 秒超时回收（`reapStale`）、`pointercancel`、`blur` / `pagehide` / `visibilitychange` 三清。方向键不参与超时回收（按住往前跑是正常玩法）。
 - 关键约束：`state()` 要求层上带 `tch-on` 类才返回值。`tick()` 里 `want !== lastShown` 时会 `clearAll()` —— 一次抖动就清空全部按键，所以 `active()` 的判据（无手柄 / `phase === "play"` / 未暂停）必须稳定。
-- 改后必测：桌面端 `available()` 为 false、无虚拟键层、鼠标点击后图例仍是键盘版；`?touch=1` 下 10 个键可见且 0 重叠；`pointerdown → state.right = true`、`pointerup → 归零`；竖屏时整屏「请横过来」遮罩且按键隐藏。
+- 改后必测：桌面端 `available()` 为 false、无虚拟键层、**也不请求 `assets/touch/`**、鼠标点击后图例仍是键盘版；`?touch=1` 下 10 个键可见且 0 重叠；`pointerdown → state.right = true`、`pointerup → 归零`；竖屏时整屏「请横过来」遮罩且按键隐藏；三层美术逐层验一遍（删掉 `plate.webp` → 退回纯 CSS 圆钮；删掉某个 `glyph-*` → 该键只剩文字；`setWeapon(tag, null)` → 攻击键回到 atk 纹样 + 刀字），三种情况都不许出现透明键或白屏；换武器后攻击键在 1 帧内换图。
 
 
 ## ui-shell.js
@@ -216,7 +223,7 @@
 | `fx.js` | `index.html` 四处 `FX.*` 调用与 `FX.ready()` 守卫；`drawSlash` 的 `wkey`、`drawHit` 的 `mat`、`drawProjFx` 的 `kind` 是否都有人传；新增武器要在 `WEAPON_FX` 与 `HIT_MATERIAL` 的表里都有落点 |
 | `guide.js` | `index.html` 的 `scanPads()` 与 `#keys`/`#pad`、`ui-shell` 的 `.uis-help-body` 与 `Guide.onChange`；改键位只改这里的四张表，别再往 `ui-shell` 抄文案 |
 | `rumble.js` | `index.html` 的十几个 `Rumble.player / Rumble.play` 调用点是否还指向本页列出的预设名；`Guide.pads()` 结构变化时 `padAt()` 是否仍取得到；`player()` 的 tag→pad 映射与 `readPad()` 取源是否仍一致 |
-| `touch.js` | `index.html` 的 `Touch.state / tick / init / takeTap / anyHeld / setMode` 调用点；`guide.js` 的 `touchActive()` 与 `forcedTouch()`；`index.html` 的 script 版本号（改了 `js/` 就要 +1）；`available()` 的触摸硬件判据（别改回看 `PointerEvent`） |
+| `touch.js` | `index.html` 的 `Touch.state / tick / init / takeTap / anyHeld / setMode / setWeapon` 调用点；`guide.js` 的 `touchActive()` 与 `forcedTouch()`；`index.html` 的 script 版本号（改了 `js/` 就要 +1）；`available()` 的触摸硬件判据（别改回看 `PointerEvent`）；`ART` 表的文件名与 `assets/touch/`、`tools/prep_touch.py` 三者一致；`setWeapon` 的 `iconKey` 仍是 `MANIFEST` 键名（别改成文件路径，也别在 `touch.js` 里抄第二份 `WP_ICON`）；`showcase.js` 界面 tab 的「手机虚拟键」清单 |
 | `ui-shell.js` | `index.html` 四个调用点、`body.solo` 样式、`UIShell` 未加载时的降级分支、`Guide` 缺席时抽屉仍要能开、`padFrame` 的启用闸、模式页底部文案 |
 | `audio.js` | 跑 `selftest_audio.mjs`；`index.html` 的 `sfx*()` 包装层是否仍能退回旧实现；新增武器要在 `MATERIAL` 表里给材质，否则一律落到 `jade`；`SND.bgm.*` 的调用点（开局 `start` / 换阵 `setWave` / 通关 `stop`） |
 
