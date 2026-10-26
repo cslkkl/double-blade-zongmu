@@ -178,6 +178,52 @@ console.log("\n=== 5. 池内均匀，不带额外权重 ===");
   ok(allOk, "6 组阵次 × heavyMul 的实际分布与「条目数即权重」一致（±2%）");
 }
 
+console.log("\n--- 6. 后三阵各有一件新武器入池 ---");
+{
+  /* 不让第三阵一次开满、第四第五阵原样重复。 */
+  const firstAt = {};
+  for (const e of DROP_POOL) if (firstAt[e.from] === undefined) firstAt[e.from] = [];
+  for (const e of DROP_POOL) firstAt[e.from].push(e.k);
+  for (const wave of [2, 3, 4]) {
+    ok((firstAt[wave] || []).length > 0, `第 ${wave + 1} 阵有武器首次入池`,
+      "实际 " + ((firstAt[wave] || []).join(",") || "无"));
+  }
+}
+
+console.log("\n--- 7. 平均伤害只升不降、池子从不缩水 ---");
+{
+  /* 这是「越往后越不掉低伤武器」这条设计意图的唯一机器判据。
+     调 DROP_POOL 时如果把它调成「后一池比前一池弱」，这里当场红。 */
+  const DMG = { fist: 1, short: 2, dagger: 2.5, sword: 4, bow: 4, spear: 5, blade: 5, axe: 6, rock: 7, hammer: 8, bell: 9, jar: 12 };
+  const WAVES = 6;                     /* 六阵 */
+  const avg = (wave) => {
+    const t = tally(wave, 1, 30000);
+    const keys = Object.keys(t);
+    return keys.reduce((s, k) => s + DMG[k], 0) / keys.length;
+  };
+  const size = (wave) => Object.keys(tally(wave, 1, 30000)).length;
+
+  let monoAvg = true,
+    monoSize = true;
+  const rows = [];
+  for (let w = 0; w < WAVES; w++) {
+    rows.push({ w, avg: avg(w), size: size(w) });
+  }
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i].avg < rows[i - 1].avg - 1e-9) monoAvg = false;
+    if (rows[i].size < rows[i - 1].size) monoSize = false;
+  }
+  for (const r of rows) {
+    console.log(
+      `       第 ${r.w + 1} 阵  池 ${r.size} 件  平均伤害 ${r.avg.toFixed(2)}`
+    );
+  }
+  ok(monoAvg, "平均伤害随阵次单调不减");
+  ok(monoSize, "池子件数随阵次不缩水");
+  /* 末阵不比第五阵弱：BOSS 自己必掉三件套，小兵池只要不倒退就行 */
+  ok(rows[WAVES - 1].avg >= rows[WAVES - 2].avg - 1e-9, "末阵池子不比第五阵弱");
+}
+
 console.log("\n----------------------------------------------");
 if (fail === 0) {
   console.log("selftest_drop: 0 失败");
