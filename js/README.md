@@ -65,7 +65,7 @@
 - 依赖谁：`window.IMG` 的 3 张核心背景 + 7 个道具键。
 - 被谁依赖：`index.html` 的 `render()`；`ready()` 为假或 `draw()` 返回 `false` 时回落到内联 `drawBG()`。
 - 关键约束：只在屏幕坐标系算偏移，不做世界坐标平移；道具世界坐标写在模块内 `PROPS`；`save/restore` 必须成对；道具加载失败不阻塞背景整体，逐张回落纯代码。
-- **`W` 是视图宽度、可以是变量**（手机加宽逻辑视口，见 [../docs/手机端适配.md](../docs/手机端适配.md)）。三层各用不同策略，改之前先对清楚：
+- **`W` 是视图宽度、可以是变量**（手机加宽逻辑视口，见 [../docs/手机端适配.md](../docs/MOBILE.md)）。三层各用不同策略，改之前先对清楚：
   - **远景**：等比缩放（`_farSc = W / 素材宽`），把图内地平线对齐 `GROUND`，溢出向上裁。
     **绝对不许拉伸成 `W × H`** —— 图里有个正圆太阳，横向拉 22% 就是椭圆。
     光晕的圆心 / 半径也乘 `_farSc`（`_farSc` / `_farY` 是模块级缓存，供 `drawSunGlow()` 用）。
@@ -151,7 +151,7 @@
 - 关键导出：`window.Touch = { available, active, state, setMode, show, hide, tick, clearAll, skipHeld, takeTap, anyHeld, buzz, init, forcedTouch, setWeapon, debug, overlaps }`。
 - 依赖谁：只用 `document`、`window`、`navigator`、PointerEvent / TouchEvent。美术图分两条来源：**盘与纹样**由本模块自建缓存读 `assets/touch/` 那 10 张；**攻击键的武器图标**不自己建 Image，只读 `Assets.MANIFEST[key]` 取路径、读 `window.IMG[key]` 判就绪（与 `index.html` 的 `imgReady()` 同口径）。10 张虚拟键图**不进** `js/assets.js` 的 `MANIFEST`。
 - 被谁依赖：`index.html` 的 `update()`（把 `Touch.state(tag)` 并进 `in1/in2`）、`loop()`（`Touch.tick()`）、`syncHUD()`（一行 `Touch.setWeapon(tag, iconKey)`）；`js/guide.js`（`touchActive()` 判设备档）。
-- **美术是三层结构，各层职责互斥**（详见 [../docs/手机端适配.md](../docs/手机端适配.md) 的「十、按键美术」一节）：
+- **美术是三层结构，各层职责互斥**（详见 [../docs/手机端适配.md](../docs/MOBILE.md) 的「十、按键美术」一节）：
   - **底 = 青铜盘**：`plate`（正圆，给动作键）/ `plate-sq`（圆角方盘，`border-radius:26%`，给 `.tch-b.dir` 走键）。深青绿锈 + 外圈金色云雷纹，**中心留空**给文字。
   - **中 = 暗刻金线纹样**：`glyph-<field>` 8 张，**低不透明度**压在文字下面，只给铸造质感。
   - **上 = 原有文字标签**：`◀ ▶ 跳 刀 技 拾 丢 递 ❚❚ ?`。这一层没有降级 —— 它就是降级本身。

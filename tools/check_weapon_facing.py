@@ -31,6 +31,7 @@
 """
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -44,7 +45,8 @@ import slice_anim as SA             # noqa: E402
 
 ROOT = HERE.parent
 REF_DIR = ROOT / "_refs" / "hold-png"
-DEFAULT_SRC = r"D:\ProjectSomething\imagegen-mcp\output\weapon-states"
+# 源条带目录：--src > $SD_IMG_SRC/weapon-states > 报错
+DEFAULT_SRC = SA.IMG_SRC / "weapon-states"
 
 WEAPON_KEYS = ["short", "dagger", "sword", "axe", "hammer",
                "spear", "bow", "rock", "blade", "jar", "bell"]
@@ -130,15 +132,20 @@ def check_one(png, ref_profile, cells):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--src", default=DEFAULT_SRC)
+    ap.add_argument("--src", default="",
+                    help="源条带目录（默认 $SD_IMG_SRC/weapon-states）")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--cells", type=int, default=0, help="强制格数（默认按条带名推断）")
     args = ap.parse_args()
 
-    src = Path(args.src)
+    if args.src:
+        src = Path(args.src).expanduser()
+    elif os.environ.get("SD_IMG_SRC"):
+        src = DEFAULT_SRC
+    else:
+        raise SystemExit("缺少生图源目录：设置环境变量 SD_IMG_SRC 指向 imagegen 的 output 目录，或用 --src 指定。")
     if not src.is_dir():
-        print("!! 源目录不存在：%s" % src)
-        return 1
+        raise SystemExit("源图目录不存在：%s（检查 SD_IMG_SRC 或 --src）" % src)
     if not REF_DIR.is_dir():
         print("!! 参考图目录不存在：%s" % REF_DIR)
         return 1

@@ -1,10 +1,14 @@
-# Bug 与优化 · 修改方案汇总
+# 修复记录 — 审计问题与处理状态
 
-> 三份审计报告（`审计-玩法与状态机.md` / `审计-画面与渲染.md` / `审计-输入与性能.md`）的合并视图。
+> 三份审计报告（[audit/审计-玩法与状态机.md](audit/审计-玩法与状态机.md) / [audit/审计-画面与渲染.md](audit/审计-画面与渲染.md) / [audit/审计-输入与性能.md](audit/审计-输入与性能.md)）的合并视图，三份原文保留在 docs/audit/ 作为证据，不追改。
 > 每条标注**当前状态**：已修 / 已驳回（附实测反证）/ 待办。
 >
 > 基线：`main` 分支。逐条状态在每次提交后重核，判据是「函数名 + 原文片段」，不认行号
 > （`index.html` 在审计期间从 4165 涨到 4335 行，漂了四次）。
+
+> **本页不是事实 home**，是状态表：条目里的数值与键位以 [GAMEPLAY.md](GAMEPLAY.md) / [OPERATIONS.md](OPERATIONS.md) 为准。
+> **改这里之后要同步**：无（本页只追状态）——但修完一条要回 [../AGENTS.md](../AGENTS.md) 的待办里删掉对应项。
+> **本页被引用**：[../AGENTS.md](../AGENTS.md) 分层索引与文档地图 · [README.md](README.md) 事实路由表。
 
 ---
 
@@ -105,7 +109,7 @@
 | 输入-15 | `SKIP_HOLD_SEC` 是死常量 | 文档值，说明用 |
 | 输入-16 | `Touch.show()/hide()` 从未调用 | 调试入口，留着有用 |
 | 输入-17 | `ovClear` 与 `G.phase === "clear"` 是死代码 | 下一阵可能用得上 |
-| 输入-18 | canvas 固定 1600×900，高 DPI 屏略软 | 改它要重写所有坐标与碰撞盒（架构级取舍，已写进 `部署与手机端.md`） |
+| 输入-18 | canvas 固定 1600×900，高 DPI 屏略软 | 改它要重写所有坐标与碰撞盒（架构级取舍，见 [ARCHITECTURE.md](ARCHITECTURE.md) 与 [MOBILE.md](MOBILE.md)） |
 | 输入-20 | 素材背景路径下 `clearRect` 多余 | 1 次调用，省不出可测时间 |
 | 输入-22 | `Touch.tick()` 注释矛盾 | 纯注释 |
 | 画面-14 | HUD 武器图标裁掉 7px | 需重出图标，收益太小 |
@@ -146,7 +150,7 @@ Get-ChildItem js -Filter *.js | ForEach-Object { node --check $_.FullName }   # 
 
 ## 六、玩法与状态机审计（第三份，8 条 + 3 条副作用）
 
-`docs/审计-玩法与状态机.md`，基准 `index.html` 4339 行。致命 0 / 高 3 / 中 4 / 低 1。
+[audit/审计-玩法与状态机.md](audit/审计-玩法与状态机.md)，基准 `index.html` 4339 行。致命 0 / 高 3 / 中 4 / 低 1。
 
 ### 已修 7 条
 
@@ -191,7 +195,7 @@ Get-ChildItem js -Filter *.js | ForEach-Object { node --check $_.FullName }   # 
 
 不是 bug，是本轮的功能改动。设计取舍与依据见
 [.agents/notes/依据-手机虚拟键为何用青铜盘与金线纹样.md](../.agents/notes/依据-手机虚拟键为何用青铜盘与金线纹样.md)；
-这一层怎么用见 [手机端适配.md](手机端适配.md) 的「十、按键美术」。
+这一层怎么用见 [手机端适配.md](MOBILE.md) 的「十、按键美术」。
 
 | # | 问题 | 做法 | 产物 | 验收 |
 |---|---|---|---|---|

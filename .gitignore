@@ -41,3 +41,22 @@ tmp_*.jpg
 
 # 展示页验收脚本与截图
 .tmp/
+
+# 规划过程产物（只在本机看，不进文档网络）
+docs/superpowers/
+
+# 宣传片：脚本入库（tools/assemble_promo*.py），渲染产物不入库
+assets/promo/
+
+# 开场片的旧版备份
+assets/video/_*.mp4
+
+# 部署包与本地构建产物
+build/
+
+# 浏览器自动化现场：CDP profile / 截图 / live 服务记录
+.screenshots/
+
+# 本机开发留存：头脑风暴页面、开场片抽帧、本地服务状态
+dev_brainstorm/
+dev_introframes/

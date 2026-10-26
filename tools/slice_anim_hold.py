@@ -63,6 +63,7 @@ def idle_baseline():
 
 
 def main():
+    SA.source_dir()      # 源目录缺失直接退出，不写空产物
     base_ratio = idle_baseline()
     print(f"基准 idle 内容高/画布高 = {base_ratio:.4f}")
     print()

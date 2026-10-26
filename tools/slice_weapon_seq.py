@@ -25,6 +25,7 @@ anchorX 逐帧一个，偏离 4 帧中位数 > 8% 判误检，用中位数替换
   python tools/slice_weapon_seq.py                    # 什么都不写，只提示（默认）
   python tools/slice_weapon_seq.py --with-atk         # 恢复旧通道：真切 4 帧序列
   python tools/slice_weapon_seq.py --with-atk --debug # 额外写对齐调试图到 _dbg/
+  python tools/slice_weapon_seq.py --src <目录>       # 默认 $SD_IMG_SRC/sanxingdui-weapon-seq
 """
 import argparse
 import os
@@ -40,10 +41,11 @@ sys.path.insert(0, str(HERE))
 import slice_anim as SA                     # noqa: E402
 import slice_weapon_assets as WA            # noqa: E402
 
-SRC = r"C:\Users\11965\Desktop\imagegen无限\output\sanxingdui-weapon-seq"
+# 路径口径与 slice_anim.py 一致：源图走 $SD_IMG_SRC，产物落仓库内。
+SRC = SA.IMG_SRC / "sanxingdui-weapon-seq"  # <SD_IMG_SRC>/sanxingdui-weapon-seq
 OUT_IMG = Path(SA.OUT_IMG)
 OUT_JS = Path(SA.OUT_JS)
-DBG = HERE.parent / "_dbg"
+DBG = SA.ROOT / "_dbg"
 
 MAX_SIDE = 560
 PAD = 4
@@ -145,16 +147,20 @@ def fmt_clip(recs):
 
 
 # ---------------------------------------------------------------- 主流程
-def main(debug=False, with_atk=False):
+def main(debug=False, src=None, with_atk=False):
+    global SRC
     if not with_atk:
         print("=== 出招序列：默认跳过（见文件头 ★）===")
         print("  WEAPON_ATTACK_CLIP 这条通道已于 2026-10-25 废弃：WEAPON_CLIP")
         print("  已覆盖全部 11 把武器的 attack，这两条旧通道永远轮不到。")
         print("  本次没有写任何文件。确实要恢复旧通道请加 --with-atk。")
         return 0
-    if not os.path.isdir(SRC):
-        print("!! 源图目录不存在：%s" % SRC)
-        return 1
+    if src:
+        SRC = Path(src).expanduser()
+    if not SRC.is_dir():
+        if src is None and not os.environ.get("SD_IMG_SRC"):
+            raise SystemExit("缺少生图源目录：设置环境变量 SD_IMG_SRC 指向 imagegen 的 output 目录，或用 --src 指定。")
+        raise SystemExit("源图目录不存在：%s（检查 SD_IMG_SRC 或 --src）" % SRC)
     OUT_IMG.mkdir(parents=True, exist_ok=True)
     if debug:
         DBG.mkdir(parents=True, exist_ok=True)
@@ -323,7 +329,9 @@ def main(debug=False, with_atk=False):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--debug", action="store_true", help="写对齐调试图到 _dbg/")
+    ap.add_argument("--src", default="",
+                    help="源图目录（默认 $SD_IMG_SRC/sanxingdui-weapon-seq）")
     ap.add_argument("--with-atk", dest="with_atk", action="store_true",
                     help="恢复已废弃的 WEAPON_ATTACK_CLIP 通道；默认整段跳过，见文件头 ★")
     a = ap.parse_args()
-    sys.exit(main(debug=a.debug, with_atk=a.with_atk))
+    sys.exit(main(debug=a.debug, src=a.src or None, with_atk=a.with_atk))
