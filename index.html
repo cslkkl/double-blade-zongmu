@@ -482,18 +482,18 @@
      所以版本号靠手改；改 js/ 就 bump 一次。
      当前版本：20261025-j（j = BGM 换成 assets/audio/bgm-main.mp3；i = 模式选择页打开即高亮当前项）
      —— 两边曾各自把版本号提到 e，同号两个版本会让缓存分不清，合并后统一顺延。 -->
-<script src="js/assets.js?v=20261025l"></script>
-<script src="js/anim-data.js?v=20261025l"></script>
-<script src="js/background.js?v=20261025l"></script>
-<script src="js/char-rig.js?v=20261025l"></script>
-<script src="js/enemies-assets.js?v=20261025l"></script>
-<script src="js/fx.js?v=20261025l"></script>
-<script src="js/guide.js?v=20261025l"></script>
-<script src="js/rumble.js?v=20261025l"></script>
-<script src="js/touch.js?v=20261025l"></script>
-<script src="js/ui-shell.js?v=20261025l"></script>
-<script src="js/audio.js?v=20261025l"></script>
-<script src="js/intro-video.js?v=20261025l"></script>
+<script src="js/assets.js?v=20261026a"></script>
+<script src="js/anim-data.js?v=20261026a"></script>
+<script src="js/background.js?v=20261026a"></script>
+<script src="js/char-rig.js?v=20261026a"></script>
+<script src="js/enemies-assets.js?v=20261026a"></script>
+<script src="js/fx.js?v=20261026a"></script>
+<script src="js/guide.js?v=20261026a"></script>
+<script src="js/rumble.js?v=20261026a"></script>
+<script src="js/touch.js?v=20261026a"></script>
+<script src="js/ui-shell.js?v=20261026a"></script>
+<script src="js/audio.js?v=20261026a"></script>
+<script src="js/intro-video.js?v=20261026a"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -701,6 +701,11 @@ window.addEventListener("keydown", function(e){
      早就查了修饰键，这里是同一个口径。 */
   if(e.ctrlKey || e.metaKey || e.altKey) return;
   if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].indexOf(e.key)>=0) e.preventDefault();
+  /* 数字键盘必须按 code 再拦一次：NumLock 关掉时 Numpad7/9/1/3 会退化成
+     Home/PgUp/End/PgDn，e.key 变成导航键，页面会跟着滚。玩家二的五个动作键
+     全在小键盘上，所以这里不看 NumLock 状态、一律拦。
+     判定一律走 e.code（物理位置），NumLock 开着关着都是同一颗键。 */
+  if(/^Numpad/.test(e.code)) e.preventDefault();
   if(!KEYS[e.code]) KEYS[e.code+"_p"] = true;
   KEYS[e.code] = true;
   ac();
@@ -1117,13 +1122,41 @@ function startGame(mode){
   /* 触屏按键的摆法跟模式走：单人两个拇指分家、双人各占半屏。
      在 Player 创建之前设，这样第一帧的按键布局就是对的。 */
   if(window.Touch && Touch.setMode) Touch.setMode(G.mode);
-  G.p1 = new Player(560, 1,
-    {l:["KeyA"], r:["KeyD"], j:["KeyW","Space"], a:["KeyF","KeyJ"], act:["KeyG"],
-     drop:["KeyE"], give:["KeyR"]}, "p1");
-  G.p2 = (G.mode === "solo") ? null
-       : new Player(700, -1,
-           {l:["ArrowLeft"], r:["ArrowRight"], j:["ArrowUp","ShiftRight"], a:["Slash","Numpad0","KeyK"], act:["Semicolon"],
-            drop:["Period"], give:["Quote"]}, "p2");
+  /* 键位：一个动作一个键，与手柄逐条一一对应。
+     高频在 home 行、低频抬一格，所以键盘图与手柄图可以逐行对照着看：
+       动作    手柄      玩家一   玩家二
+       移动    左摇杆    A / D    ← / →
+       挥刀    A         J        小键盘 4
+       跳跃    X         W        ↑
+       旋风斩  B         K        小键盘 5
+       拾取    Y         L        小键盘 6
+       递给    十字↑     I        小键盘 8
+       丢弃    十字↓     U        小键盘 7
+
+     为什么这么分：玩家一左手 A/D 走、右手 J/K/L 打；玩家二左手方向键走、
+     右手小键盘打。两人各占一块，中间不再需要横跨大半个键盘去够 `;` / `.` / `'`。
+     小键盘按物理位置（e.code）判定，NumLock 开或关都是同一颗键。
+
+     单人时没有第二个人，把玩家二那一套并给玩家一 —— 否则习惯「方向键走位」的
+     玩家在单人里一个键都不响，读起来像键盘坏了。双人时两套必须严格不相交：
+     keyPressed 会消费 _p 标记，共用一个键就会被一方吃掉。 */
+  var solo = (G.mode === "solo");
+  G.p1 = new Player(560, 1, {
+    l:    solo ? ["KeyA","ArrowLeft"]  : ["KeyA"],
+    r:    solo ? ["KeyD","ArrowRight"] : ["KeyD"],
+    j:    solo ? ["KeyW","ArrowUp"]    : ["KeyW"],
+    a:    solo ? ["KeyJ","Numpad4"]    : ["KeyJ"],
+    skill:solo ? ["KeyK","Numpad5"]    : ["KeyK"],
+    act:  solo ? ["KeyL","Numpad6"]    : ["KeyL"],
+    drop: solo ? ["KeyU","Numpad7"]    : ["KeyU"],
+    give: solo ? ["KeyI","Numpad8"]    : ["KeyI"]
+  }, "p1");
+  G.p2 = solo ? null
+       : new Player(700, -1, {
+           l:["ArrowLeft"], r:["ArrowRight"], j:["ArrowUp"],
+           a:["Numpad4"], skill:["Numpad5"], act:["Numpad6"],
+           drop:["Numpad7"], give:["Numpad8"]
+         }, "p2");
   G.enemies = []; G.particles = []; G.slashes = []; G.drops = []; G.texts = []; G.projectiles = []; G.hits = [];
   G.chests = []; G.mechanisms = []; G.pickups = [];
   G.breatherT = 0; G.mechSpawned = false; G.mechSkipBreather = false;
@@ -1390,7 +1423,7 @@ var introHolding = false;           /* 本帧是否处于按住状态 */
 var introRunning = false;           /* 短片是否正在播 */
 
 /* 键盘：这一批键都算「继续」，按住任意一个都能跳过 */
-var INTRO_KEYS = ["Space","Enter","Escape","KeyF","KeyJ","Slash","Numpad0","KeyK"];
+var INTRO_KEYS = ["Space","Enter","Escape","KeyJ","KeyK","Numpad4","Numpad5"];
 var introKeyDownAt = 0;             /* 第一个按下的时刻，0 = 没按 */
 
 function introEls(){
@@ -1564,9 +1597,11 @@ function padConfirmEdge(){
    ① 先见到所有动作键都松开的一帧 → uiKbSeenUp = true
    ② 之后任何一次「请求标记 + 真的还按着某个动作键」才算确认。
    请求标记由 keydown 置位（见输入段的 __confirmReq），这里负责消费它。 */
-var CONFIRM_KEYS = ["KeyA","KeyD","KeyW","Space","KeyF","KeyJ","KeyG","KeyE","KeyR",
-                    "ArrowLeft","ArrowRight","ArrowUp","ShiftRight",
-                    "Slash","Numpad0","KeyK","Semicolon","Period","Quote"];
+/* 与 startGame 里的两张键位表逐项对齐（单人时 P1 还会多一份方向键 / 小键盘），
+   漏一项的后果：那一颗键按下去时闸判不到「还按着」，结算页当场被顶掉。 */
+var CONFIRM_KEYS = ["KeyA","KeyD","KeyW","KeyJ","KeyK","KeyL","KeyU","KeyI","Space",
+                    "ArrowLeft","ArrowRight","ArrowUp",
+                    "Numpad4","Numpad5","Numpad6","Numpad7","Numpad8"];
 function kbConfirmEdge(){
   var anyHeld = false;
   for(var i=0;i<CONFIRM_KEYS.length;i++){
@@ -1851,7 +1886,7 @@ function updatePlayer(p, dt, inp, other){
   if(Math.abs(p.vx)>50 && p.onGround) p.walk += Math.abs(p.vx)*dt*0.024;
   else p.walk *= (1-7*dt);
 
-  /* ---- 武器动作：E 丢弃 / R 递队友（P2 为 . '）
+  /* ---- 武器动作：U 丢弃 / I 递队友（玩家二为 小键盘 7 / 8）
      手柄对应 十字下 丢弃、十字上 递队友。
      两个都是「按下瞬间」触发，与攻击键一样走 keyPressed 的一次性标记；
      标记无条件吃掉，动作只在能动（未挥砍 / 未受击）时执行，避免攒着延后触发。 */
@@ -1868,9 +1903,12 @@ function updatePlayer(p, dt, inp, other){
     }
   }
 
-  /* ---- 旋风斩发动：能量满 + 招式键（手柄 B）或 攻击与跳同按 ----
-     手柄有了独立的 B，键盘保持「攻击+跳」的手感，两条路都通。 */
-  if(p.energy >= 100 && (inp.skill || (inp.atk && inp.jump)) && p.whirlT<=0){
+  /* ---- 旋风斩发动：能量满 + 技能键 ----
+     手柄 B / 键盘 K（玩家二 小键盘 5）/ 触屏「技」，三条路都是一颗独立的键。
+     以前键盘走「攻击 + 跳跃同按」：两个键都是按下沿（keyPressed 读即消费），
+     要求两颗键落在同一帧才成立 —— 手指天然错开 5~30ms，等于赌 16.7ms 的窗口，
+     玩家读到的是「有时放得出、多数时候放不出」。现在每个动作都有独立键。 */
+  if(p.energy >= 100 && inp.skill && p.whirlT<=0){
     p.whirlT = 1.5; p.whirlTick = 0; p.energy = 0;
     /* 无敌帧与 whirlT 同寿 —— 文档与 HUD 都承诺「1.5 秒无敌」，而敌人的命中判定
        只看 p.inv。不给这一行，玩家转到一半会被小兵砍中掉血，读到的是「技能是假的」。
@@ -1955,19 +1993,21 @@ function updatePlayer(p, dt, inp, other){
    规则：
      · 拾取 → 空手就直接上手；手上有别的就换手，换下来的那把落回原地
      · 同款不叠：手上就是这一款 → 不捡，飘字提示先扔掉
-     · E(.) → 丢手上那把，回到空手
-     · R(') → 手上那把递给队友，距离 160px 内；队友手上有武器时两人对换
-   拾取走独立的 act 键，与攻击键分开（见 updatePlayer 里那两道闸）。
-   这几个键与现有键位不冲突：P1 用 A/D/W/空格/F/J/G/E/R，P2 用方向键/右Shift///小键盘0/K/;/. '，
+     · U(小键盘7) → 丢手上那把，回到空手
+     · I(小键盘8) → 手上那把递给队友，距离 160px 内；队友手上有武器时两人对换
+   拾取走独立的 act 键（L / 小键盘6），与攻击键分开（见 updatePlayer 里那两道闸）。
+   这几张表与手柄逐条对应，键位总表见 startGame() 的注释。
    ui-shell 只认 1/2/H/Esc。 */
 
 var GIVE_RANGE = 160;              /* 递给队友的距离上限（世界像素） */
-/* 提示文案里的键名。键盘按玩家分，手柄统一按面键名 —— 插着手柄还提示「按 F」
+/* 提示文案里的键名。键盘按玩家分，手柄统一按面键名 —— 插着手柄还提示「按 J」
    会让人下意识去找键盘，所以同一套文案要按「这个人当前用的是什么」切换。
-   Xbox 与 PS 的键位编号相同、刻字不同，这里取两者都认的记法。 */
+   Xbox 与 PS 的键位编号相同、刻字不同，这里取两者都认的记法。
+   ⚠️ 这张表必须跟着 startGame() 的键位表走：气泡写着按 A 就能递过去，
+      实际绑定却是 U，玩家会以为按键坏了。 */
 var KEY_LABEL = {
-  p1: { drop:"E", give:"R", atk:"F", open:"G" },
-  p2: { drop:".", give:"'", atk:"/", open:";" }
+  p1: { drop:"U", give:"I", atk:"J", open:"L" },
+  p2: { drop:"小键盘7", give:"小键盘8", atk:"小键盘4", open:"小键盘6" }
 };
 var PAD_LABEL = { drop:"十字下", give:"十字上", atk:"A", open:"Y", skill:"B", jump:"X" };
 /* 触屏文案：手指没有「键名」，只能写屏幕上的字。这几个词与 js/touch.js
@@ -2738,13 +2778,14 @@ function update(dt){
       right: keyDown(G.p1.keys.r) || pad1.right || (tch1 && tch1.right),
       jump:  keyPressed(G.p1.keys.j) || pad1.jump || (tch1 && tch1.jump),
       atk:   keyPressed(G.p1.keys.a) || pad1.atk || (tch1 && tch1.atk),
-      /* 拾取 / 开箱走独立键：键盘 act（P1 G / P2 ;）或手柄 Y。
+      /* 拾取 / 开箱走独立键：键盘 act（P1 L / P2 小键盘 6）或手柄 Y。
          与攻击键分开是硬要求 —— 同一个键既挥刀又捡东西时，站在掉落物旁一按就会
          先捡、把这一刀吃掉，玩家读到的是「乱拾取」。 */
       act:   (G.p1.keys.act && keyPressed(G.p1.keys.act)) || pad1.act || (tch1 && tch1.act),
       drop:  pad1.drop || (tch1 && tch1.drop),
       give:  pad1.give || (tch1 && tch1.give),
-      skill: pad1.skill || (tch1 && tch1.skill)
+      /* 技能：键盘 K / 小键盘 5 走独立键，与手柄 B、触屏「技」同义 */
+      skill: (G.p1.keys.skill && keyPressed(G.p1.keys.skill)) || pad1.skill || (tch1 && tch1.skill)
     };
     var in2 = null;
     if(G.p2){
@@ -2756,7 +2797,8 @@ function update(dt){
         act:   (G.p2.keys.act && keyPressed(G.p2.keys.act)) || pad2.act || (tch2 && tch2.act),
         drop:  pad2.drop || (tch2 && tch2.drop),
         give:  pad2.give || (tch2 && tch2.give),
-        skill: pad2.skill || (tch2 && tch2.skill)
+        /* 技能：键盘 小键盘 5 走独立键，与手柄 B、触屏「技」同义 */
+        skill: (G.p2.keys.skill && keyPressed(G.p2.keys.skill)) || pad2.skill || (tch2 && tch2.skill)
       };
       /* 单手柄时两人共用移动 */
       if(PADS[0] && !PADS[1]){

@@ -2,11 +2,14 @@
 
 状态：生效（跨会话延续）
 
+> 本文件只记进行中的线与待决策项。已完成的事项进 [HISTORY.md](HISTORY.md)，
+> 已归档的移交进 [archive/](archive/)。
+
 ## 一句话现状
 
 本文记录的两条线**都已落地并推送**（2026-10-25）：
 主线三条提交已在 `main`（`42102fe` 去前景遮挡 / `fb2f406` 背包改单手 / `1313aaf` 一键启动器）；
-乙线「半月斩朝向」已定案并实现，见 [移交-半月斩朝向.md](移交-半月斩朝向.md)。
+乙线「半月斩朝向」已定案并实现，见 [archive/半月斩朝向-移交.md](archive/半月斩朝向-移交.md)。
 
 **当前只剩「待决策项」未拍板**，没有未提交的工作区改动。
 
@@ -38,7 +41,7 @@
 | `js/background.js` | 前景遮挡层整层删除（2026-10-25）：`OCCLUDERS` 数组、`drawOccluder()`、`drawStonePillar()`、`drawFront()`、`occluders()`、`P_OCCLUDER` 全部移除；`index.html` 同步删 `playerOccluded()` / `OCC_FADE_ALPHA` / `OCC_FADE_RATIO` / `drawFront()` 调用，`drawPlayer()` 不再设 `p.__alphaMul`。原因：角色走到 3 座遮挡物附近会被压到 52% alpha，硬切换无过渡、判定只看 x 不看高度，走过道具旁边就闪一下半透明。遮挡物素材仍在 `PROPS` 中景层 |
 | `启动游戏.bat` | 重写为双击走系统默认浏览器；存 GBK，第二行 `chcp 936` |
 
-`js/fx.js` 的刀光弧心改动**已回滚到 HEAD**，工作区无该文件改动；该线单独记在 [移交-半月斩朝向.md](移交-半月斩朝向.md)。
+`js/fx.js` 的刀光弧心改动**已回滚到 HEAD**，工作区无该文件改动；该线单独记在 [archive/半月斩朝向-移交.md](archive/半月斩朝向-移交.md)。
 
 ### 主题三：文档同步（本次已完成）
 
@@ -117,7 +120,7 @@ js/AGENTS.md 与 tools/AGENTS.md（子目录规则）。
 
 ## 并行的另一条线
 
-- 半月斩朝左时特效反了的修复：**已完成并归档**，见 [移交-半月斩朝向.md](移交-半月斩朝向.md)。
+- 半月斩朝左时特效反了的修复：**已完成并归档**，见 [archive/半月斩朝向-移交.md](archive/半月斩朝向-移交.md)。
 - 定案是「凸背朝人面向的方向」，落在 `js/fx.js` 的 `ART_CONVEX` + `slashMirror()`；
   回归防线在 `tools/selftest_weapons.mjs` 的 5b / 5c 两节。
 
