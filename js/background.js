@@ -68,30 +68,10 @@
     { k: "potteryJar",  x: 3290, h:  68, flip: true  }
   ];
 
-  /* 需要参与 ready() 判定的图。**只列共用那三张** ——
-     每阵专属层（bgFar<N> / bgMid<N> / ground<N>）是可选层：
-     缺图就退回共用层，共用层缺了才整体回落纯代码背景。
-     把专属层塞进 CORE_KEYS 会让「某一阵没出图」变成「整块背景消失」。 */
+  /* 需要参与 ready() 判定的图 */
   var CORE_KEYS = ["bgFar", "bgMid", "ground"];
   var PROP_KEYS = ["sacredTree", "maskRelief", "brazier", "potteryJar",
                    "banner", "bellCluster", "jadeTablet"];
-
-  /* ------------------------------------------------------------------
-     每阵专属层
-     -
-     键名是 <共用键><阵次>，阵次从 1 起（与 index.html 的 G.waveIdx+1 同口径）。
-     取图顺序：专属层可用就用，否则用共用层 —— 单层降级，不影响其它层。
-     这就是「三级降级」在场景上的落法：专属 -> 共用 -> 纯代码。
-     ------------------------------------------------------------------ */
-  var _wave = 0;   /* 当前阵次（1 起）。0 = 还没进对局，用共用层。 */
-
-  function layerImg(key, wave) {
-    if (wave > 0) {
-      var own = img(key + wave);
-      if (okImg(own)) return own;
-    }
-    return img(key);
-  }
 
   /* ------------------------------------------------------------------
      图片工具
@@ -346,14 +326,12 @@
      主绘制
      ================================================================== */
   /* 返回值：true = 已完整绘制素材背景；false = 一张都没画，调用方必须回落到 drawBG()。
-     返回 false 时不会留下任何像素（判定在绘制之前），所以调用方可以直接补画。
-     wave 是阵次（1 起）：有专属层就用专属，没有就退回共用层。 */
-  function draw(ctx, camX, W, H, groundY, worldW, wave) {
+     返回 false 时不会留下任何像素（判定在绘制之前），所以调用方可以直接补画。 */
+  function draw(ctx, camX, W, H, groundY, worldW) {
     if (!ctx) return false;
 
     /* ---- 参数归一（后面的辅助函数从模块缓存里读当帧参数） ---- */
     normParams(camX, W, H, groundY, worldW);
-    _wave = (typeof wave === "number" && wave > 0) ? Math.floor(wave) : 0;
 
     /* ---- 兜底闸门：三张核心图任一不可用就整个放弃，交给纯代码背景 ---- */
     if (!coreUsable()) return false;
@@ -375,7 +353,7 @@
          做法：按宽度算一个统一系数，高度跟着长，再把「图里的地平线」
          对齐到 _groundY，多出来的部分是图顶部的天空，被画布裁掉（看不见）。
          1600 宽时 _farSc = 1600/1599 ≈ 1.0006、_farY ≈ 0，与改动前一致。 */
-    var far = layerImg("bgFar", _wave);
+    var far = img("bgFar");
     if (!okImg(far)) return false;                    // 没图就一张都不画，交给调用方回落
     _farSc = _W / imgW(far);
     var farH = imgH(far) * _farSc;
@@ -395,7 +373,7 @@
        所以中景保持素材原尺寸，靠 drawLayer 横向平铺补满多出来的宽度；
        平铺是交替镜像的，接缝不重复，两侧看到的是"建筑群继续延伸"。
        原尺寸也意味着中景里的结构物大小与角色比例始终不变。 */
-    var mid = layerImg("bgMid", _wave);
+    var mid = img("bgMid");
     if (okImg(mid)) {
       var mw = imgW(mid);
       var mh = imgH(mid);
@@ -419,7 +397,7 @@
     ctx.fillRect(0, _groundY, _W, gh);
     ctx.restore();
 
-    var gimg = layerImg("ground", _wave);
+    var gimg = img("ground");
     if (okImg(gimg) && gh > 8) {
       var gw = gh * (imgW(gimg) / imgH(gimg));        // 垂直正好填满地面带
       if (gw > 0) drawLayer(ctx, gimg, P_GROUND, gw, gh, _groundY, true, 1);

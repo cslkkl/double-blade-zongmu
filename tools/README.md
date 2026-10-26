@@ -177,18 +177,6 @@
 - **探针怎么造**（踩过的坑都在这）：`file://` 下 `getImageData` 抛 `SecurityError`，必须走截图；游戏主循环一直在动会让 Playwright 截图超时，要么 `animations: "disabled"` 并裁剪到画布，要么先停 rAF；`<canvas>` 会被全局 CSS 拉成 1600×900，必须显式写 `style.width/height`；**探针里不许画任何文字或辅助线** —— 它们会进像素统计，曾造出 3.4px 的假不对称。
 - 幂等性：纯只读（只读截图），无副作用。
 
-## prep_scene.py — 每阵场景三层切图
-
-- 做什么：把生图产物切成 `assets/bg/` 下的每阵专属层三件套 ——
-  `far-<N>.webp`（1600×900，RGB，整幅天空）/ `mid-<N>.webp`（宽 1600，RGBA，裁到内容框）/ `ground-<N>.webp`（宽 1672，RGBA，裁到内容框）。
-- 为什么是这三个尺寸：与 `background.js` 的几何对齐 —— 远景按宽度等比缩到 `W`、中景按素材原尺寸平铺、地面高度恒等于 `H - GROUND`。换宽高会让「远景等比、中景原尺寸」这条加宽规则失配。
-- 抠图配方与 `prep_assets.py` 完全一致（`mag = min(R,B) - G`，双阈值 45/115 + `decontaminate`），**不另写第二套**，否则边缘紫边各批不一致。
-- 输入：`C:\Users\11965\Desktop\imagegen无限\output\三星堆-场景\wave<N>\w<N>-{far,mid,ground}.png`。远景不要洋红底；中景与地面必须是纯洋红底、内容接地。
-- 用法：`python tools/prep_scene.py --waves 1,2,3`。缺哪一阵就跳过哪一阵并打印提示，不报错。
-- 幂等性：只覆盖同名输出，不删别的文件。
-- 跑完要做的两件事：①往 `js/assets.js` 的 `MANIFEST` 加三行（`bgFar<N>` / `bgMid<N>` / `ground<N>`）—— **先出图再加键**，登记了没文件就是 404；②改 `js/` 后把 `index.html` 的 `?v=` 版本号 +1。
-- 验收：`python tools/prep_scene.py` 会打印每层的洋红残留计数，中景／地面应为个位数以内；另外要人眼确认「中景底边正好接地、左右两端不出现硬接缝」。
-
 ## selftest_drop.mjs — 掉落池自检
 
 - 做什么：从 `index.html` 抽出 `DROP_POOL` 与 `pickDropKey` 两段源码，在 `vm` 里单独执行，校验七件事：0~20 阵都抽得出非空池子；玉璋刃 / 骨牙匕只在前两阵出现、第三阵起一个不漏地退场；11 件武器在各自解锁阵次起真的抽得到；`heavyMul` 只放大非基础件（`from > 0`），第一阵倍率 1 与倍率 2 同分布；池内均匀 —— 实际分布与「条目数即权重」一致（±2%），谁把加权表请回来当场失败；**第三、四、五阵各有一件新武器首次入池**（不许第三阵一次开满）；**池子平均伤害随阵次单调不减、件数不缩水**。
@@ -280,7 +268,6 @@
 | `slice_anim_extra.py` | 三个新 clip 的 `scaleFix` 是否**没被覆盖**（脚本沿用旧值）、`char-rig.js` 的 `CLIPS` 是否含这三个名字 |
 | `slice_enemy_anim.py` | `js/anim-data.js` 末尾的 `window.ENEMY_ANIM`、`enemies-assets.js` 的 `KINDS`、`selftest_enemies.mjs` |
 | `prep_assets.py` / `prep_fx.py` / `fix_fg.py` | `js/assets.js` 的 `MANIFEST` 键名与路径、`background.js` 的 `PROPS` 键名 |
-| `prep_scene.py` | `js/assets.js` 的 `bgFar<N>` / `bgMid<N>` / `ground<N>` 三行、`showcase.js` 的 `BG` 清单、`index.html` 的 `?v=` 版本号；**专属层不许进 `CORE_KEYS`** |
 | `prep_interact.py` | `js/assets.js` 的 `chestClosed / chestOpen / mechanismOff / mechanismOn / pickupCowrie / pickupJade` 六个键 |
 | `prep_icons.py` | `js/assets.js` 的 `wp* / it*` 两族键名（`icon*` 已停产出）、`index.html` 的 `ICON` 映射与 `DROP_ICON_SIZE` |
 | `prep_touch.py` | `js/touch.js` 的 `ART` 表（文件名与字段一一对应）、`assets/touch/` 那 10 张、`showcase.js` 界面 tab 的「手机虚拟键」清单（`TOUCH`） |

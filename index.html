@@ -490,30 +490,30 @@
        j = BGM 换成 assets/audio/bgm-main.mp3；i = 模式选择页打开即高亮当前项。
      —— 两边曾各自把版本号提到 e，同号两个版本会让缓存分不清，合并后统一顺延；
         这次也撞在一起（本地 k、上游 l），取两者之外的 m。 -->
-<script src="js/assets.js?v=20261026d"></script>
-<script src="js/anim-data.js?v=20261026d"></script>
-<script src="js/background.js?v=20261026d"></script>
-<script src="js/char-rig.js?v=20261026d"></script>
-<script src="js/enemies-assets.js?v=20261026d"></script>
-<script src="js/fx.js?v=20261026d"></script>
-<script src="js/guide.js?v=20261026d"></script>
-<script src="js/rumble.js?v=20261026d"></script>
-<script src="js/touch.js?v=20261026d"></script>
-<script src="js/ui-shell.js?v=20261026d"></script>
-<script src="js/audio.js?v=20261026d"></script>
-<script src="js/intro-video.js?v=20261026d"></script>
-<script src="js/assets.js?v=20261026d"></script>
-<script src="js/anim-data.js?v=20261026d"></script>
-<script src="js/background.js?v=20261026d"></script>
-<script src="js/char-rig.js?v=20261026d"></script>
-<script src="js/enemies-assets.js?v=20261026d"></script>
-<script src="js/fx.js?v=20261026d"></script>
-<script src="js/guide.js?v=20261026d"></script>
-<script src="js/rumble.js?v=20261026d"></script>
-<script src="js/touch.js?v=20261026d"></script>
-<script src="js/ui-shell.js?v=20261026d"></script>
-<script src="js/audio.js?v=20261026d"></script>
-<script src="js/intro-video.js?v=20261026d"></script>
+<script src="js/assets.js?v=20261026c"></script>
+<script src="js/anim-data.js?v=20261026c"></script>
+<script src="js/background.js?v=20261026c"></script>
+<script src="js/char-rig.js?v=20261026c"></script>
+<script src="js/enemies-assets.js?v=20261026c"></script>
+<script src="js/fx.js?v=20261026c"></script>
+<script src="js/guide.js?v=20261026c"></script>
+<script src="js/rumble.js?v=20261026c"></script>
+<script src="js/touch.js?v=20261026c"></script>
+<script src="js/ui-shell.js?v=20261026c"></script>
+<script src="js/audio.js?v=20261026c"></script>
+<script src="js/intro-video.js?v=20261026c"></script>
+<script src="js/assets.js?v=20261026c"></script>
+<script src="js/anim-data.js?v=20261026c"></script>
+<script src="js/background.js?v=20261026c"></script>
+<script src="js/char-rig.js?v=20261026c"></script>
+<script src="js/enemies-assets.js?v=20261026c"></script>
+<script src="js/fx.js?v=20261026c"></script>
+<script src="js/guide.js?v=20261026c"></script>
+<script src="js/rumble.js?v=20261026c"></script>
+<script src="js/touch.js?v=20261026c"></script>
+<script src="js/ui-shell.js?v=20261026c"></script>
+<script src="js/audio.js?v=20261026c"></script>
+<script src="js/intro-video.js?v=20261026c"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -4526,12 +4526,9 @@ function render(){
 
   if(G.shake > 0) ctx.translate(rnd(-G.shake,G.shake), rnd(-G.shake,G.shake));
 
-  /* ---- 背景（素材视差层）----
-     末参是阵次（1 起）：每阵有专属远景 / 中景 / 地面就用专属，没有就退回共用层。
-     标题页与结算页 G.waveIdx 还为 0，传 1 会错拿第一阵的图 —— 所以 0 时传 0。 */
-  var bgWave = (G.waveIdx >= 0 && G.phase === "play") ? G.waveIdx + 1 : 0;
+  /* ---- 背景（素材视差层）---- */
   if(!(window.Background && window.Background.ready()
-       && window.Background.draw(ctx, G.camX, W, H, GROUND, WORLD_W, bgWave) !== false)){
+       && window.Background.draw(ctx, G.camX, W, H, GROUND, WORLD_W) !== false)){
     drawBG();
   }
 

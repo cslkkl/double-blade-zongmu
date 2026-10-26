@@ -60,15 +60,9 @@
 ## background.js
 
 - 职责：多层视差背景（远景 / 天光 / 雾 / 中景 / 道具 / 地面 / 地面线 / 暗角）。
-- 关键导出：`window.Background = { draw(ctx, camX, W, H, groundY, worldW, wave) → bool, ready() → bool }`。
+- 关键导出：`window.Background = { draw(ctx, camX, W, H, groundY, worldW) → bool, ready() → bool }`。
   `draw()` 返回 `false` = 一像素都没画，调用方必须补 `drawBG()`；`ready()` 对 `CORE_KEYS`（远景 / 中景 / 地面）判 `complete && naturalWidth > 0`，加载失败与加载中都为假。
-- **末参 `wave` 是阵次（1 起）**，`index.html` 传 `G.waveIdx + 1`（非 `play` 阶段传 0）。
-  每层取图顺序：`<共用键><wave>` 可用就用专属层，否则退回共用层 —— 单层降级，不影响其它层。
-  - 专属键名是 `bgFar<n>` / `bgMid<n>` / `ground<n>`，由 `tools/prep_scene.py` 产出到 `assets/bg/`。
-  - **专属层不进 `CORE_KEYS`**：塞进去会让「某一阵没出图」变成「整块背景消失」。
-    共用层才是必须的，`ready()` 只判它们。
-  - 降级三级：专属层 → 共用层 → 纯代码 `drawBG()`。
-- 依赖谁：`window.IMG` 的 3 张核心背景（+ 可选的每阵专属层）+ 7 个道具键。
+- 依赖谁：`window.IMG` 的 3 张核心背景 + 7 个道具键。
 - 被谁依赖：`index.html` 的 `render()`；`ready()` 为假或 `draw()` 返回 `false` 时回落到内联 `drawBG()`。
 - 关键约束：只在屏幕坐标系算偏移，不做世界坐标平移；道具世界坐标写在模块内 `PROPS`；`save/restore` 必须成对；道具加载失败不阻塞背景整体，逐张回落纯代码。
 - **`W` 是视图宽度、可以是变量**（手机加宽逻辑视口，见 [../docs/手机端适配.md](../docs/手机端适配.md)）。三层各用不同策略，改之前先对清楚：
@@ -79,7 +73,7 @@
     贴地面线后顶到画外 —— 天空被吃掉、柱子变粗、编钟横梁被裁断（已实测）。
   - **地面**：本来就按 `groundY` 反算宽高比，等比平铺，不用动。
 - **没有前景遮挡层**：`drawFront()` / `occluders()` 已于 2026-10-25 删除。原来那 3 座高大遮挡物画在角色之上，人走过去被完全盖住，只好给角色加一条 52% 硬淡出；那条淡出进出无过渡、判定只看 x 不看高度，走过道具旁边就闪一下半透明，读起来像 bug，整套删掉。遮挡物素材仍留在中景 `PROPS`（`maskRelief` / `brazier` / `sacredTree`）。
-- 改后必测：三档视差系数、道具底部是否贴 `GROUND`、`ready()` 对新键的判定、核心图任一失败时是否整层让位给 `drawBG()`、**手机加宽后远景太阳是否仍是正圆、中景接缝是否可接受**、**`draw()` 传 `wave=0` 与不存在的阵次要退回共用层而不是白屏**。
+- 改后必测：三档视差系数、道具底部是否贴 `GROUND`、`ready()` 对新键的判定、核心图任一失败时是否整层让位给 `drawBG()`、**手机加宽后远景太阳是否仍是正圆、中景接缝是否可接受**。
 
 ## char-rig.js
 
