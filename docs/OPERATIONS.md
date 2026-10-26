@@ -4,6 +4,10 @@
 **展示文案**在 [js/guide.js](../js/guide.js) 的 `PAD_LEGEND` / `KBD_LEGEND` / `HINT_KBD`。
 本页是这两处的对照表与改动清单；别处不再另抄一份键位表。
 
+> **本页是唯一 home**：键位、各页面输入、改键位要同步的六处。
+> **改这里之后要同步**：[../README.md](../README.md) 最小键位表 · [../操作与录屏说明.md](../操作与录屏说明.md) 键位表（现场速查）。
+> **本页被引用**：[../AGENTS.md](../AGENTS.md) 硬约束 5 · [README.md](README.md) 事实路由表 · [GAMEPLAY.md](GAMEPLAY.md) 键位指针。
+
 ## 一、设计口径
 
 - **一个动作一个键**。同一个动作不存在「`F` 或 `J`」这类同义多键，也不存在「跳 + 攻同按」这类复合手势。
@@ -86,3 +90,8 @@
 | 6 | 本页与 [README.md](../README.md) 的键位表 | 对外口径 |
 
 改了 `js/` 下任何文件，记得把 `index.html` 里 script 标签的 `?v=` 版本号 +1。
+
+---
+
+本页是键位的唯一 home，改完记得按[事实路由表](README.md)同步 `README.md` 与 `操作与录屏说明.md`；
+数值去 [GAMEPLAY.md](GAMEPLAY.md)，设计与约束去 [ARCHITECTURE.md](ARCHITECTURE.md)。

@@ -16,6 +16,7 @@ scaleFix 用「腰带锚定」反算，不用内容包围盒高 —— 攻击姿
 用法：
   python tools/slice_weapon_assets.py            # 正常跑
   python tools/slice_weapon_assets.py --debug    # 额外把腰带/锚点叠加图写到 _dbg/
+  python tools/slice_weapon_assets.py --src <目录>   # 默认 $SD_IMG_SRC/sanxingdui-weapon
 """
 import argparse
 import os
@@ -32,11 +33,12 @@ sys.path.insert(0, str(HERE))
 
 import slice_anim as SA  # noqa: E402
 
-SRC = r"C:\Users\11965\Desktop\imagegen无限\output\sanxingdui-weapon"
+# 路径口径与 slice_anim.py 一致：源图走 $SD_IMG_SRC，产物落仓库内。
+SRC = SA.IMG_SRC / "sanxingdui-weapon"          # <SD_IMG_SRC>/sanxingdui-weapon
 OUT_IMG = Path(SA.OUT_IMG)                      # assets/anim
-OUT_FX = HERE.parent / "assets" / "fx"          # assets/fx（新目录）
+OUT_FX = SA.ASSETS / "fx"                        # assets/fx（新目录）
 OUT_JS = Path(SA.OUT_JS)
-DBG = HERE.parent / "_dbg"
+DBG = SA.ROOT / "_dbg"
 
 MAX_SIDE = 560          # 人物帧画布长边上限（与 slice_anim_hold 一致）
 FX_MAX_SIDE = 420       # 刀光 / 爆炸环长边上限
@@ -541,10 +543,14 @@ def load_cells(png, n):
     return cells, bounds, segs
 
 
-def main(debug=False):
-    if not os.path.isdir(SRC):
-        print("!! 源图目录不存在：%s" % SRC)
-        return 1
+def main(debug=False, src=None):
+    global SRC
+    if src:
+        SRC = Path(src).expanduser()
+    if not SRC.is_dir():
+        if src is None and not os.environ.get("SD_IMG_SRC"):
+            raise SystemExit("缺少生图源目录：设置环境变量 SD_IMG_SRC 指向 imagegen 的 output 目录，或用 --src 指定。")
+        raise SystemExit("源图目录不存在：%s（检查 SD_IMG_SRC 或 --src）" % SRC)
     OUT_IMG.mkdir(parents=True, exist_ok=True)
     OUT_FX.mkdir(parents=True, exist_ok=True)
     if debug:
@@ -877,5 +883,7 @@ def main(debug=False):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--debug", action="store_true", help="写腰带/锚点叠加调试图到 _dbg/")
+    ap.add_argument("--src", default="",
+                    help="源图目录（默认 $SD_IMG_SRC/sanxingdui-weapon）")
     a = ap.parse_args()
-    sys.exit(main(debug=a.debug))
+    sys.exit(main(debug=a.debug, src=a.src or None))

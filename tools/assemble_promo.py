@@ -21,6 +21,8 @@ CLIP = 3.5
 END = 2.8
 TOTAL = CLIP * 5 + END
 
+# 系统字体按系统路径找：这两个文件名随 Windows 版本可能不同
+# （msyhbd.ttc / msyh.ttc 是 Win10/11 的微软雅黑常规与粗体），换系统先确认文件在。
 FONT_B = "C:/Windows/Fonts/msyhbd.ttc"
 FONT_R = "C:/Windows/Fonts/msyh.ttc"
 CREAM = (242, 226, 182)

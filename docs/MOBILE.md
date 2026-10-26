@@ -3,6 +3,10 @@
 单页横版清版动作游戏在手机 / 平板上的运行方式。桌面行为一个字都没改，这一层只在
 真设备有触摸硬件、且玩家真的用手指之后才生效。
 
+> **本页是唯一 home**：触屏输入通道、`?touch=` 参数、虚拟键布局约束、真机验收清单。
+> **改这里之后要同步**：`js/touch.js` 与 `js/guide.js` 的 `TOUCH_LEGEND`（说明对侧）· [OPERATIONS.md](OPERATIONS.md) 触屏一节。
+> **本页被引用**：[../AGENTS.md](../AGENTS.md) 分层索引 · [README.md](README.md) 事实路由表 · [DEPLOY.md](DEPLOY.md) 手机端一节。
+
 ---
 
 ## 零、入口在哪
@@ -258,3 +262,8 @@ iOS 的「整页」双指缩放走的是 `gesturestart` / `gesturechange` / `ges
       手机屏幕尺寸差异大（小屏机 5.5" vs 平板 11"），理想情况应允许玩家拖拽调整。
 - [ ] **首次进入的引导**。玩家第一次看到虚拟键不知道该按哪个 ——
       目前只靠顶部 `?` 主动查。可以在第一次进对局时给一个 3 秒的手势提示。
+
+---
+
+本页是触屏实现的唯一 home；改完同步 [OPERATIONS.md](OPERATIONS.md) 的触屏一节与
+`js/guide.js` 的 `TOUCH_LEGEND`。上线要求去 [DEPLOY.md](DEPLOY.md)，文件索引去 [README.md](README.md)。

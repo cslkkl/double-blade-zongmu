@@ -1,9 +1,15 @@
-# 三星堆 · 双刃战士 — 进行中计划与移交
+# 双刃战士 · 纵目 — 进行中计划与移交
 
 状态：生效（跨会话延续）
 
 > 本文件只记进行中的线与待决策项。已完成的事项进 [HISTORY.md](HISTORY.md)，
 > 已归档的移交进 [archive/](archive/)。
+>
+> **本页不是事实 home**：计划里提到的数值 / 键位 / 命名以 [GAMEPLAY.md](GAMEPLAY.md) 与
+> [OPERATIONS.md](OPERATIONS.md) 为准。
+> **改这里之后要同步**：无 —— 但一条线落地后，对应条目要搬进 [HISTORY.md](HISTORY.md) 或
+> [archive/](archive/)，并把 [../AGENTS.md](../AGENTS.md) 待办里的事项划掉。
+> **本页被引用**：[../AGENTS.md](../AGENTS.md) 文档地图 · [README.md](README.md) 事实路由表。
 
 ## 一句话现状
 

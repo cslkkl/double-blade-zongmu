@@ -6,6 +6,10 @@
 > 基线：`main` 分支。逐条状态在每次提交后重核，判据是「函数名 + 原文片段」，不认行号
 > （`index.html` 在审计期间从 4165 涨到 4335 行，漂了四次）。
 
+> **本页不是事实 home**，是状态表：条目里的数值与键位以 [GAMEPLAY.md](GAMEPLAY.md) / [OPERATIONS.md](OPERATIONS.md) 为准。
+> **改这里之后要同步**：无（本页只追状态）——但修完一条要回 [../AGENTS.md](../AGENTS.md) 的待办里删掉对应项。
+> **本页被引用**：[../AGENTS.md](../AGENTS.md) 分层索引与文档地图 · [README.md](README.md) 事实路由表。
+
 ---
 
 ## 一、已修（14 条，全部实测验收）

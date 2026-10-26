@@ -11,6 +11,7 @@ sprite strip -> per-frame webp + js/anim-data.js
   python tools/slice_anim.py               # 默认只处理角色，只清角色帧，不动敌人帧
   python tools/slice_anim.py --only char   # 同上，显式指定
   python tools/slice_anim.py --only enemy  # 委托给 tools/slice_enemy_anim.py
+  python tools/slice_anim.py --src <目录>  # 覆盖源条带目录（默认 $SD_IMG_SRC/sanxingdui-anim）
 """
 import argparse
 import os
@@ -18,13 +19,32 @@ import re
 import sys
 
 import numpy as np
+from pathlib import Path
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-SRC = r"C:\Users\11965\Desktop\imagegen无限\output\sanxingdui-anim"
-OUT_IMG = r"C:\Users\11965\Desktop\三星堆\assets\anim"
-OUT_JS = r"C:\Users\11965\Desktop\三星堆\js\anim-data.js"
+# ---------------------------------------------------------------- 路径口径
+ROOT = Path(__file__).resolve().parent.parent          # 仓库根
+ASSETS = ROOT / "assets"                               # 产物根
+
+# 外部生图源目录：不在仓库里，用环境变量给，没给就明确报错退出
+IMG_SRC = Path(os.environ.get("SD_IMG_SRC", "")).expanduser()
+
+
+def require_img_src():
+    """取外部生图源目录；未设 SD_IMG_SRC 或目录不存在就退出，绝不写出空产物。"""
+    if not os.environ.get("SD_IMG_SRC"):
+        raise SystemExit("缺少生图源目录：设置环境变量 SD_IMG_SRC 指向 imagegen 的 output 目录，或用 --src 指定。")
+    if not IMG_SRC.is_dir():
+        raise SystemExit("生图源目录不存在：%s（检查 SD_IMG_SRC）" % IMG_SRC)
+    return IMG_SRC
+
+
+SRC = IMG_SRC / "sanxingdui-anim"          # 源条带目录（可用 --src 覆盖）
+SRC_GIVEN = False                          # --src 是否显式给了
+OUT_IMG = ASSETS / "anim"                  # assets/anim
+OUT_JS = ROOT / "js" / "anim-data.js"      # js/anim-data.js
 
 # clip, file, nominal frames, fps, loop
 CLIPS = [
@@ -247,7 +267,17 @@ def magenta_residue(im):
 
 
 # ---------------------------------------------------------------- 主流程
+def source_dir():
+    """源条带目录：--src 覆盖值 / $SD_IMG_SRC/sanxingdui-anim。缺失就退出，不写空产物。"""
+    if SRC.is_dir():
+        return SRC
+    if not SRC_GIVEN and not os.environ.get("SD_IMG_SRC"):
+        raise SystemExit("缺少生图源目录：设置环境变量 SD_IMG_SRC 指向 imagegen 的 output 目录，或用 --src 指定。")
+    raise SystemExit("源图目录不存在：%s（检查 SD_IMG_SRC 或 --src）" % SRC)
+
+
 def main():
+    source_dir()
     os.makedirs(OUT_IMG, exist_ok=True)
     os.makedirs(os.path.dirname(OUT_JS), exist_ok=True)
     removed = clean_char_frames()
@@ -406,6 +436,9 @@ def run_enemy():
         sys.path.insert(0, HERE)
     print("委托 tools/slice_enemy_anim.py 处理敌人帧")
     import slice_enemy_anim
+    if SRC_GIVEN:      # --src 一并传下去，别让子脚本回落到环境变量
+        slice_enemy_anim.SRC = SRC
+        slice_enemy_anim.SRC_GIVEN = True
     slice_enemy_anim.main()
 
 
@@ -415,11 +448,17 @@ def parse_args(argv=None):
     p.add_argument("--only", choices=("char", "enemy"), default="char",
                    help="char=只切角色（默认，保留敌人帧）；"
                         "enemy=委托 tools/slice_enemy_anim.py")
+    p.add_argument("--src", default="",
+                   help="源条带目录（默认 $SD_IMG_SRC/sanxingdui-anim）")
     return p.parse_args(argv)
 
 
 def cli(argv=None):
+    global SRC, SRC_GIVEN
     args = parse_args(argv)
+    if args.src:
+        SRC = Path(args.src).expanduser()
+        SRC_GIVEN = True
     if args.only == "enemy":
         run_enemy()
     else:

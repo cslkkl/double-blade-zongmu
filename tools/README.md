@@ -3,8 +3,27 @@
 全部脚本都是本机一次性工具，不在运行期被游戏加载。
 素材设计理由见 [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)；本目录规则见 [AGENTS.md](AGENTS.md)。
 
-**共同前提**：源图在 `C:\Users\11965\Desktop\imagegen无限\output`，该路径硬编码在各脚本顶部。
-换机、换目录必须先改 `SRC`，否则脚本会读空目录并静默写出空产物。
+**路径口径**：脚本不含本机绝对路径，全部按仓库根解析。
+
+- **产物**（`DST` / `OUT_*`）一律相对仓库根：`ROOT = Path(__file__).resolve().parent.parent`，
+  `ASSETS = ROOT / "assets"`，数据写 `ROOT / "js" / "anim-data.js"`。协作者换机器不用改任何路径。
+- **外部生图源图**不在仓库里，用环境变量 `SD_IMG_SRC` 指向 imagegen 的 `output` 目录：
+
+  ```powershell
+  $env:SD_IMG_SRC = "D:\path\to\imagegen\output"
+  python tools/slice_anim.py            # 读 $env:SD_IMG_SRC/sanxingdui-anim
+  ```
+
+  也可以给带 `--src` 的脚本直接指定目录（`--src` 优先于环境变量）：
+
+  ```powershell
+  python tools/slice_anim.py --src D:\path\to\imagegen\output\sanxingdui-anim
+  ```
+
+- **没给源目录就退出**，错误一句中文 + 用法提示，绝不静默读空目录写出空产物。
+  各脚本固定子目录名不变（如 `prep_fx.py` 读 `$env:SD_IMG_SRC/sanxingdui-fx`）。
+- 例外：`assemble_promo.py` / `assemble_promo_land.py` 按系统路径找 Windows 字体
+  （`C:/Windows/Fonts/msyh*.ttc`），字体本来就该按系统路径找，与仓库位置无关。
 
 **强制顺序**：`prep_assets` / `prep_fx` / `fix_fg` / `prep_interact` / `prep_icons` → `slice_anim` → `slice_anim_extra` → `slice_enemy_anim`。
 理由：`slice_anim.py` 会整体重写 `js/anim-data.js`（丢掉 `window.ENEMY_ANIM` 与三个新增动作）。文件层面它现在只删角色帧、不碰敌人帧，见下文「`--only` 开关」一节。
@@ -65,6 +84,20 @@
 - 为什么必须归一：一次出的六个图标各自包围盒不同，直接按包围盒缩放到目标尺寸就会忽大忽小；归一后缩放只剩长边一个自由度。
 - 幂等性：可重复跑，同名覆盖。
 - 验收：末尾批量校验「紫色残留」合计应为 0 或个位数；`assets/icons/` 应为 16 个文件。
+
+## prep_icon_alpha.py — 站点图标：源图 → 透明底 + 全套尺寸
+
+- 做什么：把一张**方底**图标源图抠成透明底，从一张 512 母版下采样出整套站点尺寸。
+  与 `prep_icons.py`（游戏内拾取图标）无关，别混。
+- 何时跑：换 App 图标 / favicon 时。
+- 输入：`--src` 指定的源图（默认 `assets/icon/_src.png`）。两种底都支持：`--bg magenta`（默认自动判）、`--bg dark`。
+- 输出：`assets/icon/` 的 `icon-{16,32,48,64,128,180,192,256,512}.png` + `apple-touch-icon.png`（180）+ `favicon.ico`（内嵌 16/32/48）。
+- **为什么不能用「颜色接近背景就透明」**：旧版 512 母版的面具内部（眼窝深、下颌阴影）存在与背景色距离**为 0** 的像素，
+  纯色键会把脸挖穿。这里走「连通域 + 只对含中心点的那一块填洞」；金环这类外围元素**不填洞**，否则会被糊成实心圆盘。
+- **小尺寸给硬边**：alpha 羽化后合成到白底，16px 上会读成一圈灰边；≤32 的尺寸二值化 alpha，得到干净的像素台阶。
+- 幂等性：可重复跑，同名覆盖；同源图两次产物字节级一致。
+- 验收：脚本末尾打印体积、`alpha=0` 占比、四角 alpha 与三条自检；另出 `.tmp/icon-{white,black}.png` 供人眼确认。
+- 想给小尺寸单独换更简化的图：`--micro-src <图> --micro-max 48`（默认不用，全套都从同一源图缩）。
 
 ## slice_anim_extra.py — 新增动作切片
 
@@ -131,12 +164,12 @@
 
 - 做什么：把每把武器的 4 帧行走条带切成 `walk-<key>-<i>.webp`，并就地写 `window.WEAPON_WALK_CLIP`。
 - 何时跑：重出持械行走动画、改帧数时。
-- 输入（用 `--src` 指定，不写死 SRC）：`walk-{short,dagger,sword,axe,hammer,spear,bow,rock,blade,jar,bell}.png`，每张横向 4 格。
+- 输入（`--src` 优先，省略则读 `$env:SD_IMG_SRC/weapon-walk`）：`walk-{short,dagger,sword,axe,hammer,spear,bow,rock,blade,jar,bell}.png`，每张横向 4 格。
 - 输出：44 张 `assets/anim/walk-<key>-<0..3>.webp` + `window.WEAPON_WALK_CLIP`。
 - **为什么走路要单独一套**：走路原先落回通用 walk clip（所有角色共用、手上没武器），于是「站着有武器、一走就空手」—— 连续性断在最常发生的那一帧。程序化浮沉只是权宜，逐帧才是解法。
 - **身高锚有兜底**：`slice_weapon_assets.detect_head` 认的是原画那顶**金色**头冠（`R>=180 G>=145 B<=160`）。AI 新出的青铜面具素材金冠条件不成立，11 把里 8 把检测失败，所以本脚本先用它、失败再走 `body_top()`（肩线以上、轮廓中心 ±0.30 宽的竖带里第一个有内容的行）。举过头顶的锤 / 钺通常偏在一侧，落在竖带外，不计入身高。
 - `scaleFix` 每把武器一个（4 帧共用）；`anchorX` 逐帧一个。口径与 `slice_weapon_seq.py` 完全一致。
-- `--src` / `--only` / `--debug` 三个参数；产物路径显式指到仓库内，不复用 `slice_anim` 的 `OUT_IMG`（那个是相对硬编码 `SRC` 拼的，换机器就没有该目录）。
+- `--src` / `--only` / `--debug` 三个参数；产物路径一律 `ROOT / "assets" / "anim"` 与 `ROOT / "js" / "anim-data.js"`，不含盘符。
 - 幂等：只替换自己那 44 个文件与 `WEAPON_WALK_CLIP` 数据块。
 - 门禁：写完 `node --check js/anim-data.js`，再跑 `node tools/selftest_weapons.mjs`。
 - 验收：每把武器 4 帧的「头冠→脚底」屏幕高度极差 ≤ 3%；4 个文件尺寸完全一致；与单帧 `atk-<key>.webp` 的屏幕身高差 ≤ 4%。
@@ -260,6 +293,7 @@
 | `prep_assets.py` / `prep_fx.py` / `fix_fg.py` | `js/assets.js` 的 `MANIFEST` 键名与路径、`background.js` 的 `PROPS` 键名 |
 | `prep_interact.py` | `js/assets.js` 的 `chestClosed / chestOpen / mechanismOff / mechanismOn / pickupCowrie / pickupJade` 六个键 |
 | `prep_icons.py` | `js/assets.js` 的 `wp* / it* / icon*` 三族键名、`index.html` 的 `WP_ICON` 映射与 `DROP_ICON_SIZE` |
+| `prep_icon_alpha.py` | `index.html` / `mobile.html` 的 `<link rel="icon">` 与 `apple-touch-icon` 引用；`hub.html` 的 favicon 用的是 `play/assets/icon/favicon.ico`（部署路径） |
 | 锚点或 `scaleFix` 相关逻辑 | `docs/ARCHITECTURE.md` 的「跨帧对齐约定」 |
 | `align_apply.py` / `align_weapon_frames.html` | `char-rig.js` 的 `anchorOf` / `footOf`、`js/anim-data.js` 的 `WEAPON_CLIP`、`selftest_weapons.mjs` |
 | `selftest_audio.mjs` | `js/audio.js` 的导出清单；导出增删要同步改用例，否则自检会漏掉新接口 |

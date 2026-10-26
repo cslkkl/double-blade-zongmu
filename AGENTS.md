@@ -1,4 +1,4 @@
-# 三星堆·双刃战士 — 维护索引
+# 双刃战士 · 纵目 — 维护索引
 
 单页横版双人清版动作游戏。零依赖，`file://` 双击可跑。
 
@@ -17,7 +17,7 @@
 | 门面 | `README.md` | 对外介绍，面向玩家，不写实现 | [README.md](README.md) |
 | 设计 | `docs/ARCHITECTURE.md` | 不变的决策与防错清单 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | 操作 | `docs/OPERATIONS.md` | 键位唯一口径 + 各页面输入 | [docs/OPERATIONS.md](docs/OPERATIONS.md) |
-| 玩法 | `docs/GAMEPLAY.md` | 机制、数值、六阵、文物对照 | [docs/GAMEPLAY.md](docs/GAMEPLAY.md) |
+| 玩法 | `docs/GAMEPLAY.md` | 机制、数值、六阵、文物对照、青铜病知识（唯一口径）、艺术处理边界 | [docs/GAMEPLAY.md](docs/GAMEPLAY.md) |
 | 游戏本体 | `index.html` | 玩法逻辑、状态机、HUD | 直接读，无子手册 |
 | 渲染层 | `js/` | 素材加载、视差、帧动画、特效、UI、声音、触屏 | [js/README.md](js/README.md) · [js/AGENTS.md](js/AGENTS.md) |
 | 素材流水线 | `tools/` | 生图后处理、切片、自检 | [tools/README.md](tools/README.md) · [tools/AGENTS.md](tools/AGENTS.md) |
@@ -54,7 +54,7 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 
 | 文件 | 职责 |
 |---|---|
-| `showcase.html` | 页面骨架 + 顶栏统计 + 青铜癌按语 |
+| `showcase.html` | 页面骨架 + 顶栏统计 + 青铜病按语（俗称青铜癌） |
 | `showcase.css` | 纯白底、1px 细线、青铜绿单一强调色 |
 | `showcase.js` | 从 5 张数据表生成 7 个 tab 的全部格子与播放器 |
 | `serve-showcase.mjs` | 本地静态服务（零依赖，默认 8801） |
@@ -95,6 +95,9 @@ CHAR     // 12 个动作的中文名 / 英文名
 
 ## 待办
 
+- [ ] **代码侧没有回指文档**：`index.html` 的 `WEAPONS` / `buildWaves()` / `Enemy` 构造与 `js/guide.js` 四张图例表，
+  表头都该加一行「口径 → docs/GAMEPLAY.md（或 OPERATIONS.md）」。现在只有文档指代码、没有注释指回来，
+  改数值时从代码这一侧查不到同步点。清单见 [docs/README.md](docs/README.md) 的反向路由表。
 - [ ] `js/assets.js` 里 `pose1` / `charFront` / `charSide` / `charBack` 四个键无消费方，每次启动白加载约 265 KB。
 - [ ] `js/assets.js` 里 `itCowrie` / `itEye` 与 `iconEye` / `iconMask` / `iconLeiwen` / `iconTree` 六个图标键无消费方。
 - [ ] `js/assets.js` 里 `wpShort` 与 `wpDagger` 指向同一张 `wp-dagger.webp`，`wpRock` 与 `itRock` 指向同一张 `it-rock.webp`。
@@ -154,7 +157,8 @@ CHAR     // 12 个动作的中文名 / 英文名
 - 想改玩法 → `index.html`；想改画面 → [js/README.md](js/README.md)。
 - 想知道为什么这么设计 → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 - 想键位、各页面怎么操作 → [docs/OPERATIONS.md](docs/OPERATIONS.md)。
-- 想查机制数值、六阵、文物依据 → [docs/GAMEPLAY.md](docs/GAMEPLAY.md)。
+- 想查某条事实归谁管（改之前先查路由表）→ [docs/README.md](docs/README.md) 的「事实路由表」。
+- 想查机制数值、六阵、文物依据、青铜病知识 → [docs/GAMEPLAY.md](docs/GAMEPLAY.md)。
 - 想重新出素材 → [tools/README.md](tools/README.md)；素材契约 → [docs/ASSETS.md](docs/ASSETS.md)。
 - 想查某次决策与调查的来龙去脉 → [.agents/notes/](.agents/notes/)。
 - 想部署 / 手机端怎么用 → [docs/DEPLOY.md](docs/DEPLOY.md) · [docs/MOBILE.md](docs/MOBILE.md)。

@@ -15,8 +15,12 @@
    素材源：assets/ 目录，走本地 HTTP 服务（见 serve-showcase.mjs）。
    不改游戏、不改素材、不新增依赖。
 
-   同步点：武器中文名抄自 index.html 的 WEAPONS 表，敌人中文名抄自 README。
-           那两处改名了，下面的 WEAPONS / CHAR / ENEMIES 表要一起改。
+   同步点（改之前先看 docs/README.md 的「事实路由表」）：
+     武器中文名 ← index.html 的 WEAPONS 表，口径在 docs/GAMEPLAY.md 的武器两表；
+     敌人中文名 ← docs/GAMEPLAY.md（`walker` / `fast` / `brute` / `boss` 四行）；
+     敌人比例 ← index.html 的 Enemy 构造函数。
+   这三处改名或改数了，下面的 WEAPONS / CHAR / ENEMIES 表要一起改；
+   本页改动不影响游戏本体，改完只需 node --check showcase.js。
    ===================================================================== */
 (function () {
   "use strict";
@@ -60,7 +64,7 @@
     ["walker", "铜锈俑",   "Bronze Walker",          1.00],
     ["fast",   "疾行俑",   "Swift Runner",           0.82],
     ["brute",  "厚甲俑",   "Armored Brute",          1.28],
-    ["boss",   "纵目之主", "The Vertical-Eyed Lord", 2.05]
+    ["boss",   "器心 · 纵目之主", "The Vertical-Eyed Lord", 2.05]
   ];
 
   var WEAPONS = [
@@ -129,7 +133,7 @@
     ["it-bell",     "物品图标", "铃"],
     ["it-rock",     "物品图标", "石"],
     ["it-eye",      "物品图标", "眼"],
-    ["icon-eye",    "符号",     "纵目"],
+    ["icon-eye",    "符号",     "纵目纹"],
     ["icon-mask",   "符号",     "面具"],
     ["icon-leiwen", "符号",     "雷纹"],
     ["icon-tree",   "符号",     "神树"]
@@ -813,7 +817,7 @@
 
   function buildEnemy() {
     var frag = document.createDocumentFragment();
-    frag.appendChild(secHead("03", "敌人", "Enemy", "四种锈蚀面具兵 · 比例取自构造函数"));
+    frag.appendChild(secHead("03", "敌人", "Enemy", "三种锈蚀面具兵 + 器心 · 纵目之主 · 比例取自构造函数"));
 
     var g = gridOf(4);
     var queue = [];

@@ -1040,12 +1040,13 @@ function Enemy(kind, x){
   this.hitOnce = false;
   this.deadT = 0;
   /* 血量按「本阵能拿到的武器要砍几刀」定，四种差异明显、可一眼分辨。
-     参照玉璋刃（2 伤，起手武器）：疾行俑 2 刀 / 锈蚀俑 3 刀 / 厚甲兵 6 刀 / 器心 30 刀。
-     拿到神树锤（8 伤）之后：锈蚀俑 1 刀 / 厚甲兵 2 刀 / 器心 8 刀。 */
+     参照玉璋刃（2 伤，起手武器）：疾行俑 2 刀 / 锈蚀俑 3 刀 / 厚甲兵 6 刀 / 器心 300 刀。
+     拿到神树锤（8 伤）之后：锈蚀俑 1 刀 / 厚甲兵 2 刀 / 器心 75 刀。
+     BOSS 血量已按需求上调十倍（60 → 600），硬直期伤害翻倍仍是主要输出手段。 */
   if(kind==="walker"){ this.hp=5;  this.maxHp=5;  this.spd=110; this.scale=1.0;  this.dmg=1; }
   else if(kind==="fast"){ this.hp=3;  this.maxHp=3;  this.spd=225; this.scale=0.82; this.dmg=1; }
   else if(kind==="brute"){ this.hp=12; this.maxHp=12; this.spd=78;  this.scale=1.28; this.dmg=2; }
-  else { this.hp=60; this.maxHp=60; this.spd=95; this.scale=2.05; this.dmg=2; } // boss
+  else { this.hp=600; this.maxHp=600; this.spd=95; this.scale=2.05; this.dmg=2; } // boss
   this.w = 70*this.scale; this.h = 160*this.scale;
 }
 Enemy.prototype.rect = function(){
