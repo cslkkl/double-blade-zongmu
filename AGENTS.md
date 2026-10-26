@@ -42,6 +42,7 @@ python <maintenance-flow>/check-markdown-links.py . --fragments
 | `python tools/slice_weapon_seq.py` | **默认不写任何文件**（旧 `WEAPON_ATTACK_CLIP` 通道已废弃）；`--with-atk` 才切 `atk-<key>-<0..3>` |
 | `python tools/slice_weapon_walk.py --src <目录>` | 武器持械行走四帧 → `assets/anim/walk-<key>-<0..3>`（写 `WEAPON_WALK_CLIP`） |
 | `python tools/prep_interact.py` | 宝箱 / 机关 / 拾取物 → `assets/interact/` |
+| `python tools/prep_touch.py` | 手机虚拟键的青铜盘 / 金线纹样 → `assets/touch/` 10 张（**不写 `js/`**） |
 | `python tools/prep_icons.py` | 武器 / 物品 / 界面图标 → `assets/icons/` |
 | `python tools/prep_fx.py` | 刀光 / 火花 / 旋风环 / 石块 |
 | `python tools/prep_assets.py` | 背景 / 道具 / 角色底图 |
@@ -85,11 +86,13 @@ CHAR     // 12 个动作的中文名 / 英文名
 `node --check showcase.js` 是唯一自动化检查；页面没有列入上面的收工验证链。
 
 **改素材 / 删素材时必须回头查这批手写清单**：`showcase.js` 的 `BG` / `PROPS` / `INTERACT` /
-`ICONS` / `UIS` / `APPS` / `CHARSHEET` / `GENERIC_FX` 都是手写的（浏览器不能列目录），
+`ICONS` / `UIS` / `TOUCH` / `APPS` / `CHARSHEET` / `GENERIC_FX` 都是手写的（浏览器不能列目录），
 删了图不删行就是 404 空框；三处**算式**（顶栏统计、武器表页脚、全集页脚）原本是硬编常数，
 现在都从数据表实时算。`WSTATES` 会按 `WEAPON_ATTACK` / `WEAPON_ATTACK_CLIP` 是否存在动态增删，
 列数写进 CSS 变量 `--wcols` —— **`.wt` 的 `repeat(8, …)` 不许改回常数**，
 否则状态列一变就整张表行行错位（已实测）。
+`TOUCH` 是手机虚拟键那 10 张（`assets/touch/`），**单独一张表**而不是并进 `UIS` ——
+`UIS` 的渲染路径是 `assets/ui/ + name`，并进去会拼出 `assets/ui/plate.webp` 这种 404 路径。
 
 ## 验证快照
 
@@ -103,9 +106,10 @@ CHAR     // 12 个动作的中文名 / 英文名
 - **2026-10-25（BGM 换成外部音轨后）**：`check-inline` 通过（内联脚本 138516 字符）；`selftest_enemies` / `selftest_audio`（43 项，新增第 9 节音轨断言 16 项）/ `selftest_weapons` 全 0 失败；`node --check` 12/12 通过。BGM 改为 `assets/audio/bgm-main.mp3`（256 kbps / 48 kHz 立体声 / 222 秒 / 6.8 MB，`<audio>` 元素循环播放），音轨缺席或被拦时退回原程序化 BGM。人耳实测：`file://` 直开、进单人模式即出声。
 - **2026-10-25（清死键 + 删 atk-* + 封住会复活的生成入口后）**：`check-inline` 通过（内联脚本 142602 字符）；`selftest_enemies` / `selftest_audio` / `selftest_weapons` 全 0 失败；`node --check` 12/12 通过；链接检查 30 文件 78 链接 0 错。素材：`assets/` 330 文件 21.55 MB → **270 文件 19.48 MB**，剔音视频 10.24 → **8.17 MB**。`MANIFEST` 52 键 / 50 路径 → **41 键 / 40 路径**（`Assets.load()` 加同路径去重）。浏览器实测 `file://` 直开：**41/41 图全部 ready、控制台 0 报错 0 警告**；运行时逐帧抓 `drawImage` 确认挥砍走 `attack-short-0..3`、走路 `walk-short-*`、跳跃 `jump-short-*`、受击 `hurt-short`、拾取 `pickup-short`，**`atk-*` 命中 0 次**（无悬空引用）。版本号 `20261025j` → `k`。
 - **2026-10-26（合上游 `l` + 素材总览页对齐后）**：`check-inline` 通过（内联脚本 146336 字符）；`selftest_enemies` / `selftest_audio` / `selftest_weapons` 全 0 失败；`node --check` 12/12 + `showcase.js` 通过；链接检查 30 文件 75 链接 0 错。合并时 3 处冲突逐条按语义解（版本号取 `m`、`Assets.load()` 同时保 `onProgress` 与同路径去重、`js/README.md` 取并集）。`file://` 实测载入链：**41/41 静态图 ready + `CharArt.progress` 185/185 + `EnemyArt.progress` 14/14**，载入条走满才放行，控制台 0 报错 0 警告。展示页（`node serve-showcase.mjs`，http）7 个 tab 全查：**0 张 404、0 报错**，顶栏统计 **199 帧 / 268 文件 / 49 组 / 11 武器**。运行时引用的 248 条路径 0 缺失。
-- 规模：`index.html` 约 4543 行；`js/` 12 个模块；`assets/` 270 个文件 19.48 MB。
-- 素材分布：`anim/` 199、`fx/` 13、`icons/` 10、`icon/` 10、`ui/` 10、`interact/` 6、`props/` 8、`char/` 1、`audio/` 1、`video/` 1、根 10。
-- 素材预算：单帧 ≤ 60 KB（实测最大 55.4 KB）、总量 ≤ 8 MB（上调依据见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 的「素材流水线」）。**8 MB 只算游戏素材**：含 `audio/`（6.78 MB）+ `video/`（4.53 MB）时总量 19.48 MB，**剔除音视频后 8.17 MB，仍超预算 0.17 MB**（2026-10-25 清掉 `atk-*` 1.78 MB 与无引用图标 / 角色 0.29 MB 后从 10.24 MB 降到 8.17 MB）。剩下的都是运行时真加载的，再压只能整批降采样重出。
+- **2026-10-26（手机虚拟键美术：青铜盘 + 金线纹样 + 攻击键跟随武器）**：`check-inline` 通过（内联脚本 146655 字符）；`selftest_enemies` / `selftest_audio` / `selftest_weapons` 全 0 失败；`node --check` 12/12 + `showcase.js` 通过；链接检查 31 文件 90 链接 0 错。素材：`tools/prep_touch.py` 出 `assets/touch/` **10 张 144 KB**（2 张青铜盘 256² + 8 张金线纹样 256²、长边 179）。三层：盘（`plate` 正圆 / `plate-sq` 圆角方，占画布 0.96）→ 暗刻纹样（`opacity .52`）→ 原有文字；**攻击键持械时键面直接显示当前武器图标**（复用 `assets/icons/` 既有 10 张 + `index.html` 的 `WP_ICON`，路径从 `Assets.MANIFEST` 取，零新增图）。浏览器 `file://` 实测 844×390 `?touch=1`：**盘 2/2、纹样 8/8 全 ready**；11 把武器逐个切过去 `atk` 全 `armed` 且图标名正确（`rock→wpRock` 按 0.411 单独缩放、`blade/jar/bell` 走物品族），空手退回 `bare`；10 枚键 0 重叠；控制台 0 报错 0 警告；桌面档 `?touch=0` **对 `assets/touch/` 零请求**、无按键层。参数是截图调出来的：纹样 `.44` 看不见 → `.52`；武器图标 `0.72` 会让近方形的眼形石压住盘沿金纹 → `0.62`；按下态金雾会盖住武器图标 → `.tch-wp{z-index:1}`。版本号 `20261025m` → `n`。
+- 规模：`index.html` 约 4698 行；`js/` 12 个模块；`assets/` 281 个文件 20.11 MB。
+- 素材分布：`anim/` 199、`fx/` 13、`icons/` 10、`icon/` 10、`ui/` 10、`touch/` 10、`interact/` 6、`props/` 8、`char/` 1、`audio/` 1、`video/` 1、根 11。
+- 素材预算：单帧 ≤ 60 KB（实测最大 55.4 KB）、总量 ≤ 8 MB（上调依据见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 的「素材流水线」）。**8 MB 只算游戏素材**：含 `audio/`（6.78 MB）+ `video/`（4.53 MB）时总量 20.11 MB，**剔除音视频后 279 文件 8.79 MB，超预算 0.79 MB**（2026-10-26 实测；其中 `assets/touch/` 10 张 0.14 MB、`assets/exhibition/手柄键位.png` 0.48 MB）。剩下的都是运行时真加载的，再压只能整批降采样重出。
 - 帧数：角色 12 个 clip 共 43 帧；敌人 4 类共 14 帧；武器站立帧 11、持械行走 11 把（其中斧头 3 帧，见活跃坑）。**出招只剩一套**：`WEAPON_CLIP.attack` 每把 4 帧（11 把 = 44 帧），旧的 `atk-<key>` 单帧与 `atk-<key>-<i>` 序列已删。
 - 关卡：6 阵共 85 体。
 - 无 CI，以上为本机手工结果；改完代码重跑一遍再写结论。
@@ -186,6 +190,13 @@ CHAR     // 12 个动作的中文名 / 英文名
 - **`WALK_CYCLE` 是按「4 帧一轮」校准的**（3.6 单位位移）。序列只有 3 帧时（斧头，因 `walk-axe-3.webp` 曾缺失）照搬会让步频慢 25%，读起来像滑步。正确写法 `cycle = WALK_CYCLE * n / 4` —— 每帧固定覆盖相同位移，与帧数无关。`drawWalkFrames` 与 `stateFrame` 两条路径必须用同一口径，否则换状态会跳帧。
 - **`scaleFix` 的「12 动作统一 178~181px」不能只看数字**：`jump`（蹲）、`pickup`（弯腰）本来就更矮，`dead`（倒地）只在结算页出现。真正的判据是「身体主体高 / 画布高」，且要排除武器尖端（举弓/举锤时尖端高过头顶）。用 15% 宽度阈值取「身体顶部」比包围盒顶可靠。
 - **触屏按键层不能放进 `#stage`**：`#stage` 是 1600×900 逻辑坐标、被 `transform:scale(0.43)` 缩过，100px 的按钮到屏幕上只剩 43px，低于 44px 规范下限。按键层必须 `position:fixed` 贴视口，尺寸用 `vmin` 夹在 `[48, 84]`。
+- **虚拟键的美术层有三条「只能截图调」的参数**（2026-10-26 实测，改之前先看依据）：
+  - **纹样不透明度 `.52`**：`.44` 在青绿盘面上几乎看不见（等于白做一层素材），`1.0` 又跟文字抢读。
+  - **攻击键武器图标长边 `0.62`**：盘内面只有按钮的约 `0.78`，`0.72` 会让「眼形石」这类**近方形**图标吃满内面、压住盘沿金纹；长条形的刀斧在 `0.72` 下本来更好，但两者只能共用一个数 —— 取小的。
+  - **按下态金雾会盖住武器图标**：`.tch-b.art.on::after` 生成在所有子元素之后，`::after` 不显式抬 `.tch-wp` 的 `z-index` 就会把刀斧糊成一片金。文字 `.tch-lab` 是 `z-index:2`，图标 `1`，金雾 `auto`。
+  三条都是**先在 1× 真实尺寸、再在 2× 放大各看一次**定的 —— 只看放大图会高估可读性。
+- **`assets/touch/` 那 10 张不进 `MANIFEST`**（`js/assets.js`），由 `js/touch.js` 自建 Image 缓存、`available()` 为真才建。塞进清单等于让桌面玩家白等 10 次解码；反过来，`showcase.js` 就得手写 `TOUCH` 表（见「素材展示页」一节）。
+- **攻击键跟随武器的唯一真源是 `index.html` 的 `WP_ICON` / `wpIconKey()`**：`js/touch.js` 只吃 `iconKey` 再从 `Assets.MANIFEST` 查路径，**不许抄第二份武器 → 图片的表**。新增武器忘了往 `WP_ICON` 加落点不会报错，只是持械时攻击键退回空手表现（少一层反馈）。图标留白各家不同（`wp-*` 0.859、`it-rock` 0.411），同一尺寸塞进去石片与玉器会明显偏小 —— `ICON_ART` 表就是为这件事存在的。
 - **触屏按键的纵向间距不能用 `vmin` 百分比**：那会让间距跟屏幕高度成比例，在 390px 高的横屏手机上「跳」能飘到左上角、「拾」压在角色脸上。要用「按钮直径」作单位（`var(--tch-d) * 倍数`），按钮多大间距就多大。
 - **`big` 键（1.22 倍直径）的纵向间距必须留够**：与相邻键的 y 差要 ≥ 1.26 倍直径，卡在 1.2 会在按钮变大的视口上相交。`js/touch.js` 的 `checkOverlap()` 会在布局重建时两两求交并 `console.warn` —— 这是这类布局 bug 的唯一自动化防线，别删。
 - **手机上的 `pointerup` 会丢**（手指滑出屏幕、来电、系统通知、切 App、锁屏）。丢了那枚键就永远「按着」，玩家看到「角色自己一直往前跑，松手也不停」。三道兜底缺一不可：一次性键 8 秒超时回收（`reapStale`）、`pointercancel`、`blur`/`pagehide`/`visibilitychange` 三清。
