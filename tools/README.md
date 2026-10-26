@@ -68,6 +68,24 @@
 - 验收：末尾批量校验「紫色残留」合计应为 0 或个位数；`assets/icons/` 应为 10 个文件（6 武器 + 4 物品）。
 - ⚠️ 现存 `it-*.webp` 的长边占比是 **0.41~0.65**，与脚本设定的 0.84 不符 —— 说明它们是**更早版本脚本的产物**，从没按当前参数重跑过。重跑一次即可对齐，但跑完要人眼确认四个物品的相对大小（`it-rock` 只有 79×79，是六张里最小的）。
 
+## prep_touch.py — 手机虚拟键青铜盘与金线纹样
+
+- 做什么：洋红抠图 + 网格切片 + 归一（盘按盘体实心区包围盒、纹样按内容包围盒）+ 存 WebP，末尾打印洋红残留。
+- 何时跑：换虚拟键底盘、换暗刻纹样，或改盘 / 纹样的画布占比时。与其它脚本**无顺序依赖** —— 它只写 `assets/touch/`，不碰 `js/` 任何文件。
+- 输入：`sanxingdui-touch/touch-plate.png`（双盘并排）、`sanxingdui-touch/touch-glyphs.png`（4×2 纹样）。
+- 输出：`assets/touch/` **10 张** —— 底盘 2 张 `plate`（正圆）/ `plate-sq`（圆角方盘），都是 256×256；纹样 8 张 `glyph-{left,right,jump,atk,skill,act,drop,give}`，256 方画布内内容长边占 0.70（= 179）。
+- **不进 `js/assets.js` 的 `MANIFEST`**：启动期静态图预算已满（41 键 / 40 条路径），而这 10 张只有真触屏才用得上。由 `js/touch.js` 自建 Image 缓存、`available()` 为真时才加载。
+- 盘体占画布 0.96；**盘底下缘那圈柔和暗影故意保留** —— 盘图自带圆角（动作键 50% / 走键 26%），溢出圆外的暗影被图自己的圆角裁掉，剩下的正好沿盘沿读成接触阴影，不用 CSS `box-shadow` 再模拟一遍。
+- 归一化取「盘体实心区包围盒」，**不能用含暗影的 alpha 包围盒**：暗影会把包围盒撑大一圈，盘体跟着被压小一圈。
+- 当前产物的实测值（2026-10-26）：`glyph-*` 长边占比 0.699、几何中心 (0.498, 0.498)；两张盘按含暗边的 alpha 包围盒是 0.980（248×251）与 0.988（251×253）—— 比契约 0.96 大，因为暗边也算进包围盒了。消费侧按契约 0.96 铺（`104.17%`），所以盘沿会溢出按钮边约 2%（60px 键上约 1.2px），观感是「盘压住按钮边」，不是缺陷。
+- 幂等性：可重复跑，同名覆盖；不删除多余文件。
+- 验收：脚本末尾自己打三张表 ——
+  - **盘体占比**：目标 0.96，偏差 > 3% 标 `⚠️`；`plate-sq` 另报「实测圆角半径 ≈ x% 边长」与「`border-radius:26%` 裁切掉盘体多少 px」（圆角吃掉的那点盘体是有意的，与 `js/touch.js` 里的 `border-radius:26%` 对齐）；
+  - **洋红残留**：10 张合计应为 0 或个位数（缩放后还会再跑一遍 despill，因为重采样会把已压下去的紫重新抬出来）；
+  - **体积**：盘 ≤ 60 KB、纹样 ≤ 20 KB 每张，超了标 `⚠️`。
+- 另外会输出一张合成预览（深色底 + 金色按下态，64px / 40px 两档真实键面尺寸），落到系统临时目录，用来人眼看「低不透明度纹样压在盘上还认不认得出」。
+- 踩坑：洋红底必须 despill。纹样是**低不透明度**压在按键文字下面的，边缘那圈紫在深青绿的盘面上会被放大成脏边。
+
 ## slice_anim_extra.py — 新增动作切片
 
 - 做什么：复用 `slice_anim.py` 的抠图、分帧、锚点原语，切 `pickup` / `attack-heavy` / `attack-thrust` 三张条带并回写 `js/anim-data.js` 的 `window.ANIM`。
@@ -242,6 +260,7 @@
 | `prep_assets.py` / `prep_fx.py` / `fix_fg.py` | `js/assets.js` 的 `MANIFEST` 键名与路径、`background.js` 的 `PROPS` 键名 |
 | `prep_interact.py` | `js/assets.js` 的 `chestClosed / chestOpen / mechanismOff / mechanismOn / pickupCowrie / pickupJade` 六个键 |
 | `prep_icons.py` | `js/assets.js` 的 `wp* / it*` 两族键名（`icon*` 已停产出）、`index.html` 的 `ICON` 映射与 `DROP_ICON_SIZE` |
+| `prep_touch.py` | `js/touch.js` 的 `ART` 表（文件名与字段一一对应）、`assets/touch/` 那 10 张、`showcase.js` 界面 tab 的「手机虚拟键」清单（`TOUCH`） |
 | `slice_weapon_assets.py` | `js/anim-data.js` 的 `ANIM_HOLD` / `WEAPON_FX` / `HIT_MATERIAL`；`--with-atk` 会复活已废弃的 `WEAPON_ATTACK` |
 | `slice_weapon_seq.py` | **默认不写任何文件**；`--with-atk` 才复活已废弃的 `WEAPON_ATTACK_CLIP` 与 40 张 `atk-*` |
 | 锚点或 `scaleFix` 相关逻辑 | `docs/ARCHITECTURE.md` 的「跨帧对齐约定」 |
