@@ -188,3 +188,26 @@ Get-ChildItem js -Filter *.js | ForEach-Object { node --check $_.FullName }   # 
 各走各的 `push`），多源叠加仍可能超限。已在 `updateParticles` 尾部补一道
 `if(G.particles.length > PARTICLE_MAX) G.particles.length = PARTICLE_MAX;`。
 验收：手动塞 900 个 → 更新后 600。
+
+---
+
+## 七、手机虚拟键美术（青铜盘 + 金线纹样 + 攻击键跟随武器）
+
+不是 bug，是本轮的功能改动。设计取舍与依据见
+[.agents/notes/依据-手机虚拟键为何用青铜盘与金线纹样.md](../.agents/notes/依据-手机虚拟键为何用青铜盘与金线纹样.md)；
+这一层怎么用见 [手机端适配.md](MOBILE.md) 的「十、按键美术」。
+
+| # | 问题 | 做法 | 产物 | 验收 |
+|---|---|---|---|---|
+| UI-01 | 虚拟键是纯 CSS 径向渐变圆钮，与全屏青铜器的画风不搭 | 三层美术：青铜盘（底）+ 暗刻金线纹样（中）+ 原有文字标签（上） | `assets/touch/plate.webp`、`plate-sq.webp`（256×256，盘体占 0.96） | 键面三层都上屏；文字仍是最后被读到的信息 |
+| UI-02 | 方向键与动作键形态一致，远看是一排同样的键 | 走键 `.tch-b.dir` 换圆角方盘 `plate-sq`（`border-radius:26%`），动作键用正圆 `plate` | 同上第二张盘 | `◀ ▶` 与动作键形态可区分；布局坐标与判定一个数都没改 |
+| UI-03 | 纹样与文字抢辨识度 | 8 个纹样（箭头 / 太阳神鸟 / 青铜钺 / 太阳轮 / 玉璧 / 落箭 + 羽 / 双面具）只做**低不透明度**暗刻，压在文字下面 | `assets/touch/glyph-<field>.webp` 8 张（256 方画布内长边 179） | 48px 小键上 `跳 / 技 / 拾` 仍靠字认得出；纹样不盖字 |
+| UI-04 | 攻击键不随武器变化，换手在手机上完全没有提示 | 持械时键面显示当前武器图标：复用 `assets/icons/` 既有 10 张 + `index.html` 的 `WP_ICON`，路径从 `Assets.MANIFEST` 取 | `js/touch.js` 新增 `setWeapon(tag, iconKey)`；`index.html` 的 `syncHUD()` 里一行调用 | 换武器后攻击键 1 帧内换图；同值重复调用不重绘；空手退回「atk 纹样 + 刀字」 |
+| UI-05 | 新增 10 张图会顶爆启动期静态预算 | **不进 `js/assets.js` 的 `MANIFEST`**（仍是 41 键 / 40 条路径）：`js/touch.js` 自建 Image 缓存，只在 `available()` 为真时加载 | `js/touch.js` 的 `ART` 表 | 桌面档一张都不请求；`?touch=1` 下 10 张全 ready |
+| UI-06 | 三层任何一层缺图都可能让键变透明 | 三层各自独立降级：盘缺 → 旧径向渐变圆钮；纹样缺 → 不画；武器图标缺 → 空手表现 | 三条降级分支 | 逐个删图验一遍，三种情况都不白屏、不出现透明键 |
+| UI-07 | 素材是生图拼版，直接切会忽大忽小、边缘留紫 | 新写 `tools/prep_touch.py`：抠洋红 + 网格切片 + 归一（盘按**盘体实心区**包围盒，纹样按内容包围盒） | `tools/prep_touch.py` | 10 张齐、两张盘形状正确、每格只含一个居中图案、洋红残留 0 或个位数 |
+
+**校验**：`node --check js/touch.js`、`node tools/check-inline.mjs`、三个 `selftest_*`
+全 0 失败、`node --check showcase.js`、链接检查 0 错。整轮快照由根
+[AGENTS.md](../AGENTS.md) 的「验证快照」统一记录，这里不另抄数字。
+

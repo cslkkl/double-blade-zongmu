@@ -160,8 +160,12 @@ vm.runInContext(fxSrc, S);
 
 const ANIM = S.window.ANIM || {};
 const HOLD = S.window.ANIM_HOLD || {};
+/* WEAPON_ATTACK / WEAPON_ATTACK_CLIP 两条旧通道已于 2026-10-25 废弃（数据块与
+   atk-*.webp 全删）。这里**故意仍然读**它们：一旦有人跑 --with-atk 把它们补回来，
+   下面所有断言自动恢复生效；两者缺席时相关小节整体跳过，不报假失败。 */
 const ATK = S.window.WEAPON_ATTACK || {};
 const ATKC = S.window.WEAPON_ATTACK_CLIP || {};
+const WCLIP = S.window.WEAPON_CLIP || {};
 const WFX = S.window.WEAPON_FX || {};
 const HITM = S.window.HIT_MATERIAL || {};
 const CharArt = S.window.CharArt;
@@ -202,47 +206,59 @@ ok(CharArt && typeof CharArt.draw === "function", "CharArt.draw 存在");
 
 /* WEAPONS 的 key 集合（与 index.html 的 WEAPONS 对应，这里是判据不是数据源） */
 const WEAPON_KEYS = ["short", "dagger", "sword", "axe", "hammer", "spear", "bow", "rock", "blade", "jar", "bell"];
-/* bell 复用 jar 的出招姿态（上层兜底），不要求自己的 atk 图 */
+/* 出招的三条通道按优先级：WEAPON_CLIP[key].attack → WEAPON_ATTACK_CLIP → WEAPON_ATTACK。
+   2026-10-25 起只有第一条有素材（后两条已删，只留函数挂点），所以「每把武器都要有
+   出招」这条断言改成按渠道判定，不再强制要求 atk-*。 */
 const ATK_KEYS = WEAPON_KEYS.filter((k) => k !== "bell");
 const HIT_MATS = ["jade", "bronze", "blunt", "airy"];
+const hasAtk = (k) => !!(WCLIP[k] && WCLIP[k].attack && (WCLIP[k].attack.files || []).length)
+                      || !!ATKC[k] || !!ATK[k];
 
 console.log("=== 1. 数据块覆盖 ===");
 console.log(
-  "ANIM_HOLD %d 键 / WEAPON_ATTACK %d 键 / WEAPON_ATTACK_CLIP %d 键 / WEAPON_FX %d 键 / HIT_MATERIAL %d 键",
-  Object.keys(HOLD).length, Object.keys(ATK).length, Object.keys(ATKC).length,
+  "ANIM_HOLD %d 键 / WEAPON_CLIP %d 键（含 attack %d）/ 旧 WEAPON_ATTACK %d 键 / 旧 WEAPON_ATTACK_CLIP %d 键 / WEAPON_FX %d 键 / HIT_MATERIAL %d 键",
+  Object.keys(HOLD).length,
+  Object.keys(WCLIP).length,
+  WEAPON_KEYS.filter((k) => WCLIP[k] && WCLIP[k].attack).length,
+  Object.keys(ATK).length, Object.keys(ATKC).length,
   Object.keys(WFX).length, Object.keys(HITM).length
 );
 
 const missHold = WEAPON_KEYS.filter((k) => !HOLD[k]);
-const missAtk = ATK_KEYS.filter((k) => !ATK[k] && !ATKC[k]);
+const missAtk = ATK_KEYS.filter((k) => !hasAtk(k));
 const missFxc = WEAPON_KEYS.filter((k) => !WFX[k]);
 const missHit = HIT_MATS.filter((k) => !HITM[k]);
 
 ok(!missHold.length, "每把武器都有站立帧（缺：" + missHold.join(",") + "）");
-ok(!missAtk.length, "每把武器都有出招姿态或出招序列（缺：" + missAtk.join(",") + "）");
+ok(!missAtk.length, "每把武器都有出招图（WEAPON_CLIP.attack / 序列 / 单帧，缺：" + missAtk.join(",") + "）");
 ok(!missFxc.length, "每把武器都有专属特效（缺：" + missFxc.join(",") + "）");
 ok(!missHit.length, "四种打击材质都有图（缺：" + missHit.join(",") + "）");
 
-/* 出招序列的字段约束：4 帧共用画布与 scaleFix，anchorX 逐帧给 */
+/* 出招序列的字段约束：4 帧共用画布与 scaleFix，anchorX 逐帧给。
+   仅在 WEAPON_ATTACK_CLIP 存在时校验（当前已废弃、数据块已删）。 */
 console.log("=== 1b. 出招序列字段 ===");
-for (const k of ATK_KEYS) {
-  const c = ATKC[k];
-  if (!c) continue;
-  const n = (c.files || []).length;
-  ok(c.frames === n, k + " frames 与 files 长度一致（" + c.frames + " vs " + n + "）");
-  ok(typeof c.w === "number" && c.w > 0 && typeof c.h === "number" && c.h > 0,
-     k + " 有画布 w/h");
-  ok(typeof c.scaleFix === "number", k + " 有 scaleFix（序列共用一个数）");
-  ok(Array.isArray(c.anchorX) && c.anchorX.length === n,
-     k + " anchorX 是逐帧数组且长度 = 帧数");
-  if (Array.isArray(c.anchorX)) {
-    for (let i = 0; i < c.anchorX.length; i++) {
-      ok(typeof c.anchorX[i] === "number" && c.anchorX[i] > 0 && c.anchorX[i] < 1,
-         k + " anchorX[" + i + "] 在 (0,1) 内");
+if (!Object.keys(ATKC).length) {
+  console.log("  WEAPON_ATTACK_CLIP 缺席（2026-10-25 已废弃，见 anim-data.js 注释）→ 跳过");
+} else {
+  for (const k of ATK_KEYS) {
+    const c = ATKC[k];
+    if (!c) continue;
+    const n = (c.files || []).length;
+    ok(c.frames === n, k + " frames 与 files 长度一致（" + c.frames + " vs " + n + "）");
+    ok(typeof c.w === "number" && c.w > 0 && typeof c.h === "number" && c.h > 0,
+       k + " 有画布 w/h");
+    ok(typeof c.scaleFix === "number", k + " 有 scaleFix（序列共用一个数）");
+    ok(Array.isArray(c.anchorX) && c.anchorX.length === n,
+       k + " anchorX 是逐帧数组且长度 = 帧数");
+    if (Array.isArray(c.anchorX)) {
+      for (let i = 0; i < c.anchorX.length; i++) {
+        ok(typeof c.anchorX[i] === "number" && c.anchorX[i] > 0 && c.anchorX[i] < 1,
+           k + " anchorX[" + i + "] 在 (0,1) 内");
+      }
     }
   }
+  console.log("  序列键：" + Object.keys(ATKC).join(", "));
 }
-console.log("  序列键：" + Object.keys(ATKC).join(", "));
 
 console.log("=== 2. 素材文件落盘 ===");
 console.log(row("key", "hold", "atk") + pad("序列帧", 26) + pad("fx", 26));
@@ -257,12 +273,16 @@ for (const k of WEAPON_KEYS) {
   const cfiles = c ? c.files : [];
   const cOk = cfiles.length ? cfiles.every(onDisk) : false;
   const cTxt = cfiles.length ? (cOk ? "ok ×" + cfiles.length : "MISSING") : "-";
+  const wc = WCLIP[k] && WCLIP[k].attack;
+  const wcOk = wc && (wc.files || []).length ? wc.files.every(onDisk) : false;
   console.log(row(
     k,
     h ? (hOk ? "ok" : "MISSING " + h) : "(复用 idle)",
-    a ? (aOk ? "ok" : "MISSING " + a) : "(复用 attack 族)"
+    wc ? ("clip×" + wc.files.length + (wcOk ? "" : " MISSING"))
+       : (a ? (aOk ? "ok" : "MISSING " + a) : "(无)")
   ) + pad(cTxt, 26) + pad(f ? (fOk ? "ok" : "MISSING " + f) : "-", 26));
   if (h && !hOk) ok(false, k + " 站立帧文件不存在：" + h);
+  if (wc && (wc.files || []).length && !wcOk) ok(false, k + " WEAPON_CLIP.attack 有帧图不存在");
   if (a && !aOk) ok(false, k + " 出招帧文件不存在：" + a);
   if (cfiles.length && !cOk) ok(false, k + " 出招序列有帧图不存在");
   if (f && !fOk) ok(false, k + " 专属特效文件不存在：" + f);
@@ -296,10 +316,11 @@ for (const k of ["short", "sword", "axe", "bow"]) {
   rows.push(["stand", k, hit ? "hold-" + k : "-"]);
 }
 
-/* 挥砍：优先 WEAPON_CLIP[key].attack（每把武器一套独立动作），
-   其次旧的 atk-<key>-<i> 序列，最后 atk-<key> 单帧。三者都算通过，但必须有一个 */
+/* 挥砍：WEAPON_CLIP[key].attack 是唯一有素材的通道（每把武器一套独立动作）。
+   旧的 atk-<key>-<i> 序列与 atk-<key> 单帧已于 2026-10-25 删除 ——
+   这里仍允许它们通过，是为了「用 --with-atk 把素材补回来」时断言不用改。 */
 for (const k of ATK_KEYS) {
-  const wc = (S.window.WEAPON_CLIP || {})[k];
+  const wc = WCLIP[k];
   const hasNew = !!(wc && wc.attack && wc.attack.files && wc.attack.files.length);
   if (!ATK[k] && !ATKC[k] && !hasNew) continue;
   clear();
@@ -313,20 +334,19 @@ for (const k of ATK_KEYS) {
   const neo = drawnPng(new RegExp("attack-" + k + "-\\d\\.webp$"));
   const seq = drawnPng(new RegExp("atk-" + k + "-\\d\\.webp$"));
   const one = drawnPng(new RegExp("atk-" + k + "\\.webp$"));
-  ok(!!(neo || seq || one), k + " 挥砍应画出专属出招图（attack / atk 序列 / atk 单帧）");
+  ok(!!(neo || seq || one), k + " 挥砍应画出专属出招图（WEAPON_CLIP.attack / atk 序列 / atk 单帧）");
   if (hasNew) ok(!!neo, k + " 有 WEAPON_CLIP.attack 时应画 attack-" + k + "-<i>");
   ok(!drawnPng("hold-" + k + ".webp"), k + " 挥砍不该再画站立帧");
   rows.push(["swing", k, neo ? "attack-" + k + "-N" : (seq ? "atk-" + k + "-N" : (one ? "atk-" + k : "-"))]);
 }
 
-/* 连击三段：帧号应随 swingT 推进。
-   现在优先 WEAPON_CLIP.attack（attack-<k>-<i>），没有才看旧的 atk 序列。 */
+/* 连击三段：帧号应随 swingT 推进。当前只有 WEAPON_CLIP.attack 这一条通道有素材。 */
 {
-  const WC = S.window.WEAPON_CLIP || {};
-  const k = Object.keys(WC).find(x => WC[x] && WC[x].attack) || Object.keys(ATKC)[0];
+  const k = Object.keys(WEAPON_KEYS.reduce((o, x) => (WCLIP[x] && WCLIP[x].attack ? (o[x] = 1, o) : o), {}))[0]
+         || Object.keys(ATKC)[0];
   if (k) {
-    const hasNew = !!(WC[k] && WC[k].attack);
-    const n = hasNew ? WC[k].attack.files.length : ATKC[k].files.length;
+    const hasNew = !!(WCLIP[k] && WCLIP[k].attack);
+    const n = hasNew ? WCLIP[k].attack.files.length : ATKC[k].files.length;
     const seen = new Set();
     for (const prog of [0.05, 0.35, 0.65, 0.95]) {
       clear();
@@ -430,21 +450,24 @@ if (process.env.SELFTEST_DEBUG) {
 ok(!drawnPng("hold-"), "空手走路不该画任何持械帧");
 ok(!!drawnPng(/^assets\/anim\/walk-\d\.webp$/), "空手走路应画通用 walk 帧");
 
-/* 旋风斩：不该画 atk-*（旋风有自己的 clip） */
+/* 旋风斩：不该走任何出招通道（旋风有自己的 clip）。
+   判据写「任何挥砍图」而不是具体某个 atk-* 文件名 —— 后者在 2026-10-25 删素材后
+   会永远通过（没人会画一个不存在的文件），断言就白写了。 */
+const ANY_SWING = /(attack-|atk-).*\.webp$/;
 clear();
 CharArt.draw(makeCtx(), player({
   whirlT: 1.0, swingT: 0.2, swingDur: 0.3,
   weapon: { key: "hammer", type: "melee" }
 }), 4.0);
-ok(!drawnPng("atk-hammer.webp"), "旋风斩不该画武器出招姿态");
+ok(!drawnPng(ANY_SWING), "旋风斩不该画任何武器出招姿态");
 
-/* 受击：不该画 atk-* */
+/* 受击：同理，不该走任何出招通道 */
 clear();
 CharArt.draw(makeCtx(), player({
   hurtT: 0.2, swingT: 0.2, swingDur: 0.3,
   weapon: { key: "spear", type: "melee" }
 }), 5.0);
-ok(!drawnPng("atk-spear.webp"), "受击不该画武器出招姿态");
+ok(!drawnPng(ANY_SWING), "受击不该画任何武器出招姿态");
 
 console.log(row("状态", "武器", "实际画出"));
 for (const r of rows) console.log(row(r[0], r[1], r[2]));
@@ -481,13 +504,18 @@ console.log("=== 4. 缺键逐级落回 ===");
   if (savedClip) ATKC.dagger = savedClip;
 }
 
-/* 4a2. 新通道删掉、旧序列也删掉 → 应回落到单帧 atk-sword，而不是公共 attack 族 */
+/* 4a2. 旧通道（WEAPON_ATTACK / WEAPON_ATTACK_CLIP）缺席时：
+   应回落到公共 attack 族，且**不许画出任何 atk-* 路径** —— 那 50 张已于
+   2026-10-25 删除，画出路径就说明代码还指着不存在的文件（悬空引用）。
+   原断言是「回落到单帧 atk-sword」，素材删掉后该前提不成立，改成守悬空引用。 */
 {
   const WC = S.window.WEAPON_CLIP;
   const savedNew = WC && WC.sword;
   const savedClip = ATKC.sword;
+  const savedAtk = ATK.sword;
   if (WC) delete WC.sword;
   delete ATKC.sword;
+  delete ATK.sword;
   clear();
   let err = null;
   try {
@@ -497,11 +525,14 @@ console.log("=== 4. 缺键逐级落回 ===");
     }), 6.5);
   } catch (e) { err = e; }
   ok(!err, "缺序列时不抛异常 (" + (err && err.message) + ")");
-  const one = drawnPng(new RegExp("atk-sword\\.webp$"));
-  ok(!!one, "缺新通道与序列时应回落到单帧 atk-sword");
-  console.log("  sword 只剩单帧 → 画 " + (one ? "单帧 atk-sword" : "无"));
+  const fb = drawnPng(/^assets\/anim\/attack-/) || drawnPng("attack-");
+  ok(!!fb, "旧通道缺席时应回落公共 attack 族");
+  const ghost = drawnPng(/atk-.*\.webp$/);
+  ok(!ghost, "旧通道素材已删，不许画出 atk-* 路径（实际：" + (ghost && ghost.src) + "）");
+  console.log("  sword 三通道全缺 → 画 " + (fb ? "公共 attack 族" : "无") + "，atk-* 悬空引用 " + (ghost ? "有" : "无"));
   if (WC && savedNew) WC.sword = savedNew;
   if (savedClip) ATKC.sword = savedClip;
+  if (savedAtk) ATK.sword = savedAtk;
 }
 
 /* 4b. 武器 key 完全未知 → 不抛异常，走动画 */

@@ -45,6 +45,10 @@
   /* 当前帧参数，模块内部缓存，避免辅助函数层层传参 */
   var _camX = 0, _W = DEF_W, _H = DEF_H, _groundY = DEF_GROUND, _worldW = DEF_WORLD;
 
+  /* 远景的等比系数与绘制顶部（见 draw() 里「远景」一节的说明）。
+     太阳光晕要跟远景一起缩放，所以这两个值要跨函数用。 */
+  var _farSc = 1, _farY = 0;
+
   /* ------------------------------------------------------------------
      静物道具：世界坐标（x 为中心），底部一律贴 groundY
      h 是绘制高度（像素），宽度按素材原始比例换算 —— 素材尺寸未知也稳。
@@ -154,10 +158,14 @@
 
   /* ------------------------------------------------------------------
      天空光晕：从太阳位置发散的暖金光（lighter，很淡）
-     ------------------------------------------------------------------ */
+     ------------------------------------------------------------------
+     太阳在远景图里的位置要乘 _farSc、再叠 _farY —— 远景是等比缩放加宽的
+     （见 draw() 里「远景」一节）。不减这一层，手机加宽后光晕会跟太阳错开。 */
   function drawSunGlow(ctx) {
-    var baseX = SUN_X - _camX * P_FAR;                // 跟着远景一起漂
-    var R = 620;
+    var baseX = SUN_X * _farSc - _camX * P_FAR;
+    var baseY = _farY + SUN_Y * _farSc;
+    var R = 620 * _farSc;
+    var R2 = 190 * _farSc;
 
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
@@ -165,20 +173,20 @@
       var sx = baseX + k * _W;                        // 环绕副本，避免边缘突现
       if (sx < -R || sx > _W + R) continue;
 
-      var halo = ctx.createRadialGradient(sx, SUN_Y, 0, sx, SUN_Y, R);
+      var halo = ctx.createRadialGradient(sx, baseY, 0, sx, baseY, R);
       halo.addColorStop(0,    "rgba(255,226,158,0.17)");
       halo.addColorStop(0.32, "rgba(255,198,106,0.085)");
       halo.addColorStop(0.68, "rgba(240,158,64,0.028)");
       halo.addColorStop(1,    "rgba(255,150,50,0)");
       ctx.fillStyle = halo;
-      ctx.fillRect(sx - R, SUN_Y - R, R * 2, R * 2);
+      ctx.fillRect(sx - R, baseY - R, R * 2, R * 2);
 
-      var core = ctx.createRadialGradient(sx, SUN_Y, 0, sx, SUN_Y, 190);
+      var core = ctx.createRadialGradient(sx, baseY, 0, sx, baseY, R2);
       core.addColorStop(0,   "rgba(255,242,206,0.20)");
       core.addColorStop(0.5, "rgba(255,208,124,0.07)");
       core.addColorStop(1,   "rgba(255,180,80,0)");
       ctx.fillStyle = core;
-      ctx.fillRect(sx - 190, SUN_Y - 190, 380, 380);
+      ctx.fillRect(sx - R2, baseY - R2, R2 * 2, R2 * 2);
     }
     ctx.restore();
   }
@@ -339,10 +347,18 @@
     ctx.fillRect(0, 0, _W, _H);
     ctx.restore();
 
-    /* ---- 1. 远景（视差 0.20）：拉伸铺满整屏，横向平铺 ---- */
+    /* ---- 1. 远景（视差 0.20）：等比缩放到视图宽，横向平铺 ----
+       ★ 必须等比，不能拉伸成 _W×_H —— 远景里有个正圆的太阳，
+         横向拉伸 22%（844×390 手机上就是这么多）当场变成椭圆。
+         做法：按宽度算一个统一系数，高度跟着长，再把「图里的地平线」
+         对齐到 _groundY，多出来的部分是图顶部的天空，被画布裁掉（看不见）。
+         1600 宽时 _farSc = 1600/1599 ≈ 1.0006、_farY ≈ 0，与改动前一致。 */
     var far = img("bgFar");
     if (!okImg(far)) return false;                    // 没图就一张都不画，交给调用方回落
-    drawLayer(ctx, far, P_FAR, _W, _H, 0, true, 1);
+    _farSc = _W / imgW(far);
+    var farH = imgH(far) * _farSc;
+    _farY = _groundY - (DEF_GROUND / DEF_H) * farH;   // 让图内地平线落在 _groundY
+    drawLayer(ctx, far, P_FAR, _W, farH, _farY, true, 1);
 
     /* ---- 2. 天空光晕（远景之上） ---- */
     drawSunGlow(ctx);
@@ -350,16 +366,18 @@
     /* ---- 3. 远景 -> 中景的土黄雾 ---- */
     drawFog(ctx);
 
-    /* ---- 4. 中景（视差 0.50）：底部贴地面线，横向平铺 + 交替镜像 ---- */
+    /* ---- 4. 中景（视差 0.50）：底部贴地面线，**按原尺寸平铺** ----
+       ⚠️ 这里不能等比例放大成视图宽。试过：加宽到 1944 时中景要放大 1.215 倍，
+          高度从 641 涨到 779，贴地面线后就顶到画外 —— 天空整块被吃掉、
+          青铜柱变粗 21%、编钟横梁被裁断，画面立刻变闷（已实测截图对比）。
+       所以中景保持素材原尺寸，靠 drawLayer 横向平铺补满多出来的宽度；
+       平铺是交替镜像的，接缝不重复，两侧看到的是"建筑群继续延伸"。
+       原尺寸也意味着中景里的结构物大小与角色比例始终不变。 */
     var mid = img("bgMid");
     if (okImg(mid)) {
-      var mh = _W * (imgH(mid) / imgW(mid));
-      var mw = _W;
-      if (mh > _groundY && _groundY > 0) {            // 不允许中景越过画面顶部
-        mh = _groundY;
-        mw = mh * (imgW(mid) / imgH(mid));
-      }
-      if (mh > 0 && mw > 0) {
+      var mw = imgW(mid);
+      var mh = imgH(mid);
+      if (mw > 0 && mh > 0) {
         drawLayer(ctx, mid, P_MID, mw, mh, _groundY - mh, true, 1);
       }
     }

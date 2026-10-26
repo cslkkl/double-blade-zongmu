@@ -172,6 +172,89 @@
   var skipHeldSince = 0;
 
   /* ---------------------------------------------------------------------
+     美术贴图（模块自带缓存）
+     ---------------------------------------------------------------------
+     为什么不进 js/assets.js 的 MANIFEST：
+     那是**启动期静态图预算**，40 条路径已经排满，而且它一旦多一条，
+     桌面玩家也要为一张永远不显示的图多读一次盘（file:// 下没有缓存协商）。
+     虚拟键的盘与纹样只有触屏档才用得上，所以由本模块自己 new Image()：
+       · 只在 available() 为真时建（桌面一个字节都不读）
+       · 失败静默 —— 不 console.warn，不缺图时报错，整层直接不出现
+       · 只在初始化路径（init → warmArt）里建，tick() / 绘制热路径零新建
+
+     素材契约（由 tools/prep_touch.py 产出，本模块只按契约算尺寸）：
+       assets/touch/plate.webp      256×256 正圆青铜盘，盘体占 0.96
+       assets/touch/plate-sq.webp   256×256 圆角方盘（方向键用）
+       assets/touch/glyph-<field>.webp  256×256 金线纹样，长边占 0.70
+     --------------------------------------------------------------------- */
+
+  var ART_DIR = "assets/touch/";
+  var ART_PLATE = ART_DIR + "plate.webp";
+  var ART_PLATE_SQ = ART_DIR + "plate-sq.webp";
+
+  /* 纹样文件名跟着 field 走 —— 键名与布局表、按钮文字三者同源，
+     加一个新键只要在布局表里出现，这里的表补一行就能有纹样。 */
+  var ART_GLYPH = {
+    left:  "glyph-left.webp",
+    right: "glyph-right.webp",
+    jump:  "glyph-jump.webp",
+    atk:   "glyph-atk.webp",
+    skill: "glyph-skill.webp",
+    act:   "glyph-act.webp",
+    drop:  "glyph-drop.webp",
+    give:  "glyph-give.webp"
+  };
+
+  /* 素材契约里的两个「占画布多少」常数。改素材规格时只改这两个数，
+     下面所有百分比都是从它们算出来的，不存在第二份硬编码。 */
+  var PLATE_FILL = 0.96;        /* 盘体长边占画布 */
+  var GLYPH_FILL = 0.70;        /* 纹样长边占画布 */
+
+  /* 每枚键的纹样「视觉长边 / 按钮直径」。
+     这个档位是拿真实素材按 60px 按钮 2 倍渲染并排看过的（0.50 / 0.58 / 0.64 /
+     0.72 / 0.80 / 0.88 六档）：0.72 往上纹样会跟文字撞在一起、读成一团；
+     0.50~0.64 才像「暗刻在盘底的纹」而不是第二层字。
+     小键（丢 / 递）压到 0.50，大键（刀）给到 0.62，其余 0.56。 */
+  var GLYPH_ART = {
+    left: 0.60, right: 0.60, jump: 0.60,
+    atk: 0.62, skill: 0.56, act: 0.56, drop: 0.50, give: 0.50
+  };
+
+  /* 攻击键上武器图标的视觉长边（占按钮直径）。
+     ⚠️ 0.72 → 0.62 是实测改下来的：盘的内面只有按钮的约 0.78，
+     而「眼形石」这类**近方形**图标按长边 0.72 归一后几乎吃满内面、
+     压住盘沿的金色云雷纹，读成一坨石头糊在钮上（844×390 截图对照过）。
+     长条形的刀斧在 0.72 下没问题，但两者只能共用一个数 ——
+     取小的那个，让方形图标留出边框，长条图标略小一点但不至于失焦。 */
+  var ATK_ICON_FILL = 0.62;
+
+  /* 图标**内容**长边占画布的比例 —— 这是素材各自的留白，与路径表无关。
+     实测（alpha 包围盒，2026-10-26）：
+       wp-* 六张统一 0.859；it-bell .583 / it-jade .615 / it-jar .490 / it-rock .411
+     注意 MANIFEST 里 wpRock 指向的是 it-rock.webp（同一张图），
+     所以 wpRock 要按 0.411 算，不能跟着 wp-* 一起填 0.86。
+     直接同尺寸塞进去，玉器 / 陶罐 / 石片会比刀斧小一大圈（正是这个坑）。
+     未登记的键按武器族 0.86 兜底；宁可略大也不消失。 */
+  var ICON_ART = {
+    wpShort: 0.859, wpDagger: 0.859, wpSword: 0.859, wpAxe: 0.859,
+    wpHammer: 0.859, wpSpear: 0.859, wpBow: 0.859,
+    wpRock: 0.411,
+    itJade: 0.615, itBell: 0.583, itJar: 0.490
+  };
+  var ICON_ART_DEFAULT = 0.86;
+
+  /* 贴图缓存：path -> Image；ok: path -> 已经 load 成功。
+     nPlate / nGlyph 只用来给 debug() 报「加载了几张」，不参与绘制判定。 */
+  var ART = { img: {}, ok: {}, nPlate: 0, nGlyph: 0 };
+
+  /* 每个玩家「手上这把武器」的呈现状态。setWeapon 每帧被 syncHUD 调，
+     值没变就直接 return —— 见 setWeapon 的幂等说明。 */
+  var wstate = {
+    p1: { icon: null, path: null, ready: false, armed: false },
+    p2: { icon: null, path: null, ready: false, armed: false }
+  };
+
+  /* ---------------------------------------------------------------------
      样式
      --------------------------------------------------------------------- */
 
@@ -231,6 +314,101 @@
 }
 /* 方向键：方一点，视觉上跟圆形动作键分开，玩家一眼能分出「走」和「打」 */
 #${LAYER_ID} .tch-b.dir{border-radius:26%}
+
+/* ---- 美术层（贴图）-------------------------------------------------
+   三层叠在同一枚键里，自下而上：
+
+     .tch-plate   青铜盘（正圆 / 圆角方）—— 盖住上面的渐变底
+     .tch-motif   暗刻金线纹样（低不透明度）
+     .tch-lab     文字标签（◀ ▶ 跳 刀 技 拾 丢 递）—— 永远在最上面
+     .tch-wp      只出现在攻击键上：持械时显示当前武器图标
+
+   ⚠️ 这一段存在**唯一**理由是好看，所以降级必须逐级可退：
+   每一层默认 display:none，只有 JS 确认那张图真的 load 成功、给它挂上
+   .tch-art 之后才显示。缺图 / 慢图 / 404 / Assets 模块整份缺席时，
+   玩家看到的就是今天那张环形渐变圆钮 + 金字 ——
+   绝不会出现白方块、破图标、「按钮只剩一圈边」或文字消失。
+   图片本身一律 pointer-events:none，判定永远在 .tch-b 上，一个像素都不动。
+
+   尺寸口径（都写成「相对按钮自身宽高的百分比」，所以 big / sm / dir
+   三种尺寸自动同比例，不用为每种尺寸再算一遍）：
+     · 盘：素材把盘体画在画布的 PLATE_FILL（0.96）上 → 图要比按钮大
+       1/0.96 ≈ 104.17% 才能让盘沿正好贴住按钮边。这个数由 PLATE_FILL
+       在模板里算出来，改素材规格只改那一个常数。
+     · 纹样：素材把纹样画在画布的 GLYPH_FILL（0.70）上 → 图宽 = 视觉比例 / 0.70。
+       每枚键的视觉比例由 JS 写进 --art（见 GLYPH_ART），不写死一个百分比。
+     · 武器图标：素材留白各家不同（wp-* 0.86、it-* 0.41~0.65），
+       同理每把武器一个 --wpart（见 ICON_ART），否则同尺寸下玉器会显小。 */
+
+#${LAYER_ID} .tch-plate{
+  position:absolute;left:50%;top:50%;
+  width:${(100 / PLATE_FILL).toFixed(2)}%;height:${(100 / PLATE_FILL).toFixed(2)}%;
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  display:none;pointer-events:none;
+  -webkit-user-drag:none;-webkit-user-select:none;user-select:none;
+}
+#${LAYER_ID} .tch-plate.tch-art{display:block}
+/* 方向键配圆角方盘：形状跟按钮的 border-radius:26% 对齐 */
+#${LAYER_ID} .tch-b.dir .tch-plate{border-radius:26%}
+
+#${LAYER_ID} .tch-motif{
+  position:absolute;left:50%;top:50%;
+  width:var(--art,100%);height:var(--art,100%);
+  transform:translate(-50%,-50%);
+  display:none;pointer-events:none;
+  /* 暗刻：压到半透明，让上面的金字仍然是第一层信息。
+     这里刻意不加 filter:drop-shadow —— 低端机上 16 枚键各一层滤镜
+     是实打实的合成开销，而纹样本来就有自己的金色描边。
+
+     ⚠️ 0.44 是实测调出来的，不是拍的：在 844×390 真机视口截图上，
+     0.44 在青绿盘面上几乎看不见（等于白做一层素材），1.0 又会跟文字抢读，
+     0.52 是「看得出是铸造纹样、又读得清字」的那一档。 */
+  opacity:.52;
+  -webkit-user-drag:none;-webkit-user-select:none;user-select:none;
+}
+#${LAYER_ID} .tch-motif.tch-art{display:block}
+
+/* 攻击键特例：持械时键面就是武器本身（满不透明），文字「刀」让位。
+   armed 这个类只在「拿到了 iconKey + 路径 + 图真的就绪」三者同时成立时
+   才由 JS 挂上 —— 所以空手 / 图标未就绪天然退回 bare（金线 atk 纹样 + 刀）。 */
+#${LAYER_ID} .tch-wp{
+  position:absolute;left:50%;top:50%;
+  width:var(--wpart,84%);height:var(--wpart,84%);
+  transform:translate(-50%,-50%);
+  display:none;pointer-events:none;
+  /* z-index:1 是必须的：按下态的反馈是 .on::after 的一层金雾，
+     而 ::after 生成在所有子元素之后、会盖住武器图标 ——
+     实测按下去那一下刀斧会被糊成一片金。抬到金雾之上就正常了。
+     （文字 .tch-lab 是 z-index:2，仍在最上层。） */
+  z-index:1;
+  -webkit-user-drag:none;-webkit-user-select:none;user-select:none;
+}
+#${LAYER_ID} .tch-b.atk.armed .tch-wp.tch-art{display:block}
+#${LAYER_ID} .tch-b.atk.armed .tch-motif{display:none}
+#${LAYER_ID} .tch-b.atk.armed .tch-lab{display:none}
+
+/* 文字标签：position:relative 是必须的 —— 上面三层都是绝对定位，
+   不定位的在流元素反而会被画在它们下面，字会被盘吃掉。
+   z-index:2 是为了压过按下时的金雾（.on::after 是 z-index:auto）——
+   否则按下去那一下金字会被金雾糊掉，读不清。 */
+#${LAYER_ID} .tch-lab{position:relative;z-index:2;pointer-events:none}
+/* 有贴图时补一道暗描边：青铜盘比原来的黑底亮得多，同一个金字压在亮底上
+   会明显发灰（并排渲染对比过）。没贴图时不加，保持今天的样子。
+   只加 text-shadow，颜色与字号一个字都不动。 */
+#${LAYER_ID} .tch-b.art .tch-lab{
+  text-shadow:0 0 2px rgba(6,6,8,.92),0 1px 2px rgba(6,6,8,.85),1px 0 1px rgba(6,6,8,.6),-1px 0 1px rgba(6,6,8,.6);
+}
+
+/* 有贴图的键：按下反馈不能再靠「换底色」（盘会把底色盖死），
+   改成在盘上盖一层金雾。没贴图的键不加这一层，保持今天的样子。 */
+#${LAYER_ID} .tch-b.art.on::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  border-radius:inherit;
+  background:radial-gradient(circle at 50% 38%,rgba(245,217,142,.52),rgba(245,217,142,.08) 76%);
+}
+/* 同上：有贴图时底色没变，金字不该跟着 .on 变成深色 */
+#${LAYER_ID} .tch-b.art.on{color:#f7e6b6}
 
 /* ---- 每半屏的分组容器 ---- */
 #${LAYER_ID} .tch-half{
@@ -468,16 +646,248 @@
     (doc.head || doc.documentElement).appendChild(st);
   }
 
+  /* ---------------------------------------------------------------------
+     美术层的建元素 / 装图
+     ---------------------------------------------------------------------
+     所有 <img> 都只在这里建一次（build / rebuildButtons 都属初始化路径），
+     tick() 与绘制热路径一个都不建。图能不能显示只看 ART.ok，
+     与「元素在不在」无关 —— 元素在、但没挂 .tch-art 就是 display:none，
+     所以永远不会出现破图标。 */
+
+  /* 做一个美术层 <img>：先挂 src 让它进浏览器缓存，但**默认不显示**，
+     等 ART.ok[src] 为真（这张图真的解码成功）才由 applyArt() 挂 .tch-art。
+     素材缺席时 ART.ok 永远是 undefined → 这一层永远不出现。 */
+  function artImg(el, cls, src) {
+    if (!src) return null;
+    var im = doc.createElement("img");
+    im.className = cls;
+    im.setAttribute("alt", "");
+    im.setAttribute("aria-hidden", "true");
+    im.setAttribute("draggable", "false");
+    /* src 同时记在元素上：applyArt() 判就绪时直接读这个字段，
+       不去 getAttribute("src") 反查 —— 属性可能被内核规整成绝对 URL，
+       一规整就对不上 ART.ok 的键名，那一层会永远不显示。 */
+    im.__artSrc = src;
+    im.setAttribute("src", src);
+    el.appendChild(im);
+    return im;
+  }
+
+  /* 给一枚键套上三层：盘 → 纹样 → 文字。
+     顺序（DOM 顺序 = 绘制顺序）不能反：定位元素按 DOM 先后叠，
+     文字必须在最后一层，否则会被盘盖掉。
+     第四个 <img class="tch-wp"> 只给攻击键，且由 .armed 控制显隐。 */
+  function decorate(el, field, cls, label) {
+    var isDir = (" " + (cls || "") + " ").indexOf(" dir ") >= 0;
+
+    /* ① 青铜盘：方向键用圆角方盘，其余用正圆盘 */
+    var plateSrc = isDir ? ART_PLATE_SQ : ART_PLATE;
+    var plate = artImg(el, "tch-plate", plateSrc);
+    if (plate) el.__plate = plateSrc;
+
+    /* ② 暗刻金线纹样：按 field 取图，并把「视觉大小」写进 --art。
+          --art 是相对按钮宽高的百分比：视觉比例 / 纹样占画布比例。
+          写成每键一个 CSS 变量而不是一条全局规则，是因为小键（丢/递）
+          与大键（刀）需要的视觉比例不同，写死一个百分比必然有一边不合适。 */
+    if (field && ART_GLYPH[field]) {
+      var vis = GLYPH_ART[field] || 0.76;
+      el.style.setProperty("--art", pct(vis / GLYPH_FILL));
+      var motif = artImg(el, "tch-motif", ART_DIR + ART_GLYPH[field]);
+      if (motif) el.__motif = ART_DIR + ART_GLYPH[field];
+    }
+
+    /* ③ 文字标签。文案一个字都不改（js/guide.js 的 TOUCH_LEGEND 逐字对应）；
+         持械时由 CSS 让位隐藏，空手时照旧显示。 */
+    var lab = doc.createElement("span");
+    lab.className = "tch-lab";
+    lab.textContent = label;
+    el.appendChild(lab);
+
+    /* ④ 攻击键专属：武器图标层。元素现在就建好，setWeapon 只改 src，
+          绝不在每帧调用里新建元素。 */
+    if (field === "atk") {
+      var wp = doc.createElement("img");
+      wp.className = "tch-wp";
+      wp.setAttribute("alt", "");
+      wp.setAttribute("aria-hidden", "true");
+      wp.setAttribute("draggable", "false");
+      el.appendChild(wp);
+      el.__wp = wp;
+    }
+    return el;
+  }
+
   function makeBtn(field, label, cls, tag) {
     var el = doc.createElement("div");
-    el.className = "tch-b" + (cls ? " " + cls : "");
-    el.textContent = label;
+    /* 只把 atk 这一个 field 名写进 class：攻击键特例全靠它（.tch-b.atk）。
+       其余 field 名不落成 class —— 那只是给全局 CSS 多留一堆可能撞名的钩子
+       （index.html 里已经有 .wpn.right 这类规则）。 */
+    el.className = "tch-b" + (cls ? " " + cls : "") + (field === "atk" ? " atk" : "");
     el.setAttribute("data-tch", tag + ":" + field);
     el.setAttribute("role", "button");
     el.setAttribute("aria-label", tag + " " + field);
+    decorate(el, field, cls, label);
     bind(el, tag, field);
     btnEls[tag + ":" + field] = el;
     return el;
+  }
+
+  /* 百分比串。保留一位小数就够 —— 差 0.05% 在 48~84px 的按钮上是 0.04px。 */
+  function pct(v) {
+    return (v * 100).toFixed(1) + "%";
+  }
+
+  /* ---------------------------------------------------------------------
+     贴图缓存
+     --------------------------------------------------------------------- */
+
+  /* 只在 available() 为真时调（init 里），所以桌面一个字节都不读。
+     全部失败都静默：缺图不是错误，是降级路径的入口。 */
+  function warmArt() {
+    if (!available()) return;
+    loadArt(ART_PLATE, "plate");
+    loadArt(ART_PLATE_SQ, "plate");
+    for (var f in ART_GLYPH) {
+      if (ART_GLYPH.hasOwnProperty(f)) loadArt(ART_DIR + ART_GLYPH[f], "glyph");
+    }
+  }
+
+  function loadArt(src, kind) {
+    if (ART.img[src]) return;                 /* 同一路径只建一个 Image */
+    var im = new Image();
+    ART.img[src] = im;
+    im.onload = function () {
+      /* 0 字节 / 解码失败的文件，部分内核仍然会走 onload（naturalWidth 为 0）。
+         不在这里挡一道，就会把一个「破图标」当成就绪显示出来 —— 那正是硬约束
+         里明令禁止的「白方块」。所以「load 了」之外还要「有像素」。 */
+      if (!(im.naturalWidth > 0) || !(im.naturalHeight > 0)) {
+        ART.ok[src] = false;
+        return;
+      }
+      if (ART.ok[src]) return;                /* 只计一次 */
+      ART.ok[src] = true;
+      if (kind === "plate") ART.nPlate++; else ART.nGlyph++;
+      /* 图是异步到的，而按键可能早就建好了 —— 补一次 .tch-art */
+      applyArt();
+    };
+    /* 失败静默：不 warn、不重试、不留痕。ART.ok 保持 undefined，
+       对应那层永远 display:none，外观逐级退回渐变 + 金字。 */
+    im.onerror = function () { ART.ok[src] = false; };
+    im.src = src;
+  }
+
+  /* 把「图好了没有」同步到已建好的键上。
+     直接扫 DOM 而不是维护一份元素清单：布局重建会整块换掉元素，
+     清单一旦没跟着清就是悬空引用（对着已移除的节点改 class，静默无效）。
+     只在图落地 / 重建布局时跑，不进 tick —— 一次十几个节点，代价可忽略。 */
+  function applyArt() {
+    if (!layer || typeof layer.querySelectorAll !== "function") return;
+    var els = layer.querySelectorAll("img.tch-plate, img.tch-motif");
+    for (var i = 0; i < els.length; i++) {
+      var im = els[i];
+      im.classList.toggle("tch-art", !!ART.ok[im.__artSrc]);
+    }
+    refreshArtFlag();
+  }
+
+  /* 「这枚键身上有没有贴图在显示」。
+     决定按下时用哪种反馈：有贴图 → 盘上盖金雾（::after）；
+     没贴图 → 保持今天的「换底色 + 深色字」。
+     逐键写一个 .art 类，而不是给整个层挂，
+     这样一半图挂了一半没挂时两边各自退得干净。 */
+  function refreshArtFlag() {
+    if (!layer || typeof layer.querySelectorAll !== "function") return;
+    var els = layer.querySelectorAll(".tch-b");
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      var on = !!(el.__plate && ART.ok[el.__plate]) ||
+               !!(el.__motif && ART.ok[el.__motif]) ||
+               el.classList.contains("armed");
+      el.classList.toggle("art", on);
+    }
+  }
+
+  /* ---------------------------------------------------------------------
+     攻击键跟随手上武器
+     ---------------------------------------------------------------------
+     对外只暴露 setWeapon(tag, iconKey)，由 index.html 的 syncHUD 每帧调一次。
+     两个必须守住的性质：
+       ① 同帧幂等：值没变直接 return（syncHUD 是每帧跑的，不能每帧改 DOM）。
+          但「图从没就绪变成就绪」也要能触发一次重画，所以缓存的是
+          (icon, ready) 这一对，不是单独的 icon —— 否则第一帧图还没解码完
+          就会永久卡在 bare。
+       ② Assets 缺席 / 路径不在 MANIFEST / 图没就绪 → 一律退成 bare
+          （金线 atk 纹样 + 文字「刀」），绝不显示空图标。
+
+     路径来源只有一处：window.Assets.MANIFEST。本模块不抄第二份路径表 ——
+     抄一份就会漂移（改素材时总有一份忘改），而 MANIFEST 本来就是权威。
+     --------------------------------------------------------------------- */
+
+  /* 与 index.html 的 imgReady() 同口径：加载中 / 加载失败都算没图。 */
+  function iconReady(key) {
+    var im = (global.IMG && global.IMG[key]) || null;
+    if (!im) return false;
+    if (im.complete === false) return false;
+    if (typeof im.naturalWidth === "number" && im.naturalWidth <= 0) return false;
+    return true;
+  }
+
+  function iconPath(key) {
+    try {
+      var m = global.Assets && global.Assets.MANIFEST;
+      if (m && typeof m[key] === "string" && m[key]) return m[key];
+    } catch (e) { /* 忽略 */ }
+    return null;
+  }
+
+  /* 武器图标图宽（相对按钮宽高的百分比）：
+     视觉比例 / 这张图的内容占比。留白大的（石片 0.41）图会放大到 175%，
+     但它的透明画布本来就不吃像素，落地后内容正好跟刀斧一样大。 */
+  function wpPct(key) {
+    var r = ICON_ART[key] || ICON_ART_DEFAULT;
+    return pct(ATK_ICON_FILL / r);
+  }
+
+  /* 把缓存里的武器状态刷到按钮上。rebuildButtons 之后也要调一次 ——
+     布局重建会换掉元素，缓存还在，但新元素还是 bare。 */
+  function applyWeapon(tag) {
+    var st = wstate[tag] || wstate.p1;
+    var armed = !!(st.ready && st.path);
+    st.armed = armed;              /* 先记状态：debug() 读的是它 */
+    var el = btnEls[tag + ":atk"];
+    if (!el) return;               /* 单人模式没有 p2 的键，正常 */
+    var wpEl = el.__wp;
+    if (armed && wpEl) {
+      /* 只在路径真的变了才写 src（写同一个值也会让浏览器重排一次） */
+      if (wpEl.__artSrc !== st.path) {
+        wpEl.__artSrc = st.path;
+        wpEl.setAttribute("src", st.path);
+      }
+      wpEl.classList.add("tch-art");
+      el.style.setProperty("--wpart", wpPct(st.icon));
+      el.classList.add("armed");
+    } else {
+      el.classList.remove("armed");
+      if (wpEl) wpEl.classList.remove("tch-art");
+    }
+    /* 供按下反馈用：armed 时图标就是键面，必须走「金雾」那条 */
+    var on = !!(el.__plate && ART.ok[el.__plate]) ||
+             !!(el.__motif && ART.ok[el.__motif]) || armed;
+    el.classList.toggle("art", on);
+  }
+
+  function setWeapon(tag, iconKey) {
+    var t = (tag === "p2") ? "p2" : "p1";
+    var key = (typeof iconKey === "string" && iconKey) ? iconKey : null;
+    var path = key ? iconPath(key) : null;
+    var ready = !!(key && path && iconReady(key));
+    var st = wstate[t];
+    /* 同帧幂等：syncHUD 每帧都调，值没变必须立刻 return（不碰样式、不碰 DOM） */
+    if (st.icon === key && st.path === path && st.ready === ready) return;
+    st.icon = key;
+    st.path = path;
+    st.ready = ready;
+    applyWeapon(t);
   }
 
   /* 尺寸基准：取视口短边的 11%，夹在 [48px, 84px]。
@@ -507,18 +917,20 @@
     root.appendChild(halfL);
     root.appendChild(halfR);
 
-    /* 顶栏：暂停 + 键位。手机上没有 Esc 与 H，这两个必须给出来。 */
+    /* 顶栏：暂停 + 键位。手机上没有 Esc 与 H，这两个必须给出来。
+       这两枚也套青铜盘（同一套皮肤），但没有纹样：pause / help 不在
+       ART_GLYPH 表里，decorate 会自动跳过纹样层，只留盘 + 文字。 */
     var top = doc.createElement("div");
     top.className = "tch-top";
     var bPause = doc.createElement("div");
     bPause.className = "tch-b";
-    bPause.textContent = "❚❚";
     bPause.setAttribute("data-tch", "sys:pause");
+    decorate(bPause, null, "", "❚❚");
     bindSys(bPause, "pause");
     var bHelp = doc.createElement("div");
     bHelp.className = "tch-b";
-    bHelp.textContent = "?";
     bHelp.setAttribute("data-tch", "sys:help");
+    decorate(bHelp, null, "", "?");
     bindSys(bHelp, "help");
     top.appendChild(bPause);
     top.appendChild(bHelp);
@@ -615,6 +1027,12 @@
        这类 bug 靠人眼看截图极难发现（重合一两像素时只是「有点怪」），
        而玩家的拇指会实打实地按错。只在布局重建时跑一次，不进热路径。 */
     checkOverlap();
+
+    /* 新元素是全新的，贴图与武器状态都要重挂一遍：
+       缓存（ART.ok / wstate）还在，但新元素一出生是 clean 的。 */
+    applyArt();
+    applyWeapon("p1");
+    applyWeapon("p2");
   }
 
   /* 两两求交。相交就 warn 并把重叠的那对键记下来 ——
@@ -1099,6 +1517,11 @@
     if (!available()) return false;
     armFirstTouch();
 
+    /* 贴图缓存只在这里建（available() 为真才有资格走到这行）：
+       桌面玩家一个字节都不读，触屏玩家在标题页就把 10 张盘 / 纹样读进来，
+       等真的进对局时不会出现「先看见渐变圆钮、过一会儿才变成青铜盘」。 */
+    warmArt();
+
     /* 强制触屏档（?touch=1）：不等手指，直接当成「已经用手指玩过」。
        手机版入口 mobile.html 就是这样跳进来的 ——
        手机上用户会先点「添加主屏」再启动，没有第一次手指事件，
@@ -1151,14 +1574,37 @@
     anyHeld: anyHeld,
     buzz: buzz,
     init: init,
+    /* 攻击键跟随手上武器。由 index.html 的 syncHUD 每帧调一次：
+         Touch.setWeapon("p1", wpIconKey(p.weapon.key))
+       tag = "p1" | "p2"；iconKey = "wpAxe" / "itJar" / null（空手）。
+       同帧幂等（值没变立刻 return），所以每帧调是免费的。
+       · 空手（null）或图标没就绪 → 退回「金线 atk 纹样 + 文字刀」
+       · Tag 之外的任何值都归一到 p1；非字符串 iconKey 一律当空手
+       · Touch 缺席时调用方用 `window.Touch && Touch.setWeapon` 守卫 */
+    setWeapon: setWeapon,
     /* 强制触屏档（?touch=1）。给 js/guide.js 用：
        手机版入口 mobile.html 跳过来时，标题页就该显示触屏版图例，
        而不是等进了对局（active() 要求 phase === "play"）才切。 */
     forcedTouch: function () { return urlTouch === true; },
     /* 调试用：看当前是按着什么；overlaps 供自动化验收调用。
-       device 字段给自动化断言用：'touch' = 触屏档，'off' = 桌面档。 */
-    debug: function () { return { mode: mode, shown: lastShown, pointers: pointers,
-                                 everTouched: everTouched, urlTouch: urlTouch }; },
+       device 字段给自动化断言用：'touch' = 触屏档，'off' = 桌面档。
+       art 字段给自动化断言用（这一轮新增）：
+         plate / glyph   已加载的盘 / 纹样张数（缺图时是 0，外观退回渐变 + 金字）
+         atk            { p1, p2 } 各自当前攻击键是 "armed" 还是 "bare"
+         icon           { p1, p2 } 各自当前挂在攻击键上的图标键名（空手为 null） */
+    debug: function () {
+      return {
+        mode: mode, shown: lastShown, pointers: pointers,
+        everTouched: everTouched, urlTouch: urlTouch,
+        art: {
+          plate: ART.nPlate, plateTotal: 2,
+          glyph: ART.nGlyph, glyphTotal: 8,
+          atk: { p1: wstate.p1.armed ? "armed" : "bare",
+                 p2: wstate.p2.armed ? "armed" : "bare" },
+          icon: { p1: wstate.p1.icon, p2: wstate.p2.icon }
+        }
+      };
+    },
     overlaps: function () { return checkOverlap(); }
   };
 })(window, document);

@@ -17,7 +17,7 @@
        键靠 p.weapon.key 实时查表、不缓存 —— 换手后下一帧就换图；
        该武器没有持械帧 / 图还没就绪 → 落回 idle 动画，不白屏。
 
-     window.WEAPON_ATTACK ← 每把武器专属的出招姿态（可选，缺省不影响老行为）：
+     window.WEAPON_ATTACK ← 每把武器专属的出招姿态（【当前无素材】保留作挂点）：
        { short | dagger | sword | axe | hammer | spear | bow | rock | blade | jar :
          { w, h, anchorX, footY, scaleFix, file } }
        字段语义与 ANIM_HOLD 完全一致，是同一条流水线切出来的单帧。
@@ -34,6 +34,13 @@
        逐帧各算会让角色在连击里忽大忽小。
        帧号与 attack 族一样由 swingT / swingDur 推导，共用同一条时间轴，
        所以「有多少帧」不影响判定时机。
+
+     ★ 上面两条通道 2026-10-25 起**没有素材**：WEAPON_CLIP 已覆盖全部 11 把武器
+       的 attack，draw() 的第一档直接 return，它们永远轮不到 —— 原来那 50 张
+       atk-*.webp（1.78 MB）是纯冗余的二重位图降级。数据块与图片都已删除，
+       但 drawWeaponAtkFrames / drawWeaponAtk 两个函数**保留**：它们自带
+       `if (!C) return false`，素材补回来就自动生效，不用改这里。
+       要恢复素材用 `slice_weapon_assets.py --with-atk` / `slice_weapon_seq.py --with-atk`。
 
    降级：ANIM 不存在 / 该 clip 不存在 / 帧图全没加载完 → 回落到旧的
         「单张精灵 + 变换动画」，不报错、不白屏。

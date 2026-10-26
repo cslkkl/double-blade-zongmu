@@ -79,7 +79,6 @@
 | 部署到服务器、手机上怎么用 | [docs/DEPLOY.md](docs/DEPLOY.md) · [docs/MOBILE.md](docs/MOBILE.md) |
 | 参赛文案、录屏脚本 | [文案包.md](文案包.md) · [操作与录屏说明.md](操作与录屏说明.md) |
 | 动手改代码 | [AGENTS.md](AGENTS.md)（规则与仪表盘）；改一处要同步哪几处 → [docs/README.md](docs/README.md) |
-
 ## 许可
 
 代码以 MIT 许可开源。

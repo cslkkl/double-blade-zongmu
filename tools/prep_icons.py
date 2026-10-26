@@ -105,6 +105,15 @@ WEAPONS = ["dagger", "sword", "axe", "spear", "mace", "bow"]
 ITEMS = ["cowrie", "jade", "eye", "bell", "jar", "rock"]
 ICONS = ["icon-eye", "icon-mask", "icon-leiwen", "icon-tree"]
 
+# ---- 无消费方的图标不再产出（2026-10-25）----
+# it-cowrie / it-eye：index.html 的 ICON 表只用到 itJade / itBell / itJar / wpRock，
+#   这两张没有任何 `IMG.itCowrie` / `IMG.itEye` 读取点。
+# icon-* 四张（UI 图标）：整组无读取点。
+# ⚠️ ITEMS / ICONS 两个**列表本身不能删** —— 切分是按网格下标的，删元素会让
+#    后面每一格都错位。只跳过写盘，切分位置保持不变。
+DEAD_ITEMS = {"cowrie", "eye"}
+WRITE_UI_ICONS = False
+
 print("=== 武器图标 3x2 ===")
 ws = split_grid(key(Image.open(SRC / "weapon-set.png")), 2, 3)
 print(f"  切出 {len(ws)}")
@@ -115,13 +124,19 @@ print("=== 物品图标 3x2 ===")
 it = split_grid(key(Image.open(SRC / "item-set.png")), 2, 3)
 print(f"  切出 {len(it)}")
 for i, im in enumerate(it[:6]):
+    if ITEMS[i] in DEAD_ITEMS:
+        print(f"  跳过 it-{ITEMS[i]}（无消费方）")
+        continue
     save(to_uniform(im, 192, 0.84), f"it-{ITEMS[i]}.webp")
 
-print("=== UI 图标 2x2 ===")
-ic = split_grid(key(Image.open(SRC / "ui-icon-set.png")), 2, 2)
-print(f"  切出 {len(ic)}")
-for i, im in enumerate(ic[:4]):
-    save(to_uniform(im, 128, 0.88), f"{ICONS[i]}.webp")
+if WRITE_UI_ICONS:
+    print("=== UI 图标 2x2 ===")
+    ic = split_grid(key(Image.open(SRC / "ui-icon-set.png")), 2, 2)
+    print(f"  切出 {len(ic)}")
+    for i, im in enumerate(ic[:4]):
+        save(to_uniform(im, 128, 0.88), f"{ICONS[i]}.webp")
+else:
+    print("=== UI 图标：跳过（整组无消费方，见文件头 DEAD_ITEMS 说明）===")
 
 print("=== 校验 ===")
 import glob

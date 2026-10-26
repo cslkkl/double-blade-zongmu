@@ -14,19 +14,20 @@
 
 ## assets.js
 
-- 职责：清单式预加载 48 个键的静态图到 `window.IMG`，失败不阻塞启动。
+- 职责：清单式预加载 **41 个键 / 40 条不同路径** 的静态图到 `window.IMG`，失败不阻塞启动。
 - 关键导出：`window.Assets = { load, MANIFEST }`，`load()` 返回 `Promise<{loaded, failed}>`。
 - 依赖谁：只用浏览器 `Image`，不依赖任何本地模块。
 - 被谁依赖：`background.js`、`fx.js`、`enemies-assets.js` 读 `window.IMG`；`char-rig.js` 降级读 `IMG.pose0`；`index.html` 读图标键、宝箱 / 机关 / 拾取物键，启动时调 `load()` 并只打印结果。
 - 关键约束：`MANIFEST` 只收静态图；逐帧动画的帧图由 `anim-data.js` 自己列，不在这里。
-- 关键约束：`bgFg`（`assets/bg-fg.webp`，16:9 整图前景）已从清单移除，该 webp 文件保留在 `assets/` 里备回滚，不参与加载。
+- **同一路径只建一个 `Image`**：`load()` 先按路径归并（`waiters`），`wpShort` / `wpDagger` 都指向 `wp-dagger.webp` 时共用同一个实例，`pending` 计的是**不同路径数**而不是键数。新增重复路径的键不会再多读一次盘。
 - 键名规则（新增键必须照此归族，否则查不到也删不干净）：
-  - `wp*` — 武器图标，`assets/icons/wp-*.webp`，画布 256。
-  - `it*` — 物品图标，`assets/icons/it-*.webp`，画布 192。
-  - `icon*` — 界面图标，`assets/icons/icon-*.webp`，画布 128。
+  - `wp*` — 武器图标，`assets/icons/wp-*.webp`，画布 256（`wpShort` 与 `wpDagger` 共用 `wp-dagger.webp`）。
+  - `it*` — 物品图标，`assets/icons/it-*.webp`，画布 192（只剩 `itJade` / `itBell` / `itJar`）。
   - `pickup*` — 世界里的拾取物实体，`assets/interact/pickup-*.webp`。
   - `chest*` / `mechanism*` — 宝箱与机关的双态图，`assets/interact/`。
-- 改后必测：新增键必须同时确认消费方读得到；删键前 grep 全仓确认无人引用。
+  - `hudCard` / `portraitP1` / `titleScene` / `winScene` — **没有 `IMG.*` 读取点，但必须留着**：它们是给 `index.html` 的 CSS 背景与头像预热浏览器缓存用的，删了会多一次首帧请求。
+- **2026-10-25 删掉的 11 个键**（省 293 KB 启动白加载，均无消费方）：`pose1` / `charFront` / `charSide` / `charBack`（260 KB）、`itCowrie` / `itEye` / `iconEye` / `iconMask` / `iconLeiwen` / `iconTree`（33 KB）、`itRock`（与 `wpRock` 同路径且无人读）。`pose0` 保留 —— 它是 `ANIM` 缺失时的降级底图。
+- 改后必测：新增键必须同时确认消费方读得到；删键前 grep 全仓确认无人引用（`IMG.<键名>`）。删完还要同步封掉会重新生成它的脚本（`prep_icons.py` 的 `DEAD_ITEMS` / `WRITE_UI_ICONS`）。
 
 ## anim-data.js
 
@@ -64,14 +65,21 @@
 - 依赖谁：`window.IMG` 的 3 张核心背景 + 7 个道具键。
 - 被谁依赖：`index.html` 的 `render()`；`ready()` 为假或 `draw()` 返回 `false` 时回落到内联 `drawBG()`。
 - 关键约束：只在屏幕坐标系算偏移，不做世界坐标平移；道具世界坐标写在模块内 `PROPS`；`save/restore` 必须成对；道具加载失败不阻塞背景整体，逐张回落纯代码。
+- **`W` 是视图宽度、可以是变量**（手机加宽逻辑视口，见 [../docs/手机端适配.md](../docs/MOBILE.md)）。三层各用不同策略，改之前先对清楚：
+  - **远景**：等比缩放（`_farSc = W / 素材宽`），把图内地平线对齐 `GROUND`，溢出向上裁。
+    **绝对不许拉伸成 `W × H`** —— 图里有个正圆太阳，横向拉 22% 就是椭圆。
+    光晕的圆心 / 半径也乘 `_farSc`（`_farSc` / `_farY` 是模块级缓存，供 `drawSunGlow()` 用）。
+  - **中景**：**保持素材原尺寸平铺**。等比放大到视图宽会让高度超过 `GROUND`，
+    贴地面线后顶到画外 —— 天空被吃掉、柱子变粗、编钟横梁被裁断（已实测）。
+  - **地面**：本来就按 `groundY` 反算宽高比，等比平铺，不用动。
 - **没有前景遮挡层**：`drawFront()` / `occluders()` 已于 2026-10-25 删除。原来那 3 座高大遮挡物画在角色之上，人走过去被完全盖住，只好给角色加一条 52% 硬淡出；那条淡出进出无过渡、判定只看 x 不看高度，走过道具旁边就闪一下半透明，读起来像 bug，整套删掉。遮挡物素材仍留在中景 `PROPS`（`maskRelief` / `brazier` / `sacredTree`）。
-- 改后必测：三档视差系数、道具底部是否贴 `GROUND`、`ready()` 对新键的判定、核心图任一失败时是否整层让位给 `drawBG()`。
+- 改后必测：三档视差系数、道具底部是否贴 `GROUND`、`ready()` 对新键的判定、核心图任一失败时是否整层让位给 `drawBG()`、**手机加宽后远景太阳是否仍是正圆、中景接缝是否可接受**。
 
 ## char-rig.js
 
 - 职责：玩家逐帧播放器 + 武器专属姿态（站立 / 行走 / 出招） + 两级降级。
 - 关键导出：`window.CharArt = { draw(ctx, p, t), ready(), progress(), HEIGHT: 252 }`。
-- 依赖谁：`window.ANIM`、`window.ANIM_HOLD`（站立持械）、`window.WEAPON_WALK_CLIP`（行走四帧序列）、`window.WEAPON_ATTACK`（出招单帧）、`window.WEAPON_ATTACK_CLIP`（出招四帧序列）、`window.IMG.pose0`（降级）。
+- 依赖谁：`window.ANIM`、`window.WEAPON_CLIP`（每把武器 5 状态，**出招主通道**）、`window.ANIM_HOLD`（站立持械）、`window.WEAPON_WALK_CLIP`（行走四帧序列）、`window.IMG.pose0`（降级）。`window.WEAPON_ATTACK` / `window.WEAPON_ATTACK_CLIP` 两个旧通道的数据块已于 2026-10-25 删除，渲染函数仍保留作挂点（自带 `if (!C) return null`）。
 - 被谁依赖：`index.html` 的 `drawPlayer()`；`ready()` 为假则回落到内联 `drawFighter()`。
 - 关键约束：绘制优先级固定为 **出招序列 → 出招单帧 → 持械行走序列 → 持械站立 → 动画 clip → 降级精灵**。出招那两档必须盖在 attack 族之前，否则换武器时手上仍是老模型；行走那一档必须盖在通用 `walk` clip 之前，否则「站着有武器、一走就空手」。
 - 关键约束：走路的三级落回是 **`WEAPON_WALK_CLIP` → `ANIM_HOLD` 静帧（叠位移浮沉）→ 通用 `walk` clip**。缺一级就落下一级，任何一级缺失都不许变成空手。跳跃**不**接管 —— 离地时腿是收起来的，站姿会穿帮。
@@ -79,13 +87,13 @@
 - 关键约束：序列的 `scaleFix` 是**一个数**（四帧共用同一画布），`anchorX` 是**逐帧数组**。前者写错会让连击里忽大忽小，后者写成单个数会让挥砍时人左右漂。
 - 关键约束：帧号由 `attackFrame(p, n)` 推导，与 attack 族同一套算法 —— 有几帧不影响判定时机，改帧数只改动画密度。
 - 关键约束：`pickClip()` 的状态优先级不能乱（`dead → whirl → bow/throw → hurt → pickup → jump → attack 族 → walk → idle`）；出招姿态与持械站立都只在「不属于更高优先级状态」时才接管 —— 旋风 / 投掷 / 受击 / 拾取 / 死亡一律走动画。
-- 关键约束：攻击族三个 clip 的帧号都由 `swingT / swingDur` 推导，不按 fps 自由播放；武器出招序列（`WEAPON_ATTACK_CLIP`）的帧号走同一个 `attackFrame()`，同样是「判定推着画面走」而不是按 fps 放。单帧姿态没有帧序列，靠 `swingT` 做前冲与旋转。
+- 关键约束：攻击族三个 clip 的帧号都由 `swingT / swingDur` 推导，不按 fps 自由播放；`WEAPON_CLIP.attack`（每把武器 4 帧）同样走「判定推着画面走」而不是按 fps 放。单帧姿态没有帧序列，靠 `swingT` 做前冲与旋转。
 - 关键约束：`CLIPS` 预热名单是 12 个 clip，新增动作必须同时加进这份名单，否则首帧会闪一下降级画面。`warmHold()` / `warmAtk()` 各自独立预热，`ANIM` 缺席时也照建。
-- `progress()` 返回 `{done, total}`，只数已建的 Image（不新增），供 `index.html` 的载入条统计 —— `Assets` 只管 48 张静态图，这 235 张动画帧是这里 `warm()` 自己建的。不把它算进进度，玩家会「进度走满 → 开打 → 角色是青色降级方块」。
+- `progress()` 返回 `{done, total}`，只数已建的 Image（不新增），供 `index.html` 的载入条统计 —— `Assets` 只管 40 条路径的静态图，这 **185 张**动画帧是这里 `warm()` 自己建的（12 个公共 clip 43 + 持械站立 11 + `WEAPON_CLIP` 131）。不把它算进进度，玩家会「进度走满 → 开打 → 角色是青色降级方块」。
 - 关键约束：可选字段 `p.pickupT`（缺省 0）大于 0 时播 `pickup`，调用方置 0.3 秒后自己倒数。
-- 关键约束：可选字段 `p.__forceClip`（缺省 `null`）是攻击态里的替代 clip 名，只在 `swingT > 0` 时读；且只认 `ANIM` 里真实存在的 clip，不存在则回落 `attack`。调用方收招即清空，别让下一次非攻击状态读到旧值。**该武器有 `WEAPON_ATTACK_CLIP` 或 `WEAPON_ATTACK` 时优先用武器自己的图，`__forceClip` 只是两者都没有时的兜底。**
+- 关键约束：可选字段 `p.__forceClip`（缺省 `null`）是攻击态里的替代 clip 名，只在 `swingT > 0` 时读；且只认 `ANIM` 里真实存在的 clip，不存在则回落 `attack`。调用方收招即清空，别让下一次非攻击状态读到旧值。**该武器有 `WEAPON_CLIP.attack`（当前 11 把全有）就优先用武器自己的图，`__forceClip` 只在它缺席时兜底。**
 - 关键约束：可选字段 `p.__alphaMul`（缺省 1）是前景遮挡淡出的通道 —— 本模块会绝对赋值 `globalAlpha`，外层包一层无效，因子必须在这里乘进 `alpha`；`index.html` 的 `drawPlayer()` 设置后要立刻复位成 1。
-- 改后必测：`pickClip` 十二种状态的映射、三个攻击 clip 与判定同步、`WEAPON_ATTACK_CLIP` → `WEAPON_ATTACK` → `ANIM_HOLD` 三级中某一级缺失时是否逐级落回、走路三级（行走序列 → 持械静帧 → 通用 walk）是否都拿得到武器、行走帧号是否随 `p.walk` 变化、帧图缺失时是否落到 `pose0` 再到纯代码、`__alphaMul` 在四条路径上都生效、各 clip 屏幕身高是否仍落在 178~181px。
+- 改后必测：`pickClip` 十二种状态的映射、三个攻击 clip 与判定同步、`WEAPON_CLIP.attack` 缺席时是否逐级落回（旧两档已无素材，直接落到公共 `attack` 族）、走路三级（行走序列 → 持械静帧 → 通用 walk）是否都拿得到武器、行走帧号是否随 `p.walk` 变化、帧图缺失时是否落到 `pose0` 再到纯代码、`__alphaMul` 在四条路径上都生效、各 clip 屏幕身高是否仍落在 178~181px。
 
 ## enemies-assets.js
 
@@ -139,10 +147,24 @@
 
 ## touch.js
 
-- 职责：触屏虚拟按键层。布局、按下 / 抬起、指针回收、竖屏遮罩、安卓振动、**设备判定**。
-- 关键导出：`window.Touch = { available, active, state, setMode, show, hide, tick, clearAll, skipHeld, takeTap, anyHeld, buzz, init, forcedTouch, debug, overlaps }`。
-- 依赖谁：只用 `document`、`window`、`navigator`、PointerEvent / TouchEvent。**不加载任何图片**（按钮是纯 CSS 圆钮 + 文字），`file://` 下零请求。
-- 被谁依赖：`index.html` 的 `update()`（把 `Touch.state(tag)` 并进 `in1/in2`）、`loop()`（`Touch.tick()`）、`js/guide.js`（`touchActive()` 判设备档）。
+- 职责：触屏虚拟按键层。布局、按下 / 抬起、指针回收、竖屏遮罩、安卓振动、**设备判定**、按键美术。
+- 关键导出：`window.Touch = { available, active, state, setMode, show, hide, tick, clearAll, skipHeld, takeTap, anyHeld, buzz, init, forcedTouch, setWeapon, debug, overlaps }`。
+- 依赖谁：只用 `document`、`window`、`navigator`、PointerEvent / TouchEvent。美术图分两条来源：**盘与纹样**由本模块自建缓存读 `assets/touch/` 那 10 张；**攻击键的武器图标**不自己建 Image，只读 `Assets.MANIFEST[key]` 取路径、读 `window.IMG[key]` 判就绪（与 `index.html` 的 `imgReady()` 同口径）。10 张虚拟键图**不进** `js/assets.js` 的 `MANIFEST`。
+- 被谁依赖：`index.html` 的 `update()`（把 `Touch.state(tag)` 并进 `in1/in2`）、`loop()`（`Touch.tick()`）、`syncHUD()`（一行 `Touch.setWeapon(tag, iconKey)`）；`js/guide.js`（`touchActive()` 判设备档）。
+- **美术是三层结构，各层职责互斥**（详见 [../docs/手机端适配.md](../docs/MOBILE.md) 的「十、按键美术」一节）：
+  - **底 = 青铜盘**：`plate`（正圆，给动作键）/ `plate-sq`（圆角方盘，`border-radius:26%`，给 `.tch-b.dir` 走键）。深青绿锈 + 外圈金色云雷纹，**中心留空**给文字。
+  - **中 = 暗刻金线纹样**：`glyph-<field>` 8 张，**低不透明度**压在文字下面，只给铸造质感。
+  - **上 = 原有文字标签**：`◀ ▶ 跳 刀 技 拾 丢 递 ❚❚ ?`。这一层没有降级 —— 它就是降级本身。
+- 关键约束：**降级链逐级退回，任何一层缺失都不许白屏、不许按钮变透明**：盘缺 → 今天那套径向渐变圆钮；纹样缺 → 不画纹样、文字照旧；武器图标缺 → 攻击键退回「atk 纹样 + 刀字」。三层**各自独立判**，不许用「只要有一层缺就整键退回纯 CSS」的粗暴写法（盘明明在，却因为它旁边的纹样缺了就把盘一起扔掉）。
+- 关键约束：**8 个纹样只做质感、不承担识别**。48px 的小键上纯图形对「跳 / 技 / 拾」辨识度不足，文字是最终兜底 —— 所以纹样必须低不透明度（现在是 `.52`，在 844×390 上校准过：`.44` 看不见、`1.0` 抢读），且不得盖住或替换文字。
+- 关键约束：**武器图标的 `z-index` 必须高于按下态的 `::after` 金雾**。有贴图的键，按下反馈改成在盘上盖一层金雾（`.tch-b.art.on::after`）；`::after` 生成在所有子元素之后，不显式抬 `.tch-wp` 的层级，按下去那一下刀斧会被金雾糊成一片金（实测过）。文字 `.tch-lab` 是 `z-index:2`，仍在最上层。
+- 关键约束：**这 10 张图不进 `MANIFEST`**。启动期静态图预算是 41 键 / 40 条路径（见本页 `assets.js` 一节），虚拟键图只有真触屏才需要，塞进去等于让桌面玩家白等 10 次解码。`js/touch.js` 自建 Image 缓存，只在 `available()` 为真时建。
+- **`setWeapon(tag, iconKey)` 是攻击键跟随武器的唯一入口**：`iconKey` 是 `js/assets.js` 的 `MANIFEST` 键名（如 `wpAxe` / `itJar`），不是文件路径 —— 路径由本模块从 `Assets.MANIFEST` 查，不许在这里抄第二份武器 → 图片的表。
+  - 语义是**幂等赋值**：缓存并比对 `(键名, 路径, 是否已就绪)` **三元组**，完全相同就立刻 `return`、不碰 DOM。存三元组而不是只存键名，是因为图标可能「先没就绪、后解码完」—— 只比键名会永久卡在 bare 态。所以调用方每帧调是免费的。
+  - `iconKey` 为 `null`（空手）或图未就绪时，键面退回「金线 atk 纹样 + 刀字」。`Assets` 整份缺席、或 `MANIFEST` 里没这个键，走同一条路。
+  - 入参归一：`tag` 非 `"p2"` 一律当 `p1`；`iconKey` 非字符串一律当空手。
+  - 调用点在 `index.html` 的 `syncHUD()` **一处**，`p1` / `p2` 各一次。别在别处再调，否则两名玩家的攻击键会互相覆盖。
+- 关键约束：`debug()` 除 `mode / shown / pointers / everTouched / urlTouch` 外多一个 `art` 字段（本轮新增，供自动化验收与排障）：`plate` / `glyph` 是已加载张数（配 `plateTotal: 2` / `glyphTotal: 8`，缺图时为 0）、`atk` 是 `{p1, p2}` 各自 `"armed"`（键面是武器图标）还是 `"bare"`（atk 纹样 + 刀字）、`icon` 是 `{p1, p2}` 各自当前挂的图标键名（空手为 `null`）。它只读缓存状态，不触发建图。
 - 关键约束：**判「有没有触屏」只看触摸硬件**（`navigator.maxTouchPoints > 0` 或 `ontouchstart` in window），**不看 `PointerEvent`**。桌面 Chrome / Edge / Firefox 全都支持 PointerEvent，拿它当判据会让鼠标点一下就切进手机版，玩家看到一圈虚拟键凭空冒出来。`PointerEvent` 只用来选事件 API。
 - 关键约束：**鼠标与手指靠 `pointerType` 区分**：`mouse` 不算手指（触摸屏笔记本上用鼠标玩要保持桌面界面），`touch` / `pen` 算。判在 `armFirstTouch()` 的 kick 里。
 - 关键约束：URL 强制开关 `?touch=1` / `?touch=0`。`?touch=1` 时 `everTouched` 直接置真 —— 从主屏图标启动时没有「第一次手指落下」事件，自动判断会等不到，虚拟键永远不出现。
@@ -151,7 +173,7 @@
 - 关键约束：`big` 键（1.22 倍直径）与相邻键的 y 差要 ≥ 1.26 倍直径。`checkOverlap()` 在布局重建时两两求交并 `console.warn` —— 这是这类布局 bug 的唯一自动化防线，别删。
 - 关键约束：手机上 `pointerup` 会丢（手指滑出屏幕 / 来电 / 系统通知 / 切 App / 锁屏）。三道兜底缺一不可：一次性键 8 秒超时回收（`reapStale`）、`pointercancel`、`blur` / `pagehide` / `visibilitychange` 三清。方向键不参与超时回收（按住往前跑是正常玩法）。
 - 关键约束：`state()` 要求层上带 `tch-on` 类才返回值。`tick()` 里 `want !== lastShown` 时会 `clearAll()` —— 一次抖动就清空全部按键，所以 `active()` 的判据（无手柄 / `phase === "play"` / 未暂停）必须稳定。
-- 改后必测：桌面端 `available()` 为 false、无虚拟键层、鼠标点击后图例仍是键盘版；`?touch=1` 下 10 个键可见且 0 重叠；`pointerdown → state.right = true`、`pointerup → 归零`；竖屏时整屏「请横过来」遮罩且按键隐藏。
+- 改后必测：桌面端 `available()` 为 false、无虚拟键层、**也不请求 `assets/touch/`**、鼠标点击后图例仍是键盘版；`?touch=1` 下 10 个键可见且 0 重叠；`pointerdown → state.right = true`、`pointerup → 归零`；竖屏时整屏「请横过来」遮罩且按键隐藏；三层美术逐层验一遍（删掉 `plate.webp` → 退回纯 CSS 圆钮；删掉某个 `glyph-*` → 该键只剩文字；`setWeapon(tag, null)` → 攻击键回到 atk 纹样 + 刀字），三种情况都不许出现透明键或白屏；换武器后攻击键在 1 帧内换图。
 
 
 ## ui-shell.js
@@ -193,7 +215,7 @@
 
 | 改动位置 | 必须同步检查 |
 |---|---|
-| `anim-data.js` | `char-rig` 的 `CLIPS` / `ANIM_HOLD` / `WEAPON_WALK_CLIP` / `WEAPON_ATTACK` / `WEAPON_ATTACK_CLIP` 键集合、`enemies-assets` 的 `KINDS`、`fx` 的 `WEAPON_FX` / `HIT_MATERIAL`、`scaleFix` 是否仍按内容高反算、各 clip 屏幕身高是否仍在 178~181px |
+| `anim-data.js` | `char-rig` 的 `CLIPS` / `ANIM_HOLD` / `WEAPON_WALK_CLIP` / `WEAPON_CLIP` 键集合、`enemies-assets` 的 `KINDS`、`fx` 的 `WEAPON_FX` / `HIT_MATERIAL`、`scaleFix` 是否仍按内容高反算、各 clip 屏幕身高是否仍在 178~181px |
 | `assets.js` | `background` 的 `PROPS`/`CORE_KEYS`/`PROP_KEYS`、`fx` 的 `ready()` 名单、`char-rig` 的 `pose0` 降级、`index.html` 的 `WP_ICON` 与宝箱 / 机关 / 拾取物键名 |
 | `background.js` | `index.html` 的 `Background.ready()` 守卫、内联 `drawBG()` 兜底常量、`PROPS` 的世界坐标与 `PROP_KEYS` 名单是否与 `assets.js` 对得上（`drawFront()` / `occluders()` 已删除，别再往回调） |
 | `char-rig.js` | `index.html` 的 `drawPlayer()` 守卫、`__alphaMul` 是否仍被乘进 `alpha`（通用钩子，当前无调用方）、`__forceClip` 是否仍在收招时清空、`Player` 字段（`swingT / swingDur / throwT / whirlT / hurtT / pickupT / onGround`）是否改名 |
@@ -201,7 +223,7 @@
 | `fx.js` | `index.html` 四处 `FX.*` 调用与 `FX.ready()` 守卫；`drawSlash` 的 `wkey`、`drawHit` 的 `mat`、`drawProjFx` 的 `kind` 是否都有人传；新增武器要在 `WEAPON_FX` 与 `HIT_MATERIAL` 的表里都有落点 |
 | `guide.js` | `index.html` 的 `scanPads()` 与 `#keys`/`#pad`、`ui-shell` 的 `.uis-help-body` 与 `Guide.onChange`；改键位只改这里的四张表，别再往 `ui-shell` 抄文案 |
 | `rumble.js` | `index.html` 的十几个 `Rumble.player / Rumble.play` 调用点是否还指向本页列出的预设名；`Guide.pads()` 结构变化时 `padAt()` 是否仍取得到；`player()` 的 tag→pad 映射与 `readPad()` 取源是否仍一致 |
-| `touch.js` | `index.html` 的 `Touch.state / tick / init / takeTap / anyHeld / setMode` 调用点；`guide.js` 的 `touchActive()` 与 `forcedTouch()`；`index.html` 的 script 版本号（改了 `js/` 就要 +1）；`available()` 的触摸硬件判据（别改回看 `PointerEvent`） |
+| `touch.js` | `index.html` 的 `Touch.state / tick / init / takeTap / anyHeld / setMode / setWeapon` 调用点；`guide.js` 的 `touchActive()` 与 `forcedTouch()`；`index.html` 的 script 版本号（改了 `js/` 就要 +1）；`available()` 的触摸硬件判据（别改回看 `PointerEvent`）；`ART` 表的文件名与 `assets/touch/`、`tools/prep_touch.py` 三者一致；`setWeapon` 的 `iconKey` 仍是 `MANIFEST` 键名（别改成文件路径，也别在 `touch.js` 里抄第二份 `WP_ICON`）；`showcase.js` 界面 tab 的「手机虚拟键」清单 |
 | `ui-shell.js` | `index.html` 四个调用点、`body.solo` 样式、`UIShell` 未加载时的降级分支、`Guide` 缺席时抽屉仍要能开、`padFrame` 的启用闸、模式页底部文案 |
 | `audio.js` | 跑 `selftest_audio.mjs`；`index.html` 的 `sfx*()` 包装层是否仍能退回旧实现；新增武器要在 `MATERIAL` 表里给材质，否则一律落到 `jade`；`SND.bgm.*` 的调用点（开局 `start` / 换阵 `setWave` / 通关 `stop`） |
 

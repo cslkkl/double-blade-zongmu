@@ -35,9 +35,9 @@
 - 做什么：洋红抠图 + 去污染 + 裁透明边 + 缩放 + 存 WebP/JPEG。
 - 何时跑：换背景、换道具、换角色立绘时。
 - 输入：`sx-scene/far-bg-altar.png`、`mid-bg-pit.png`、`foreground-occlusion.png`、`ground-strip-wide.png`、`sx-scene/props/*.png`、`sanxingdui-game/sanxingdui-chibi-*.png`。
-- 输出：`assets/bg-far.jpg`、`assets/bg-mid.webp`、`assets/bg-fg.webp`、`assets/ground.webp`、`assets/props/*.webp`、`assets/char/turnaround.webp`、`assets/char/pose-0|1.webp`。
+- 输出：`assets/bg-far.jpg`、`assets/bg-mid.webp`、`assets/ground.webp`、`assets/props/*.webp`、`assets/char/turnaround.webp`、`assets/char/pose-0.webp`。
 - 幂等性：可重复跑，同名覆盖；不会删除多余文件。
-- 已知缺口：`assets/char/front.webp`、`side.webp`、`back.webp` 不在本脚本产出里。
+- **`char/` 只剩 `pose-0.webp` 在用**（`js/assets.js` 的 `pose0`，是 `ANIM` 缺失时的降级底图）。`pose-1` / `front` / `side` / `back` 四张自始无消费方，2026-10-25 已连键带文件删除（省 260 KB 启动白加载）。`bg-fg.webp` 随前景遮挡层一起删除，本脚本残留的输出描述已同步清掉 —— 若重跑后它又出现，直接删，没有读取点。
 
 ## prep_fx.py — 刀光 / 火花 / 旋风环 / 石块
 
@@ -80,10 +80,30 @@
 - 做什么：把生图给出的多图标拼版按网格切开（切点吸附到 alpha 投影最低的列 / 行，避免切到物体），再**归一到同一正方形画布**并按最长边占固定比例居中。
 - 何时跑：换武器 / 物品 / 界面图标时。
 - 输入：`sanxingdui-items/weapon-set.png`（3×2）、`item-set.png`（3×2）、`ui-icon-set.png`（2×2）。
-- 输出：`assets/icons/` 16 张 —— 武器 6 张 `wp-*.webp`（256 画布，占 0.86）、物品 6 张 `it-*.webp`（192，占 0.84）、界面 4 张 `icon-*.webp`（128，占 0.88）。
+- 输出：`assets/icons/` **10 张** —— 武器 6 张 `wp-*.webp`（256 画布，占 0.86）、物品 4 张 `it-*.webp`（192，占 0.84：`jade` / `bell` / `jar` / `rock`）。界面图标 4 张已停产出（见下）。
+- **只产出有消费方的图标**：`DEAD_ITEMS = {cowrie, eye}` 与 `WRITE_UI_ICONS = False` 两个开关控制。`it-cowrie` / `it-eye` 与整组 `icon-*` 在 `js/assets.js` 与 `index.html` 里都没有读取点，2026-10-25 已连键带图删除。**不能直接删 `ITEMS` / `ICONS` 列表的元素** —— 切分按网格下标，删元素会让后面每格错位；只跳过写盘。
 - 为什么必须归一：一次出的六个图标各自包围盒不同，直接按包围盒缩放到目标尺寸就会忽大忽小；归一后缩放只剩长边一个自由度。
 - 幂等性：可重复跑，同名覆盖。
-- 验收：末尾批量校验「紫色残留」合计应为 0 或个位数；`assets/icons/` 应为 16 个文件。
+- 验收：末尾批量校验「紫色残留」合计应为 0 或个位数；`assets/icons/` 应为 10 个文件（6 武器 + 4 物品）。
+- ⚠️ 现存 `it-*.webp` 的长边占比是 **0.41~0.65**，与脚本设定的 0.84 不符 —— 说明它们是**更早版本脚本的产物**，从没按当前参数重跑过。重跑一次即可对齐，但跑完要人眼确认四个物品的相对大小（`it-rock` 只有 79×79，是六张里最小的）。
+
+## prep_touch.py — 手机虚拟键青铜盘与金线纹样
+
+- 做什么：洋红抠图 + 网格切片 + 归一（盘按盘体实心区包围盒、纹样按内容包围盒）+ 存 WebP，末尾打印洋红残留。
+- 何时跑：换虚拟键底盘、换暗刻纹样，或改盘 / 纹样的画布占比时。与其它脚本**无顺序依赖** —— 它只写 `assets/touch/`，不碰 `js/` 任何文件。
+- 输入：`sanxingdui-touch/touch-plate.png`（双盘并排）、`sanxingdui-touch/touch-glyphs.png`（4×2 纹样）。
+- 输出：`assets/touch/` **10 张** —— 底盘 2 张 `plate`（正圆）/ `plate-sq`（圆角方盘），都是 256×256；纹样 8 张 `glyph-{left,right,jump,atk,skill,act,drop,give}`，256 方画布内内容长边占 0.70（= 179）。
+- **不进 `js/assets.js` 的 `MANIFEST`**：启动期静态图预算已满（41 键 / 40 条路径），而这 10 张只有真触屏才用得上。由 `js/touch.js` 自建 Image 缓存、`available()` 为真时才加载。
+- 盘体占画布 0.96；**盘底下缘那圈柔和暗影故意保留** —— 盘图自带圆角（动作键 50% / 走键 26%），溢出圆外的暗影被图自己的圆角裁掉，剩下的正好沿盘沿读成接触阴影，不用 CSS `box-shadow` 再模拟一遍。
+- 归一化取「盘体实心区包围盒」，**不能用含暗影的 alpha 包围盒**：暗影会把包围盒撑大一圈，盘体跟着被压小一圈。
+- 当前产物的实测值（2026-10-26）：`glyph-*` 长边占比 0.699、几何中心 (0.498, 0.498)；两张盘按含暗边的 alpha 包围盒是 0.980（248×251）与 0.988（251×253）—— 比契约 0.96 大，因为暗边也算进包围盒了。消费侧按契约 0.96 铺（`104.17%`），所以盘沿会溢出按钮边约 2%（60px 键上约 1.2px），观感是「盘压住按钮边」，不是缺陷。
+- 幂等性：可重复跑，同名覆盖；不删除多余文件。
+- 验收：脚本末尾自己打三张表 ——
+  - **盘体占比**：目标 0.96，偏差 > 3% 标 `⚠️`；`plate-sq` 另报「实测圆角半径 ≈ x% 边长」与「`border-radius:26%` 裁切掉盘体多少 px」（圆角吃掉的那点盘体是有意的，与 `js/touch.js` 里的 `border-radius:26%` 对齐）；
+  - **洋红残留**：10 张合计应为 0 或个位数（缩放后还会再跑一遍 despill，因为重采样会把已压下去的紫重新抬出来）；
+  - **体积**：盘 ≤ 60 KB、纹样 ≤ 20 KB 每张，超了标 `⚠️`。
+- 另外会输出一张合成预览（深色底 + 金色按下态，64px / 40px 两档真实键面尺寸），落到系统临时目录，用来人眼看「低不透明度纹样压在盘上还认不认得出」。
+- 踩坑：洋红底必须 despill。纹样是**低不透明度**压在按键文字下面的，边缘那圈紫在深青绿的盘面上会被放大成脏边。
 
 ## prep_icon_alpha.py — 站点图标：源图 → 透明底 + 全套尺寸
 
@@ -107,8 +127,11 @@
 - 输出：`assets/anim/{pickup,attack-heavy,attack-thrust}-{i}.webp`（3 + 4 + 4 = 11 帧）+ 就地替换 / 追加 `window.ANIM` 里的三个 clip。
 - 幂等性：对已存在的 clip 走替换分支，不重复追加；不改动其它 clip。
 - 门禁：写完数据文件后脚本内部直接跑 `node --check js/anim-data.js`，非 0 就 `SystemExit(1)` —— 历史上一版曾写出缺冒号的行，把整份数据文件弄成语法错误。
-- 注意：脚本把 `scaleFix` 初始写成 `1.0`，那是占位不是终点。跑完必须按内容高反算并手改（算法见 [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) 的「跨帧对齐约定」）。
-- 验收：`node --check js/anim-data.js` 通过；三个新 clip 的屏幕身高与 idle 一致（178~181px）。
+- **`scaleFix` 不再被覆盖（2026-10-25 修）**：脚本**算不出**正确值 —— 弯腰（`pickup`）与蹲低（`attack-thrust`）的内容高天然更矮，按包围盒反算会把弯腰的人放大到站立高度（这是踩过的坑：宽高比 2.19 → 1.19）。所以现在：
+  - **已存在的 clip**：`_existing_scale_fix()` 从文件里沿用旧值，手改过的校准绝不会被重跑冲掉；
+  - **新增的 clip**：写 `1.0` 占位并打印醒目警告，必须人眼实测后手改；
+  - 无论哪种，都把「按包围盒反算」的数字打出来（`estimate_scale_fix`）供对照，**不落盘**。
+- 验收：`node --check js/anim-data.js` 通过；三个 clip 的屏幕身高与 idle 一致（178~181px）；重跑前后 `scaleFix` 三个值（0.914 / 0.867 / 0.754）必须一字不差。
 
 ## slice_enemy_anim.py — 敌人逐帧切片
 
@@ -130,35 +153,29 @@
 
 ## slice_weapon_assets.py — 武器素材一次性流水线
 
-- 做什么：一次跑完武器视觉的三类产物 —— 站立持械帧 / 出招姿态帧 / 武器专属特效（含打击材质火花），并把四个数据块就地写进 `js/anim-data.js`。
-- 何时跑：新增武器、重出持械或出招姿态、重出武器刀光时。
+- 做什么：一次跑完武器视觉的产物 —— 站立持械帧 / 武器专属特效（含打击材质火花），并把数据块就地写进 `js/anim-data.js`。出招姿态帧**默认不产出**（见下）。
+- 何时跑：新增武器、重出持械、重出武器刀光时。
 - 输入（`sanxingdui-weapon/`）：
   - `hold-extra.png` 4 格 → `short` / `blade` / `jar` / `bell` 的站立帧
-  - `atk-melee-a.png` 3 格 → `short` / `dagger` / `spear` 的出招姿态
-  - `atk-melee-b.png` 3 格 → `sword` / `axe` / `hammer`
-  - `atk-ranged.png` 4 格 → `bow` / `rock` / `blade` / `jar`
+  - `atk-melee-a.png` / `atk-melee-b.png` / `atk-ranged.png` → 出招姿态（**仅 `--with-atk` 时读**）
   - `fx-melee-a.png` 3 件 → `wp-slash-short` / `-dagger` / `-spear`
   - `fx-melee-b.png` 3 件 → `wp-slash-sword` / `-axe` / `-hammer`
   - `fx-ranged.png` 3 件 → `wp-slash-bow` / `-rock` / `-burst`（`jar` 与 `bell` 共用 `burst`）
   - `fx-hit-material.png` 4 格 → `hit-jade` / `hit-bronze` / `hit-blunt` / `hit-airy`
-- 输出：`assets/anim/hold-<key>.webp`、`assets/anim/atk-<key>.webp`、`assets/fx/*.webp`，并**追加 / 就地替换**四个数据块：`window.ANIM_HOLD`（只追加新键）、`window.WEAPON_ATTACK`、`window.WEAPON_FX`、`window.HIT_MATERIAL`。
+- 输出：`assets/anim/hold-<key>.webp`、`assets/fx/*.webp`，并**追加 / 就地替换**三个数据块：`window.ANIM_HOLD`（只追加新键）、`window.WEAPON_FX`、`window.HIT_MATERIAL`。
+- **`--with-atk` 默认关闭（2026-10-25）**：`window.WEAPON_ATTACK` 与那 10 张 `atk-<key>.webp` 已废弃删除 —— `WEAPON_CLIP` 现在 11 把武器全有 `attack`，`char-rig.js` 的 `draw()` 第一档就 `return`，这条旧通道永远轮不到。正常出素材时**不要**加这个开关，否则 1.78 MB 静默长回来。数据块即使残留也会被 `_drop_block` 清掉且不重建。
 - **`scaleFix` 用腰带锚定，不用内容包围盒高**：出招姿态里武器尖端常高过头顶，包围盒高会把角色算成小人。腰带在腰上，任何姿态都够不到，`scaleFix = idle 腰带到脚底 ÷ 该格腰带到脚底`。同一张图的几格由同一次生图画出，比例一致，所以对同图做一致性校验（偏离中位数 > 6% 判误检并用中位数替换）。
 - `anchorX` 同样取腰带行的水平中心，不取包围盒中心 —— 挥砍时武器向一侧大幅伸出，包围盒中心会把人物站位整体带偏。
-- 幂等性：只替换自己那几个文件与那四个数据块，不碰 `window.ANIM` / `window.ENEMY_ANIM`，也不重算已有的 7 个 `hold` 键。
+- 幂等性：只替换自己那几个文件与那三个数据块，不碰 `window.ANIM` / `window.ENEMY_ANIM`，也不重算已有的 7 个 `hold` 键。
 - 门禁：写完数据文件跑 `node --check js/anim-data.js`，非 0 直接退出；末尾逐张打印洋红残留计数。
 - 验收：`node --check` 通过；腰带到脚底的屏幕长度与 idle 相差 ≤ 2%；洋红残留为 0 或个位数。
 
-## slice_weapon_seq.py — 武器出招四帧序列
+## slice_weapon_seq.py — 武器出招四帧序列（已废弃，默认不跑）
 
-- 做什么：把每把武器的 4 帧出招条带切成 `atk-<key>-<i>.webp`，并就地写 `window.WEAPON_ATTACK_CLIP`。抠图 / 头冠锚 / 去洋红全部复用 `slice_weapon_assets.py`，不重写一套。
-- 何时跑：重出武器出招动画、改帧数时。
-- 输入（`sanxingdui-weapon-seq/`）：`seq-{short,dagger,sword,axe,hammer,spear,bow,rock,blade,jar}.png`，每张横向 4 格；`bell` 复用 `jar`，不出图。
-- 输出：40 张 `assets/anim/atk-<key>-<0..3>.webp` + `window.WEAPON_ATTACK_CLIP`。
-- **同一把武器的 4 帧必须共用同一张画布**：取 4 格内容包围盒的并集、外扩 4px、等比缩到长边 ≤ 560。画布尺寸不一致，播放时人物就会每秒抖四次 —— 这是本脚本最容易被改坏的地方。
-- `scaleFix` **每把武器一个**（4 帧共用），用头冠锚取 4 格中位数；逐帧各算会让角色在连击里忽大忽小。
-- `anchorX` **逐帧一个**（数组）：挥砍时身体轴线前后移，逐帧取才不漂；偏离 4 帧中位数 > 8% 判误检并用中位数替换，报告里标出是哪一帧。
-- 幂等：只替换自己那 40 个文件与该数据块，不碰另外五个数据块。
-- 门禁：写完 `node --check js/anim-data.js`；末尾打印每张的洋红残留（目标 ≤ 200）。
+- **2026-10-25 起默认整段跳过**：不加 `--with-atk` 就只打印一段说明、不写任何文件。
+- 为什么废弃：本脚本产出的 40 张 `atk-<key>-<i>.webp` + `window.WEAPON_ATTACK_CLIP` 与 `WEAPON_CLIP.attack` 功能重复，且 `draw()` 第一档判断永远先命中 `WEAPON_CLIP`，这条通道轮不到。50 张图（1.78 MB）已删，数据块已删。
+- 真要恢复：`python tools/slice_weapon_seq.py --with-atk`（同时用 `slice_weapon_assets.py --with-atk` 补单帧），并确认 `tools/selftest_weapons.mjs` 里 `ATKC` 相关断言重新生效。
+- 技术细节仍然有效（恢复时才用得上）：输入 `seq-{short,...}.png` 横向 4 格，`bell` 复用 `jar`；**同一把武器的 4 帧必须共用同一张画布**（取 4 格内容包围盒并集外扩 4px、等比缩到长边 ≤ 560），画布尺寸不一致人物会每秒抖四次；`scaleFix` 每把武器一个、`anchorX` 逐帧一个（数组，偏离中位数 > 8% 判误检）。
 
 ## slice_weapon_walk.py — 武器持械行走四帧序列
 
@@ -288,12 +305,15 @@
 | 改这个脚本 | 必须一起看 |
 |---|---|
 | `slice_anim.py` | `js/anim-data.js` 的 `window.ANIM`、`char-rig.js` 的 `CLIPS` 与降级链；跑完补 `slice_anim_extra.py` |
-| `slice_anim_extra.py` | 三个新 clip 的 `scaleFix` 是否按内容高反算、`char-rig.js` 的 `CLIPS` 是否含这三个名字 |
+| `slice_anim_extra.py` | 三个新 clip 的 `scaleFix` 是否**没被覆盖**（脚本沿用旧值）、`char-rig.js` 的 `CLIPS` 是否含这三个名字 |
 | `slice_enemy_anim.py` | `js/anim-data.js` 末尾的 `window.ENEMY_ANIM`、`enemies-assets.js` 的 `KINDS`、`selftest_enemies.mjs` |
 | `prep_assets.py` / `prep_fx.py` / `fix_fg.py` | `js/assets.js` 的 `MANIFEST` 键名与路径、`background.js` 的 `PROPS` 键名 |
 | `prep_interact.py` | `js/assets.js` 的 `chestClosed / chestOpen / mechanismOff / mechanismOn / pickupCowrie / pickupJade` 六个键 |
-| `prep_icons.py` | `js/assets.js` 的 `wp* / it* / icon*` 三族键名、`index.html` 的 `WP_ICON` 映射与 `DROP_ICON_SIZE` |
+| `prep_icons.py` | `js/assets.js` 的 `wp* / it*` 两族键名（`icon*` 已停产出）、`index.html` 的 `ICON` 映射与 `DROP_ICON_SIZE` |
 | `prep_icon_alpha.py` | `index.html` / `mobile.html` 的 `<link rel="icon">` 与 `apple-touch-icon` 引用；`hub.html` 的 favicon 用的是 `play/assets/icon/favicon.ico`（部署路径） |
+| `prep_touch.py` | `js/touch.js` 的 `ART` 表（文件名与字段一一对应）、`assets/touch/` 那 10 张、`showcase.js` 界面 tab 的「手机虚拟键」清单（`TOUCH`） |
+| `slice_weapon_assets.py` | `js/anim-data.js` 的 `ANIM_HOLD` / `WEAPON_FX` / `HIT_MATERIAL`；`--with-atk` 会复活已废弃的 `WEAPON_ATTACK` |
+| `slice_weapon_seq.py` | **默认不写任何文件**；`--with-atk` 才复活已废弃的 `WEAPON_ATTACK_CLIP` 与 40 张 `atk-*` |
 | 锚点或 `scaleFix` 相关逻辑 | `docs/ARCHITECTURE.md` 的「跨帧对齐约定」 |
 | `align_apply.py` / `align_weapon_frames.html` | `char-rig.js` 的 `anchorOf` / `footOf`、`js/anim-data.js` 的 `WEAPON_CLIP`、`selftest_weapons.mjs` |
 | `selftest_audio.mjs` | `js/audio.js` 的导出清单；导出增删要同步改用例，否则自检会漏掉新接口 |

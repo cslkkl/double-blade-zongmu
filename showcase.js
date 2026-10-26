@@ -81,7 +81,11 @@
     ["bell",   "青铜铃", "Bronze Bell"]
   ];
 
-  /* 武器 8 个状态列。序列在前，因为它在绘制链里优先级最高。 */
+  /* 武器 8 个状态列。序列在前，因为它在绘制链里优先级最高。
+     ⚠️ 2026-10-25 起 `WEAPON_ATTACK` / `WEAPON_ATTACK_CLIP` 两张表已删（素材并入
+     `WEAPON_CLIP.attack`，即下面的「挥砍」列），所以「出招序列 / 出招单帧」两列
+     按数据表是否存在动态生成 —— 硬编进表里会变成 11×2 个「该武器无此序列」空位，
+     读起来像素材缺了一大块，其实只是换了个地方。 */
   var WSTATES = [
     ["hold",   "持械站立", "HOLD"],
     ["seq",    "出招序列", "SEQ"],
@@ -92,6 +96,12 @@
     ["hurt",   "受击",     "HURT"],
     ["pickup", "拾取",     "PICK"]
   ];
+
+  WSTATES = WSTATES.filter(function (s) {
+    if (s[0] === "seq") return Object.keys(ATC).length > 0;
+    if (s[0] === "frame") return Object.keys(ATK).length > 0;
+    return true;
+  });
 
   /* 静态素材：浏览器不能列目录，只能手写清单 */
   var BG = [
@@ -120,6 +130,9 @@
     ["pickup-jade",   "拾取物", "玉"]
   ];
 
+  /* 2026-10-25 删图后只剩这 10 张：it-cowrie / it-eye / icon-* 六张无消费方，
+     连文件一起删了（省 33 KB 启动白加载）。这份清单是手写的，删素材时要同步删行，
+     否则展示页会出现 404 空框。 */
   var ICONS = [
     ["wp-sword",    "武器图标", "剑"],
     ["wp-axe",      "武器图标", "钺"],
@@ -128,16 +141,9 @@
     ["wp-bow",      "武器图标", "弓"],
     ["wp-dagger",   "武器图标", "匕"],
     ["it-jade",     "物品图标", "玉"],
-    ["it-cowrie",   "物品图标", "贝币"],
     ["it-jar",      "物品图标", "陶罐"],
     ["it-bell",     "物品图标", "铃"],
-    ["it-rock",     "物品图标", "石"],
-    ["it-eye",      "物品图标", "眼"],
-    ["icon-eye",    "符号",     "纵目纹"],
-    ["icon-mask",   "符号",     "面具"],
-    ["icon-leiwen", "符号",     "雷纹"],
-    ["icon-tree",   "符号",     "神树"]
-  ];
+    ["it-rock",     "物品图标", "石"]  ];
 
   var UIS = [
     ["title-scene",  "标题场景", ""],
@@ -150,6 +156,23 @@
     ["btn-hover",    "按钮",     "悬停"],
     ["btn-press",    "按钮",     "按下"],
     ["btn-disabled", "按钮",     "禁用"]
+  ];
+
+  /* 手机虚拟键的三层美术：2 张青铜盘 + 8 张暗刻金线纹样（t = touch）。
+     单独一张表而不是并进 UIS，是因为它不在 assets/ui/ 下 —— 并进去会拼出
+     assets/ui/plate.webp 这种 404 路径。这 10 张也不进 js/assets.js 的 MANIFEST，
+     由 js/touch.js 自建缓存、只在有触屏时加载，所以这一份清单是手写的。 */
+  var TOUCH = [
+    ["plate",           "按键底盘",     "正圆 · 动作键"],
+    ["plate-sq",        "按键底盘 · 方", "圆角方盘 · 走键"],
+    ["glyph-left",      "按键纹样 · 左", "青铜箭头"],
+    ["glyph-right",     "按键纹样 · 右", "青铜箭头"],
+    ["glyph-jump",      "按键纹样 · 跳", "太阳神鸟"],
+    ["glyph-atk",       "按键纹样 · 刀", "青铜钺"],
+    ["glyph-skill",     "按键纹样 · 技", "太阳轮"],
+    ["glyph-act",       "按键纹样 · 拾", "玉璧"],
+    ["glyph-drop",      "按键纹样 · 丢", "落箭 + 羽"],
+    ["glyph-give",      "按键纹样 · 递", "双面具"]
   ];
 
   var APPS = [
@@ -165,12 +188,10 @@
     ["favicon.ico",         "ico"]
   ];
 
+  /* 原画只有 pose-0：它是 ANIM 与帧图全不可用时的降级底图（`IMG.pose0`）。
+     front / side / back / pose-1 四张无消费方，2026-10-25 已连文件删除（省 260 KB）。 */
   var CHARSHEET = [
-    ["front",  "正面"],
-    ["side",   "侧面"],
-    ["back",   "背面"],
-    ["pose-0", "姿态一"],
-    ["pose-1", "姿态二"]
+    ["pose-0", "降级底图"]
   ];
 
   var GENERIC_FX = [
@@ -731,10 +752,14 @@
 
   function buildWeapon() {
     var frag = document.createDocumentFragment();
-    frag.appendChild(secHead("02", "武器", "Weapon", "11 把 × 8 个状态 · 换手即换图"));
+    frag.appendChild(secHead("02", "武器", "Weapon",
+      "11 把 × " + WSTATES.length + " 个状态 · 换手即换图"));
 
     var wrap = el("div", "wt-wrap");
     var t = el("div", "wt");
+    /* 列数写进 CSS 变量：状态列会因为数据表增删而变（当前 6 列），
+       写死在 showcase.css 里就会行行错位。见该文件的 `.wt` 注释。 */
+    t.style.setProperty("--wcols", String(WSTATES.length));
 
     t.appendChild(el("div", "hh", "武器"));
     WSTATES.forEach(function (s) { t.appendChild(el("div", "hh", s[1] + " " + s[2])); });
@@ -773,12 +798,19 @@
             cell = emptyCell("出招序列", "该武器无此序列", 132);
           }
         } else if (st === "frame") {
+          /* 兜底：ATK 整张表缺席时（2026-10-25 起就是这种情况）不能读 af.file，
+             否则整页在 buildWeapon 里抛 TypeError。列本身已被 WSTATES 过滤掉，
+             这里只是同形防御。 */
           var af = ATK[key] || ATK.jar;
-          var own = !!ATK[key];
-          spec = weaponSpec(key, "frame", ["assets/anim/" + baseName(af.file)],
-            0, af.w, af.h, af.scaleFix, false);
-          cell = playerCell(spec, 132, "出招单帧",
-            fixText(af.scaleFix) + (own ? "" : " · 复用陶罐"));
+          if (!af) {
+            cell = emptyCell("出招单帧", "该通道已并入挥砍", 132);
+          } else {
+            var own = !!ATK[key];
+            spec = weaponSpec(key, "frame", ["assets/anim/" + baseName(af.file)],
+              0, af.w, af.h, af.scaleFix, false);
+            cell = playerCell(spec, 132, "出招单帧",
+              fixText(af.scaleFix) + (own ? "" : " · 复用陶罐"));
+          }
         } else {
           var d = (WC[key] || {})[st];
           if (d && d.files && d.files.length) {
@@ -807,8 +839,9 @@
     frag.appendChild(wrap);
 
     var f = el("p", "foot");
-    f.innerHTML = "<b>" + total + "</b> 帧 · <b>出招序列</b> &gt; <b>出招单帧</b> &gt; <b>挥砍</b> " +
-      "是三级回落；铃沿用陶罐姿态，斧的行走只有 3 帧。";
+    f.innerHTML = "<b>" + total + "</b> 帧 · 出招只有一套：<b>挥砍</b>（`WEAPON_CLIP.attack`，每把 4 帧）；" +
+      "旧的「出招序列 / 出招单帧」两档位图已于 2026-10-25 删除（1.78 MB 纯冗余），" +
+      "两列因此不出现。斧的行走只有 3 帧。";
     frag.appendChild(f);
     return frag;
   }
@@ -932,7 +965,9 @@
 
   function buildUi() {
     var frag = document.createDocumentFragment();
-    frag.appendChild(secHead("06", "界面", "Interface", "图标 16 · 界面资源 10 · 应用图标 10"));
+    frag.appendChild(secHead("06", "界面", "Interface",
+      "图标 " + ICONS.length + " · 界面资源 " + UIS.length +
+      " · 虚拟键 " + TOUCH.length + " · 应用图标 " + APPS.length));
 
     frag.appendChild(groupHead("图标", "Icon", "拾取 / HUD / 符号", ICONS.length + " 张"));
     var g1 = gridOf(8);
@@ -949,6 +984,14 @@
       g2.appendChild(imageCell("assets/ui/" + r[0] + ".webp", r[1], r[2] || "webp", 230));
     });
     frag.appendChild(g2);
+
+    frag.appendChild(groupHead("手机虚拟键", "Touch Button",
+      "盘 + 暗刻纹样 + 文字三层；不进 MANIFEST，触屏档才加载", TOUCH.length + " 张"));
+    var g5 = gridOf(5);
+    TOUCH.forEach(function (r) {
+      g5.appendChild(imageCell("assets/touch/" + r[0] + ".webp", r[1], r[2], 150));
+    });
+    frag.appendChild(g5);
 
     frag.appendChild(groupHead("应用图标", "App Icon",
       "PWA / 桌面快捷方式，不属于游戏内素材", APPS.length + " 张"));
@@ -991,7 +1034,8 @@
     Object.keys(ATC).forEach(function (k) {
       if (ATC[k] && ATC[k].files) seqFiles = seqFiles.concat(ATC[k].files);
     });
-    groups.push(["武器出招序列", "Weapon Sequence", seqFiles]);
+    /* 表缺席就整组不出现 —— 留一个 0 帧的空标题比不显示更像坏了 */
+    if (seqFiles.length) groups.push(["武器出招序列", "Weapon Sequence", seqFiles]);
 
     var stateFiles = [];
     Object.keys(HOLD).forEach(function (k) { if (HOLD[k].file) stateFiles.push(HOLD[k].file); });
@@ -1030,8 +1074,13 @@
       frag.appendChild(wrap);
     });
 
+    /* 分项用实测长度拼，不写死：素材一增删，写死的算式立刻变成假账
+       （原来写的是「角色 43 + 序列 40 + 武器状态 152 + 敌人 14 = 249」，
+       删掉 atk-* 之后实际只剩 199，算式却还在报 249）。 */
     var f = el("p", "foot");
-    f.innerHTML = "<b>" + all + "</b> 张 · 角色 43 + 序列 40 + 武器状态 152 + 敌人 14 = 249";
+    f.innerHTML = "<b>" + all + "</b> 张 = " + groups.map(function (g) {
+      return g[0] + " " + g[2].length;
+    }).join(" + ");
     frag.appendChild(f);
     return frag;
   }
@@ -1135,7 +1184,7 @@
     n += Object.keys(HITM).length;
     n += GENERIC_FX.length;
     n += BG.length + PROPS.length + INTERACT.length
-       + ICONS.length + UIS.length + CHARSHEET.length + APPS.length;
+       + ICONS.length + UIS.length + TOUCH.length + CHARSHEET.length + APPS.length;
     return n;
   }
 

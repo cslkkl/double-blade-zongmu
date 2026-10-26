@@ -34,7 +34,9 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-::selection { background: #d8e8e0; }
+/* 选中文字：默认的浏览器蓝与这套白底 + 青铜绿不搭。
+   用页面唯一的强调色做实底（白字 6.11:1），不引入新色相。 */
+::selection { background: #3d6b57; color: #ffffff; }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: #e4e4e4; }
@@ -375,11 +377,15 @@ body {
 
 .wt-wrap { overflow-x: auto; padding-bottom: 2px; }
 
+/* ⚠️ 列数必须由 JS 写进 `--wcols`，不能在 CSS 里写死。
+   写死 `repeat(8, …)` 时，一旦状态列变少（2026-10-25 删掉「出招序列 / 出招单帧」
+   后剩 6 列），每行只有 7 个元素却排在 9 列的网格里 —— 行与行之间整体错位 2 格，
+   表头在第一列、数据从第三列开始往下淌，看起来像整张表没渲染出来。 */
 .wt {
   display: grid;
-  grid-template-columns: 172px repeat(8, minmax(0, 1fr));
+  grid-template-columns: 172px repeat(var(--wcols, 8), minmax(0, 1fr));
   gap: 6px;
-  min-width: 1140px;
+  min-width: calc(172px + var(--wcols, 8) * 128px);
 }
 
 .wt .hh {
@@ -514,7 +520,10 @@ body {
 
 @media (max-width: 1180px) {
   .grid { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)) !important; }
-  .wt { grid-template-columns: 150px repeat(8, minmax(0, 1fr)); min-width: 1060px; }
+  .wt {
+    grid-template-columns: 150px repeat(var(--wcols, 8), minmax(0, 1fr));
+    min-width: calc(150px + var(--wcols, 8) * 118px);
+  }
 }
 
 @media (max-width: 980px) {
