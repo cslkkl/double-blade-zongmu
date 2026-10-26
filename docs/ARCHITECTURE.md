@@ -212,7 +212,9 @@
 - 新增素材：先确认降级路径仍在，再确认 `ready()` 判定覆盖它。
 - 新增动作：`CLIPS` 预热名单 + `pickClip` 优先级 + `scaleFix`（按内容高反算）三处都要动。
 - 新增动作另需：武器到 clip 的映射（需要分流时进 `ATTACK_CLIP`）、切片脚本的 `CHAR_FRAME_RE` 清理正则。
-- 新增投掷物：`WEAPONS` 里的 `t*` 参数组 + `TD_COLS` 的爆炸配色 + `DROP_TABLE` 的权重列 + `audio.js` 的 `MATERIAL`。
+- 新增投掷物：`WEAPONS` 里的 `t*` 参数组 + `TD_COLS` 的爆炸配色 + `DROP_POOL` 的解锁阵次 + `audio.js` 的 `MATERIAL`。
+- 改掉落池：`DROP_POOL` 每件武器一条 `from` / `until`，池内均匀 —— **不许改成加权表**（那张 33 个数字的表删过一次）。`heavyMul` 只放大 `from > 0` 的非基础件。改完跑 `node tools/selftest_drop.mjs`，它的第 5 节会验「条目数即权重」。
+- 低伤武器要退场，不是靠权重压小：`until` 是**离散**的，判据是敌人构成（厚甲俑 12 血、BOSS 60 血时 2 伤武器砍不动），不是手感。加新武器时想清楚它该在哪个阵次退场，别让它一路掉到底。
 - 新增敌人类型：`ENEMY_ANIM` 键名、`KINDS` 预热名单、血量/速度/体型参数、纯代码降级分支四处都要动。
 - 改 `anim-data.js`：任何生成脚本写完都要 `node --check`，历史上这里出过 `fps: 6, true, loop: true` 的语法错误。
 - 改背景：`ready()` 现在判 `complete && naturalWidth > 0`，「加载中」与「加载失败」都会让它为假；两者对外都表现为回落纯代码背景。

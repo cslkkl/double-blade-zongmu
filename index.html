@@ -2279,7 +2279,7 @@ function chestReward(c, p, i){
   var r = Math.random();
   /* 开箱概率：武器 32% / 海贝 40% / 玉器 28%（合计 100；海贝回血更稳，武器降频）。
      宝箱武器从偏好池抽：重武器与远程权重加倍 —— 破阵奖励该比小兵掉落更值得期待，
-     但不搞稀有度系统（heavyMul=2，见 DROP_TIERS）。 */
+     但不搞稀有度系统（heavyMul=2，见 DROP_POOL）。 */
   if(r < 0.32){
     var wp = newWeapon(pickDropKey(G.waveIdx, 2));
     dropWeapon(c.x + ox, c.y, wp);
@@ -2365,21 +2365,44 @@ function nearestInteract(){
 }
 
 /* ---------------- 掉落池 ----------------
-   波数解锁池：档内均匀随机，不再用 33 个数字的加权表。
-   第 0 档（1-2 阵）四件基础；3 阵起加重武器三件；5 阵起加远程与投掷四件。
-   heavyMul 只对第 1、2 档才存在的武器生效（基础四件不吃加成）：
-   宝箱传 2 —— 重武器与远程权重加倍，破阵奖励该比小兵掉落更值得期待，
-   但不搞稀有度系统；敌人掉落传 1，纯均匀。 */
-var DROP_TIERS = [
-  ["short", "dagger", "sword", "rock"],
-  ["axe", "spear", "blade"],
-  ["hammer", "jar", "bell", "bow"]
+   每件武器一条：解锁阵次 from / 退场阵次 until（不含 until 本身）。
+   池子 = 该阵「已解锁且未退场」的全部武器，池内均匀随机 ——
+   不用加权表（那张 33 个数字的表已删，别再请回来）。
+
+   heavyMul 只放大 from > 0 的非基础件：宝箱传 2，破阵奖励该比小兵掉落更值得期待；
+   敌人掉落传 1，纯均匀。基础四件不吃加成 —— 否则宝箱会和敌人掉落一样平庸。
+
+   玉璋刃 / 骨牙匕在第三阵退场。判据是敌人构成，不是手感：
+   铜锈俑 5 血、疾行俑 3 血，第一、二阵里 2 伤武器仍是主力升级；
+   厚甲俑第三阵起登场，12 血要砍 6 刀，末阵 BOSS 60 血要砍 30 刀。
+   再掉就是占手 —— 单手一把语义下，捡错一把等于当场变弱，比不掉更糟。
+
+   骨牙匕另有一条：全场总输出最低（2.5 × 26 = 65，玉璋刃 2 × 55 = 110，
+   青铜剑 88、青铜钺 108、神树锤 112）。它只在开局当「快而脆」的选择成立。
+
+   眼形石留在基础档不是凑数：7 伤、弹数 3，是前期唯一的高伤远程。
+   第三阵起池子只剩 9 件、弱件占 0，这就是「越往后越不掉低伤武器」的实现。 */
+var DROP_POOL = [
+  { k:"short",  from:0, until:2 },   /* 玉璋刃：只在第一、二阵 */
+  { k:"dagger", from:0, until:2 },   /* 骨牙匕：同上 */
+  { k:"sword",  from:0 },            /* 青铜剑 */
+  { k:"rock",   from:0 },            /* 眼形石 */
+  { k:"axe",    from:1 },            /* 青铜钺：第二阵起 */
+  { k:"spear",  from:1 },            /* 三枝叉 */
+  { k:"blade",  from:1 },            /* 玉璋镖 */
+  { k:"hammer", from:2 },            /* 神树锤：第三阵起 */
+  { k:"jar",    from:2 },            /* 陶罐雷 */
+  { k:"bell",   from:2 },            /* 青铜铃 */
+  { k:"bow",    from:2 }             /* 神鸟弓 */
 ];
 function pickDropKey(wave, heavyMul){
-  var tier = clamp(Math.floor(wave || 0), 0, 2), pool = [], t, i, w;
-  for(t=0; t<=tier; t++){
-    w = (t === 0) ? 1 : (heavyMul || 1);   /* 基础四件不吃 heavyMul 加成 */
-    for(i=0; i < DROP_TIERS[t].length * w; i++) pool.push(DROP_TIERS[t][i % DROP_TIERS[t].length]);
+  var w = Math.max(0, Math.floor(wave || 0)), pool = [], i, e, mul, j;
+  for(i=0; i<DROP_POOL.length; i++){
+    e = DROP_POOL[i];
+    if(w < e.from) continue;
+    if(e.until !== undefined && w >= e.until) continue;
+    mul = (e.from > 0) ? (heavyMul || 1) : 1;   /* 基础件不吃 heavyMul 加成 */
+    for(j=0; j<mul; j++) pool.push(e.k);
   }
   return pool[(Math.random()*pool.length)|0] || "dagger";
 }
