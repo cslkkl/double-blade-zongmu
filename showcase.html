@@ -11,8 +11,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>素材总览 · 双刃战士 · 纵目</title>
-<!-- 不写这一行浏览器会去要 /favicon.ico（根目录没有），控制台留一条 404 噪声 -->
-<link rel="icon" href="assets/icon/favicon.ico">
+<!-- 图标与 /zongmu/ 索引页同一套（assets/icon/，透明底）。带 ?v= 是因为这些文件
+     被 Caddy 以 max-age=30 天缓存，不带版本号的话改完图浏览器还在用旧的深色底那张。 -->
+<link rel="icon" href="assets/icon/favicon.ico?v=20261026d" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icon/icon-32.png?v=20261026d">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icon/icon-16.png?v=20261026d">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icon/apple-touch-icon.png?v=20261026d">
 <link rel="stylesheet" href="showcase.css">
 </head>
 <body>
