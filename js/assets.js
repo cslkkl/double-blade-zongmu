@@ -13,6 +13,15 @@
     bgFar:       "assets/bg-far.jpg",
     bgMid:       "assets/bg-mid.webp",
     ground:      "assets/ground.webp",
+
+    /* 每阵专属场景层：<共用键><阵次>，由 tools/prep_scene.py 产出。
+       缺哪一阵就只登记已有的那些 —— 登记了却没有文件就是 404，
+       而 background.js 的降级链只认「图可绘制」，404 会让那一层退到共用层，
+       但那一次请求仍然是白跑的。所以新增一阵 = 先出图，再往这里加三行。 */
+    bgFar1:      "assets/bg/far-1.webp",
+    bgMid1:      "assets/bg/mid-1.webp",
+    ground1:     "assets/bg/ground-1.webp",
+
     sacredTree:  "assets/props/sacred-tree.webp",
     maskRelief:  "assets/props/mask-relief.webp",
     brazier:     "assets/props/brazier.webp",

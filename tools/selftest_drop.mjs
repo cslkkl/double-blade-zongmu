@@ -5,7 +5,7 @@
  *   1. 每件武器的解锁 / 退场阵次都能算出非空池子（0..20 阵全试）；
  *   2. 玉璋刃 / 骨牙匕只在前两阵出现，第三阵起一个不漏地退场；
  *   3. 其余 9 件武器在各自解锁阵次起真的抽得到（累计覆盖 = 全部 11 键）；
- *   4. heavyMul 只放大非基础件 —— 第一阵基础档全是 from:0，宝箱与小兵掉落同分布；
+ *   4. heavyMul 只放大非基础件 —— 第一阵基础档全是 from:0，倍率 1 与 2 同分布；
  *   5. 池内均匀：同一件武器在池里的出现次数只由 heavyMul 决定，不带其它权重。
  *
  * 池子结构是「均匀随机、不用加权表」这个决定的唯一防线 ——
@@ -120,6 +120,9 @@ ok(seen.size === ALL.length, `可达集合覆盖全表`, `可达 ${seen.size} / 
 
 console.log("\n=== 4. heavyMul 只放大非基础件 ===");
 {
+  /* 注意：heavyMul=1 现在没有生产调用方 —— 小兵不掉武器，宝箱固定传 2。
+     这里保留 1 vs 2 的对照，是因为 pickDropKey 的契约仍然是「按阵次 + 倍率取池」，
+     哪天要开回小兵掉落，这条对照就是它的验收。 */
   const enemy = tally(0, 1, 8000);
   const chest = tally(0, 2, 8000);
   /* 第一阵池里全是 from:0，加倍前后每一项都应落在同一比例上（±4%） */
@@ -131,14 +134,14 @@ console.log("\n=== 4. heavyMul 只放大非基础件 ===");
     const pc = (chest[key] || 0) / totalC;
     if (Math.abs(pe - pc) > 0.04) sameShape = false;
   }
-  ok(sameShape, "第一阵：宝箱与小兵掉落同分布（基础档不吃加成）");
+  ok(sameShape, "第一阵：倍率 1 与倍率 2 同分布（基础档不吃加成）");
 
-  /* 第二阵起：非基础件在宝箱里应明显更多 */
+  /* 第二阵起：非基础件在倍率 2 下应明显更多 */
   const e2 = tally(1, 1, 8000);
   const c2 = tally(1, 2, 8000);
   const baseShare = (t) => BASE.filter((k) => (t[k] || 0) > 0).reduce((s, k) => s + t[k], 0) / Object.values(t).reduce((a, b) => a + b, 0);
-  ok(baseShare(c2) < baseShare(e2), "第二阵起：宝箱里基础件占比低于小兵掉落",
-    `宝箱 ${(baseShare(c2) * 100).toFixed(1)}% vs 小兵 ${(baseShare(e2) * 100).toFixed(1)}%`);
+  ok(baseShare(c2) < baseShare(e2), "第二阵起：倍率 2 下基础件占比更低",
+    `倍率2 ${(baseShare(c2) * 100).toFixed(1)}% vs 倍率1 ${(baseShare(e2) * 100).toFixed(1)}%`);
 }
 
 console.log("\n=== 5. 池内均匀，不带额外权重 ===");

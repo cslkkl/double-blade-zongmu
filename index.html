@@ -490,30 +490,30 @@
        j = BGM 换成 assets/audio/bgm-main.mp3；i = 模式选择页打开即高亮当前项。
      —— 两边曾各自把版本号提到 e，同号两个版本会让缓存分不清，合并后统一顺延；
         这次也撞在一起（本地 k、上游 l），取两者之外的 m。 -->
-<script src="js/assets.js?v=20261026c"></script>
-<script src="js/anim-data.js?v=20261026c"></script>
-<script src="js/background.js?v=20261026c"></script>
-<script src="js/char-rig.js?v=20261026c"></script>
-<script src="js/enemies-assets.js?v=20261026c"></script>
-<script src="js/fx.js?v=20261026c"></script>
-<script src="js/guide.js?v=20261026c"></script>
-<script src="js/rumble.js?v=20261026c"></script>
-<script src="js/touch.js?v=20261026c"></script>
-<script src="js/ui-shell.js?v=20261026c"></script>
-<script src="js/audio.js?v=20261026c"></script>
-<script src="js/intro-video.js?v=20261026c"></script>
-<script src="js/assets.js?v=20261026c"></script>
-<script src="js/anim-data.js?v=20261026c"></script>
-<script src="js/background.js?v=20261026c"></script>
-<script src="js/char-rig.js?v=20261026c"></script>
-<script src="js/enemies-assets.js?v=20261026c"></script>
-<script src="js/fx.js?v=20261026c"></script>
-<script src="js/guide.js?v=20261026c"></script>
-<script src="js/rumble.js?v=20261026c"></script>
-<script src="js/touch.js?v=20261026c"></script>
-<script src="js/ui-shell.js?v=20261026c"></script>
-<script src="js/audio.js?v=20261026c"></script>
-<script src="js/intro-video.js?v=20261026c"></script>
+<script src="js/assets.js?v=20261026d"></script>
+<script src="js/anim-data.js?v=20261026d"></script>
+<script src="js/background.js?v=20261026d"></script>
+<script src="js/char-rig.js?v=20261026d"></script>
+<script src="js/enemies-assets.js?v=20261026d"></script>
+<script src="js/fx.js?v=20261026d"></script>
+<script src="js/guide.js?v=20261026d"></script>
+<script src="js/rumble.js?v=20261026d"></script>
+<script src="js/touch.js?v=20261026d"></script>
+<script src="js/ui-shell.js?v=20261026d"></script>
+<script src="js/audio.js?v=20261026d"></script>
+<script src="js/intro-video.js?v=20261026d"></script>
+<script src="js/assets.js?v=20261026d"></script>
+<script src="js/anim-data.js?v=20261026d"></script>
+<script src="js/background.js?v=20261026d"></script>
+<script src="js/char-rig.js?v=20261026d"></script>
+<script src="js/enemies-assets.js?v=20261026d"></script>
+<script src="js/fx.js?v=20261026d"></script>
+<script src="js/guide.js?v=20261026d"></script>
+<script src="js/rumble.js?v=20261026d"></script>
+<script src="js/touch.js?v=20261026d"></script>
+<script src="js/ui-shell.js?v=20261026d"></script>
+<script src="js/audio.js?v=20261026d"></script>
+<script src="js/intro-video.js?v=20261026d"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -1273,9 +1273,10 @@ function waveCleared(){
 function nextWave(){
   if(G.waveIdx >= G.waves.length-1){ goWin(); return; }
   G.waveIdx++;
-  /* 宝箱是破阵奖励，不是开局摆设：每破一阵在这里落 2 件战利品（落在新阵开头，
-     玩家在整个新阵与阵末喘息期里都能开）。落点沿用「玩家当前位置 ±错开」
-     避开出生点正下方；喘息期正好开箱换手，带着新武器进下一阵。
+  /* 宝箱是破阵奖励，不是开局摆设，而且**每破一阵只落一座**（原 2 座）。
+     小兵不再掉武器之后，这一座就是整局唯一的武器来源，所以箱内必出 1 把武器，
+     另配 1 件消耗品 —— 每阵只有这一次，一箱两件才对得起它的位置。
+     落在新阵开头，玩家在整个新阵与阵末喘息期里都能开。
      BOSS 阵破掉直接 goWin，不走这里。
 
      ⚠️ 以前这里写 G.chests = [] —— 会把上一阵**没来得及开**的箱子凭空没收。
@@ -1283,10 +1284,9 @@ function nextWave(){
      改成只清「已经开过的」（state 不是 closed），没开的留着继续能开；
      同时限制总量，避免多阵累积把地图塞满。 */
   G.chests = G.chests.filter(function(c){ return c && !c.opened; });
-  while(G.chests.length > 4) G.chests.shift();   /* 最多留 4 个，丢最老的 */
+  while(G.chests.length > 2) G.chests.shift();   /* 最多留 2 个，丢最老的 */
   var base = G.p1 ? G.p1.x : 560;
   addChest(base + 360, G.waveIdx);
-  addChest(base - 480, G.waveIdx);
   G.phase = "play";
   hideOv();
   startWave(G.waveIdx);
@@ -2268,25 +2268,28 @@ function openChest(c, p){
   burst(c.x, c.y-64, 14, "#9fe0c0", 260);
   if(S){ S.chest(); } else { sfxCrit(); }
   Rumble.player(p.padTag, "chest");   /* 120/80/120 递增三段 */
-  /* 一张宝箱爆 1 件：武器 / 海贝 / 玉器（降频收敛：不再一次喷两件） */
-  var n = 1;
-  for(var i=0;i<n;i++) chestReward(c, p, i);
+  /* 一箱两件：0 号位固定是武器，1 号位是消耗品。
+     2026-10-25 曾经改成「一箱一件」（当时小兵还在按 35% 掉武器，宝箱不必扛供给）；
+     现在小兵完全不掉武器，破阵宝箱是整局唯一的武器来源，且每阵只落一座 ——
+     一箱必须给到 1 把武器，再配 1 件消耗品，否则「每关一次」的奖励撑不起全程。 */
+  chestReward(c, p, 0);
+  chestReward(c, p, 1);
   showHitText(c.x, c.y-210, "宝箱开启");
 }
 
-function chestReward(c, p, i){
-  var ox = (i === 0 ? -52 : 52) + rnd(-10,10);
-  var r = Math.random();
-  /* 开箱概率：武器 32% / 海贝 40% / 玉器 28%（合计 100；海贝回血更稳，武器降频）。
-     宝箱武器从偏好池抽：重武器与远程权重加倍 —— 破阵奖励该比小兵掉落更值得期待，
-     但不搞稀有度系统（heavyMul=2，见 DROP_POOL）。 */
-  if(r < 0.32){
+/* slot 0 = 武器（必出）；slot 1 = 消耗品（海贝 / 玉器） */
+function chestReward(c, p, slot){
+  var ox = (slot === 0 ? -52 : 52) + rnd(-10,10);
+  if(slot === 0){
+    /* 武器从偏好池抽：重武器与远程权重加倍（heavyMul=2，见 DROP_POOL）——
+       破阵奖励该比普通掉落更值得期待，但不搞稀有度系统。 */
     var wp = newWeapon(pickDropKey(G.waveIdx, 2));
     dropWeapon(c.x + ox, c.y, wp);
     showHitText(c.x + ox, c.y - 170, "得 " + wp.name);
     return;
   }
-  var kind = (r < 0.72) ? "cowrie" : "jade";
+  /* 海贝 : 玉器 = 40 : 28，与旧的概率池同比例（海贝回血更稳，略多） */
+  var kind = (Math.random() < 0.59) ? "cowrie" : "jade";
   G.pickups.push({
     kind: kind, x: c.x + ox, y: c.y - 80,
     vx: ox*2.4, vy: -470, g: 1700,
@@ -2704,14 +2707,14 @@ function hitEnemy(e, dmg, dir, big, weak){
     burst(e.x, e.y-e.h*0.5, 26, "#c9a765", 480);
     sfxDie();
     G.shake = Math.max(G.shake, 12);
-    /* 掉落武器：BOSS 走下面固定的三件套，普通敌人按 34% 从当前波次池里抽 */
+    /* 小兵不掉武器 —— 武器只在破阵后由宝箱给（见 nextWave / chestReward）。
+       整局散落武器从 29.8 把降到 0，地面不再堆成一片。
+       BOSS 是唯一例外：它必掉固定的三件套，那是通关奖励，不属于「小兵掉落」。 */
     if(e.kind === "boss"){
       Rumble.play("all", "bossDie");   /* 三连重震：两只手柄一起庆祝 */
       dropWeapon(e.x-170, e.y, newWeapon("sword"));
       dropWeapon(e.x,     e.y, newWeapon("bow"));     /* 远程保底：保证玩家体验过直线弹道 */
       dropWeapon(e.x+170, e.y, newWeapon("hammer"));
-    } else if(Math.random() < 0.35){   /* 概率门：约 1/3 的敌人掉武器，其余只吃打击反馈 */
-      dropWeapon(e.x, e.y, newWeapon(pickDropKey(G.waveIdx, 1)));
     }
   }
 }
@@ -4523,9 +4526,12 @@ function render(){
 
   if(G.shake > 0) ctx.translate(rnd(-G.shake,G.shake), rnd(-G.shake,G.shake));
 
-  /* ---- 背景（素材视差层）---- */
+  /* ---- 背景（素材视差层）----
+     末参是阵次（1 起）：每阵有专属远景 / 中景 / 地面就用专属，没有就退回共用层。
+     标题页与结算页 G.waveIdx 还为 0，传 1 会错拿第一阵的图 —— 所以 0 时传 0。 */
+  var bgWave = (G.waveIdx >= 0 && G.phase === "play") ? G.waveIdx + 1 : 0;
   if(!(window.Background && window.Background.ready()
-       && window.Background.draw(ctx, G.camX, W, H, GROUND, WORLD_W) !== false)){
+       && window.Background.draw(ctx, G.camX, W, H, GROUND, WORLD_W, bgWave) !== false)){
     drawBG();
   }
 

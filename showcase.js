@@ -101,9 +101,12 @@
 
   /* 静态素材：浏览器不能列目录，只能手写清单 */
   var BG = [
-    ["assets/bg-far.jpg",  "远景", "bg-far.jpg",  "视差 0.20 · 横向平铺交替镜像"],
-    ["assets/bg-mid.webp", "中景", "bg-mid.webp", "视差 0.50 · 底部贴地面线"],
-    ["assets/ground.webp", "地面", "ground.webp", "视差 1.00 · 顶部对齐地面线"]
+    ["assets/bg-far.jpg",  "远景", "bg-far.jpg",  "视差 0.20 · 横向平铺交替镜像（共用兜底层）"],
+    ["assets/bg-mid.webp", "中景", "bg-mid.webp", "视差 0.50 · 底部贴地面线（共用兜底层）"],
+    ["assets/ground.webp", "地面", "ground.webp", "视差 1.00 · 顶部对齐地面线（共用兜底层）"],
+    ["assets/bg/far-1.webp",    "第一阵远景", "bg/far-1.webp",    "每阵专属 · 缺图退回共用层"],
+    ["assets/bg/mid-1.webp",    "第一阵中景", "bg/mid-1.webp",    "每阵专属 · 缺图退回共用层"],
+    ["assets/bg/ground-1.webp", "第一阵地面", "bg/ground-1.webp", "每阵专属 · 缺图退回共用层"]
   ];
 
   var PROPS = [
