@@ -189,7 +189,7 @@
 - 手机版有独立入口 `mobile.html`，它只做一次跳转（带 `?touch=1` 强制触屏档）。**不复制一份 index.html** —— 复制就会漂移，改一处要同步两处，迟早不同步。强制参数存在的原因：从主屏图标启动时没有「第一次手指落下」事件，自动判断会等不到。
 - 按键层 `position:fixed` 贴视口，不进 `#stage`（那是 1600×900 逻辑坐标，会被 `transform:scale` 缩到 43px，低于 44px 触摸目标下限）。
 - 触屏设备上的 `pointerup` 会丢（来电、切 App、锁屏、手指滑出屏幕）。三道兜底缺一不可：一次性键超时回收、`pointercancel`、失焦三清。方向键不参与超时回收。
-- `index.html` 的 script 标签带 `?v=` 版本号：文件名不带 hash，浏览器与 CDN 会长期缓存 `js/*.js`，玩家拿到旧版 `touch.js` 就会在桌面上看到手机虚拟键且刷新不掉。
+- `index.html` 的 script 标签带 `?v=` 版本号：文件名不带 hash，浏览器与 CDN 会长期缓存 `js/*.js`，玩家拿到旧版 `touch.js` 就会在桌面上看到手机虚拟键且刷新不掉。**格式与生成方式见 [DEPLOY.md](DEPLOY.md) 「四、缓存版本号」**，由 `node tools/bump-version.mjs --note "说明"` 写，不手改。
 
 ## 状态机
 

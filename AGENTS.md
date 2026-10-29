@@ -34,11 +34,13 @@ node tools/check-inline.mjs          # index.html 内联脚本语法
 node tools/selftest_enemies.mjs      # 敌人绘制自检（mock canvas，不开浏览器）
 node tools/selftest_audio.mjs        # 声音自检（mock Web Audio，不开浏览器）
 node tools/selftest_weapons.mjs      # 武器视觉自检（三件套覆盖 / 绘制分流 / 降级）
+node tools/bump-version.mjs --check  # 四页 27 处 ?v= 是否同一个令牌
 Get-ChildItem js -Filter *.js | ForEach-Object { node --check $_.FullName }
 python <maintenance-flow>/check-markdown-links.py . --fragments
 ```
 
-改了 `js/` 下任何文件，记得把 `index.html` 里 script 标签的 `?v=` 版本号 +1。
+改了 `js/` 或素材，跑 `node tools/bump-version.mjs --note "说明"` 让脚本写 `?v=`，别手改。
+格式与理由见 [docs/DEPLOY.md](docs/DEPLOY.md) 的「四、缓存版本号」。
 
 ## 重新生成素材（覆盖 `assets/` 与 `js/anim-data.js`，先提交再跑）
 

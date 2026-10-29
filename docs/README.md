@@ -17,7 +17,7 @@
 | 文物称谓（本体 / 角色） | [GAMEPLAY.md](GAMEPLAY.md) 第五节 | `README.md` 一张脸、`文案包.md`、`操作与录屏说明.md` 话术、`showcase.html` 资料栏 |
 | 青铜病措辞与三条区分 | [GAMEPLAY.md](GAMEPLAY.md) 第六节 | `README.md`、`showcase.html` 按语、`文案包.md` 4.2 / 4.6、`操作与录屏说明.md` 已知边界 |
 | 素材契约（朝向 / 画布 / 锚点 / `scaleFix`） | [ASSETS.md](ASSETS.md) | `tools/README.md`、`js/AGENTS.md` 提醒行 |
-| 上线要传什么、缓存头 | [DEPLOY.md](DEPLOY.md) | `README.md` 无（门面不写部署） |
+| 上线要传什么、缓存头、`?v=` 缓存版本号 | [DEPLOY.md](DEPLOY.md) | `README.md` 无（门面不写部署）；其余文档只留指针 |
 | 设计决策与防错清单 | [ARCHITECTURE.md](ARCHITECTURE.md) | 各处「详见架构文档」指针 |
 
 **为什么留着抄本而不全删**：抄本的读者条件不同 ——
@@ -41,6 +41,7 @@
 | `assets/` 任何重出 | [ASSETS.md](ASSETS.md) + `showcase.js` 统计数字（帧数 / 文件数 / 比例） | `node serve-showcase.mjs` |
 | `showcase.js` 三张数据表 | [GAMEPLAY.md](GAMEPLAY.md) 中文名 + `index.html` 构造函数比例 | `node --check showcase.js` |
 | 事实措辞（文物称谓 / 青铜病 / 作品名） | [GAMEPLAY.md](GAMEPLAY.md) 第五、六节为准，抄本见上一张表 | `python check-markdown-links.py . --fragments` |
+| `js/` 或 `assets/` 任何改动 | 版本号走 `node tools/bump-version.mjs --note "说明"`（格式见 [DEPLOY.md](DEPLOY.md) 第四节），别手改 | `node tools/bump-version.mjs --check` |
 | 键位、数值、体数这类漂移事实 | 只改 home 一处，其余抄本按上表跟改 | 同上 |
 
 **代码侧回指**：`index.html` 与 `js/` 目前只有文档指过去、没有注释指回来 ——

@@ -55,7 +55,10 @@
 `index.html` 的 script 标签带 `?v=` 版本号。文件名不带 hash，浏览器与 CDN 会
 长期缓存 `js/*.js`；玩家拿到旧版 `touch.js` 就会在桌面上看到手机虚拟键（旧版
 `available()` 把「支持 PointerEvent」当成「有触屏」），而且刷新几次都改不掉。
-**改了 `js/` 下任何文件就把版本号 +1。**
+**改了 `js/` 就 `node tools/bump-version.mjs --note "说明"`，别手改。**
+
+格式（`<YYYYMMDD><字母>`、日期段是改动当天、四页共用一个令牌）见
+[DEPLOY.md](DEPLOY.md) 的「四、缓存版本号」—— **那里是唯一 home，本页不重抄**。
 
 ---
 

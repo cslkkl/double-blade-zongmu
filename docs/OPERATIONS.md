@@ -89,7 +89,8 @@
 | 5 | `js/guide.js` `KBD_LEGEND` / `HINT_KBD` | 键盘图例 + 底部提示条 |
 | 6 | 本页与 [README.md](../README.md) 的键位表 | 对外口径 |
 
-改了 `js/` 下任何文件，记得把 `index.html` 里 script 标签的 `?v=` 版本号 +1。
+改了 `js/` 或素材，跑 `node tools/bump-version.mjs --note "说明"` 让脚本写 `?v=`，别手改。
+格式见 [DEPLOY.md](DEPLOY.md) 的「四、缓存版本号」。
 
 ---
 
