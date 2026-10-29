@@ -154,8 +154,13 @@ window.WEAPON_CLIP = {
               files: ["assets/anim/pickup-dagger.webp"] }
   },
   sword:   {
+    /* ⚠️ walk 的 4 张源图原本画成了面朝左，与其余 10 把（含空手）相反 ——
+       2026-10-30 已把写进 assets/ 的这 4 张水平镜像回来，与此同步把
+       anchorX 换成 1 - 旧值（镜像不改画布尺寸，只改身体轴的归一化位置）。
+       旧值 [0.535, 0.565, 0.5281, 0.5682] → 新值 [0.465, 0.435, 0.4719, 0.4318]。
+       只动 walk：jump / attack 当场看过，方向是对的。 */
     walk:    { frames: 4, loop: true, fps: 10, w: 543, h: 560, scaleFix: 0.761,
-              footY: [1, 1, 1, 1], anchorX: [0.535, 0.565, 0.5281, 0.5682],
+              footY: [1, 1, 1, 1], anchorX: [0.465, 0.435, 0.4719, 0.4318],
               files: ["assets/anim/walk-sword-0.webp", "assets/anim/walk-sword-1.webp", "assets/anim/walk-sword-2.webp", "assets/anim/walk-sword-3.webp"] },
     jump:    { frames: 2, loop: false, fps: 0, w: 543, h: 560, scaleFix: 0.761,
               footY: 1.0, anchorX: [0.6172, 0.6859],

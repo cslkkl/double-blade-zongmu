@@ -20,10 +20,10 @@
 <title>双刃战士 · 纵目</title>
 <meta name="description" content="三星堆纵目祭司主题横版双人清版动作游戏，零依赖，双击即玩。">
 <meta name="theme-color" content="#1a140e">
-<link rel="icon" href="assets/icon/favicon.ico?v=20261026e" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="assets/icon/icon-32.png?v=20261026e">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/icon/icon-16.png?v=20261026e">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/icon/apple-touch-icon.png?v=20261026e">
+<link rel="icon" href="assets/icon/favicon.ico?v=20261026f" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icon/icon-32.png?v=20261026f">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icon/icon-16.png?v=20261026f">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icon/apple-touch-icon.png?v=20261026f">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{width:100%;height:100%;overflow:hidden;background:#05060a;
@@ -480,7 +480,10 @@
      而且刷新几次都改不掉 —— 缓存不认文件名。
      这个项目没有构建步骤（禁 npm / CDN，file:// 要能双击跑），
      所以版本号靠手改；改 js/ 就 bump 一次。
-     当前版本：20261026-e
+     当前版本：20261026-f
+       f = 青铜剑行走朝向：`walk-sword-0..3.webp` 原本画成面朝左（其余 10 把与空手都朝右），
+           已水平镜像回来，`WEAPON_CLIP.sword.walk.anchorX` 同步取 `1 - 旧值`
+     上一次：20261026-e
        e = 末阵施压 + 旋风斩击退：器心活着就一直补小怪，BOSS 起手/冷却略快、受击僵直略短，
            旋风斩的单次击退从 620 降到 50（原来第一下就把人推出判定圈，后十下全空）
      上一次：20261026-d
@@ -496,18 +499,18 @@
        j = BGM 换成 assets/audio/bgm-main.mp3；i = 模式选择页打开即高亮当前项。
      —— 两边曾各自把版本号提到 e，同号两个版本会让缓存分不清，合并后统一顺延；
         这次也撞在一起（本地 k、上游 l），取两者之外的 m。 -->
-<script src="js/assets.js?v=20261026e"></script>
-<script src="js/anim-data.js?v=20261026e"></script>
-<script src="js/background.js?v=20261026e"></script>
-<script src="js/char-rig.js?v=20261026e"></script>
-<script src="js/enemies-assets.js?v=20261026e"></script>
-<script src="js/fx.js?v=20261026e"></script>
-<script src="js/guide.js?v=20261026e"></script>
-<script src="js/rumble.js?v=20261026e"></script>
-<script src="js/touch.js?v=20261026e"></script>
-<script src="js/ui-shell.js?v=20261026e"></script>
-<script src="js/audio.js?v=20261026e"></script>
-<script src="js/intro-video.js?v=20261026e"></script>
+<script src="js/assets.js?v=20261026f"></script>
+<script src="js/anim-data.js?v=20261026f"></script>
+<script src="js/background.js?v=20261026f"></script>
+<script src="js/char-rig.js?v=20261026f"></script>
+<script src="js/enemies-assets.js?v=20261026f"></script>
+<script src="js/fx.js?v=20261026f"></script>
+<script src="js/guide.js?v=20261026f"></script>
+<script src="js/rumble.js?v=20261026f"></script>
+<script src="js/touch.js?v=20261026f"></script>
+<script src="js/ui-shell.js?v=20261026f"></script>
+<script src="js/audio.js?v=20261026f"></script>
+<script src="js/intro-video.js?v=20261026f"></script>
 <script>
 "use strict";
 /* =====================================================================
