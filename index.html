@@ -20,10 +20,10 @@
 <title>双刃战士 · 纵目</title>
 <meta name="description" content="三星堆纵目祭司主题横版双人清版动作游戏，零依赖，双击即玩。">
 <meta name="theme-color" content="#1a140e">
-<link rel="icon" href="assets/icon/favicon.ico?v=20261026d" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="assets/icon/icon-32.png?v=20261026d">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/icon/icon-16.png?v=20261026d">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/icon/apple-touch-icon.png?v=20261026d">
+<link rel="icon" href="assets/icon/favicon.ico?v=20261026e" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icon/icon-32.png?v=20261026e">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icon/icon-16.png?v=20261026e">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icon/apple-touch-icon.png?v=20261026e">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{width:100%;height:100%;overflow:hidden;background:#05060a;
@@ -480,7 +480,10 @@
      而且刷新几次都改不掉 —— 缓存不认文件名。
      这个项目没有构建步骤（禁 npm / CDN，file:// 要能双击跑），
      所以版本号靠手改；改 js/ 就 bump 一次。
-     当前版本：20261026-d
+     当前版本：20261026-e
+       e = 末阵施压 + 旋风斩击退：器心活着就一直补小怪，BOSS 起手/冷却略快、受击僵直略短，
+           旋风斩的单次击退从 620 降到 50（原来第一下就把人推出判定圈，后十下全空）
+     上一次：20261026-d
        d = 合键位重排 + 透明图标 + 入口收敛；同时修掉 `#31`/`#32` 合并时把
            12 个 script 标签各写了两次的问题（guide.js 双份轮询会重复绑定监听）
      上一次：20261026-c
@@ -493,18 +496,18 @@
        j = BGM 换成 assets/audio/bgm-main.mp3；i = 模式选择页打开即高亮当前项。
      —— 两边曾各自把版本号提到 e，同号两个版本会让缓存分不清，合并后统一顺延；
         这次也撞在一起（本地 k、上游 l），取两者之外的 m。 -->
-<script src="js/assets.js?v=20261026d"></script>
-<script src="js/anim-data.js?v=20261026d"></script>
-<script src="js/background.js?v=20261026d"></script>
-<script src="js/char-rig.js?v=20261026d"></script>
-<script src="js/enemies-assets.js?v=20261026d"></script>
-<script src="js/fx.js?v=20261026d"></script>
-<script src="js/guide.js?v=20261026d"></script>
-<script src="js/rumble.js?v=20261026d"></script>
-<script src="js/touch.js?v=20261026d"></script>
-<script src="js/ui-shell.js?v=20261026d"></script>
-<script src="js/audio.js?v=20261026d"></script>
-<script src="js/intro-video.js?v=20261026d"></script>
+<script src="js/assets.js?v=20261026e"></script>
+<script src="js/anim-data.js?v=20261026e"></script>
+<script src="js/background.js?v=20261026e"></script>
+<script src="js/char-rig.js?v=20261026e"></script>
+<script src="js/enemies-assets.js?v=20261026e"></script>
+<script src="js/fx.js?v=20261026e"></script>
+<script src="js/guide.js?v=20261026e"></script>
+<script src="js/rumble.js?v=20261026e"></script>
+<script src="js/touch.js?v=20261026e"></script>
+<script src="js/ui-shell.js?v=20261026e"></script>
+<script src="js/audio.js?v=20261026e"></script>
+<script src="js/intro-video.js?v=20261026e"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -529,6 +532,25 @@ var W = BASE_W;
 var BREATHER = 3.0;             /* 每阵之间的喘息，玩家可以走动、开箱、回气 */
 var MAX_ALIVE = 7;              /* 同屏存活上限：刷怪排队，波次因此被拉长 */
 var INTERACT_R = { x: 80, y: 150 };   /* 宝箱 / 机关的开箱判定半径 */
+
+/* BOSS 的手感参数。杂兵的对应数字散在 updateEnemy 里，BOSS 这几个单独拎出来，
+   是因为它们要一起读：起手略长、收招更快、挨打后爬起更快 —— 合起来是「一直在逼」。
+   ⚠️ 绘制层（画长矛起手角度）也读 BOSS_WINDUP，改这里就够，别在 draw 里另写一份。 */
+var BOSS_WINDUP   = 0.50;             /* 起手（杂兵 0.34）：玩家仍有预警窗口 */
+var BOSS_CD_AFTER = [0.35, 1.00];     /* 收招后到下一次起手（杂兵 0.50~1.30） */
+var BOSS_CD_HURT  = [0.20, 0.55];     /* 受击僵直结束后到下一次起手（杂兵 0.25~0.70） */
+var BOSS_STUN     = 0.17;             /* 受击僵直本身（杂兵 0.22）：白打的时间更短 */
+/* 末阵：器心没死就一直叫小怪。间隔是「两只之间」的秒数，同屏仍受 MAX_ALIVE 管。 */
+var BOSS_REINFORCE = [3.0, 4.5];
+
+/* 旋风斩的击退。默认档（big = 620）是给单次挥砍用的 —— 一下把人打飞很爽；
+   但旋风斩每 0.13 秒扫一次、共 11 轮，620 的累计漂移实测 493px，
+   **第一下就把人推出 200 的判定圈**，后十下全空，1.5 秒无敌换不到伤害。
+   这里走自己的小值：单次 ≈3.7px、11 轮累计 ≈40px。
+   按 updateEnemy 的 hurt 分支（e.vx *= (1-9*dt)，位移积分下来是 vx/9）复算过：
+   kb=50 时起始距离 92 / 120 / 150 三种情况扫完全程都还在 200 圈内；
+   kb=90 只覆盖到 120，150 之外会滑出去（这条是选 50 而不是 90 的依据）。 */
+var WHIRL_KB = 50;
 
 /* 地上东西的寿命（秒）。没人捡就消失，防止场上杂物越积越多、画面变脏。 */
 var DROP_LIFE = 30;             /* 掉落武器：比消耗品活得久（约 2.5 倍），单手一把下换手成本高，捡得从容 */
@@ -1126,6 +1148,7 @@ var G = {
   camX:0, shake:0, hitstop:0, flash:0,
   waveIdx:0, waves:[],
   spawnQueue:[], spawnTimer:0,
+  bossReinforceT:0,          /* 末阵增援的倒计时：器心没死就一直补小怪 */
   combo:0, comboT:0, maxCombo:0,
   time:0, phaseT:0,
   banner:0,
@@ -1246,6 +1269,7 @@ function startWave(i){
   var w = G.waves[i];
   G.spawnQueue = w.list.slice();
   G.spawnTimer = 1.0;
+  G.bossReinforceT = BOSS_REINFORCE[0];   /* 末阵第一次增援从本阵开场算起 */
   G.breatherT = 0;
   G.mechSpawned = false;
   G.mechSkipBreather = false;
@@ -2673,7 +2697,7 @@ function whirlHit(p){
     var e = G.enemies[i];
     if(e.state==="dead") continue;
     if(Math.abs(e.x - p.x) < R && Math.abs(e.y - p.y) < 260){
-      hitEnemy(e, 2, e.x > p.x ? 1 : -1, true, false);
+      hitEnemy(e, 2, e.x > p.x ? 1 : -1, true, false, WHIRL_KB);
       G.combo++; G.comboT = 0.9;
       if(G.combo > G.maxCombo) G.maxCombo = G.combo;
       hitAny = true;
@@ -2686,12 +2710,15 @@ function whirlHit(p){
 function showHitText(x,y,txt){
   G.texts.push({ x:x, y:y, txt:txt, life:0.9, max:0.9 });
 }
-function hitEnemy(e, dmg, dir, big, weak){
+function hitEnemy(e, dmg, dir, big, weak, kb){
   e.hp -= dmg;
-  e.hurtT = 0.22;
-  e.vx = dir * (big ? 620 : 380);
+  /* BOSS 的受击僵直比杂兵短一点点：它的弱点窗口是 recover（受伤 ×2），
+     不是挨打这两下。缩短这里只影响「玩家能白打多久」，不动弱点机制。 */
+  var stun = (e.kind === "boss") ? BOSS_STUN : 0.22;
+  e.hurtT = stun;
+  e.vx = dir * (kb !== undefined ? kb : (big ? 620 : 380));
   e.state = "hurt";
-  e.t = 0.22;
+  e.t = stun;
   G.hitstop = big ? 0.075 : 0.04;
   G.shake = Math.max(G.shake, big ? 15 : 7);
   burst(e.x, e.y - e.h*0.6, big?16:9, weak ? "#ffd0ff" : "#f7e2a8", big?430:300);
@@ -2740,7 +2767,7 @@ function updateEnemy(e, dt){
     e.t -= dt;
     e.vx *= (1-9*dt);
     e.x += e.vx*dt;
-    if(e.t<=0){ e.state="walk"; e.cd = rnd(0.25,0.7); }
+    if(e.t<=0){ e.state="walk"; e.cd = e.kind==="boss" ? rnd(BOSS_CD_HURT[0], BOSS_CD_HURT[1]) : rnd(0.25,0.7); }
     return;
   }
 
@@ -2758,7 +2785,7 @@ function updateEnemy(e, dt){
       } else {
         e.vx *= (1-8*dt);
         e.x += e.vx*dt;
-        if(e.cd <= 0){ e.state="windup"; e.t = e.kind==="boss"?0.55:0.34; }
+        if(e.cd <= 0){ e.state="windup"; e.t = e.kind==="boss" ? BOSS_WINDUP : 0.34; }
       }
       break;
 
@@ -2799,7 +2826,7 @@ function updateEnemy(e, dt){
 
     case "recover":
       e.t -= dt;
-      if(e.t<=0){ e.state="walk"; e.cd = rnd(0.5,1.3); }
+      if(e.t<=0){ e.state="walk"; e.cd = e.kind==="boss" ? rnd(BOSS_CD_AFTER[0], BOSS_CD_AFTER[1]) : rnd(0.5,1.3); }
       break;
   }
 
@@ -2913,6 +2940,35 @@ function update(dt){
         en.facing = side < 0 ? 1 : -1;
         G.enemies.push(en);
         G.spawnTimer = rnd(0.8, 1.4);      /* 分批刷新：0.8~1.4 秒一体 */
+      }
+    }
+
+    /* 末阵增援：器心不死就一直叫小怪。
+       独立于 spawnQueue 的两个理由：
+         1. 队列排空是「本阵打完」的判定条件之一（见下面的 waveCleared），
+            增援混进队列会让「BOSS 已死但队列里还排着一只」多拖几秒才通关；
+         2. 直接生成才能只认「BOSS 还活着」这一个条件 —— 它一死，倒计时当场作废。
+       同屏上限仍走 MAX_ALIVE，所以是持续压力而不是爆量。 */
+    var bossAlive = false;
+    for(var bi=0; bi<G.enemies.length; bi++){
+      if(G.enemies[bi].kind === "boss" && G.enemies[bi].state !== "dead"){ bossAlive = true; break; }
+    }
+    if(bossAlive && G.waveIdx >= G.waves.length-1 && G.breatherT <= 0){
+      G.bossReinforceT -= dt;
+      if(G.bossReinforceT <= 0){
+        G.bossReinforceT = rnd(BOSS_REINFORCE[0], BOSS_REINFORCE[1]);
+        if(alive < MAX_ALIVE){
+          /* 兵种配比：厚甲兵更少，免得同屏一堆硬壳把节奏拖死 */
+          var roll = Math.random();
+          var rkind = roll < 0.45 ? "walker" : (roll < 0.80 ? "fast" : "brute");
+          var rside = (Math.random() < 0.5) ? -1 : 1;
+          var rx = rside < 0 ? G.camX - 60 : G.camX + W + 60;
+          rx = clamp(rx, 50, WORLD_W-50);
+          var re = new Enemy(rkind, rx);
+          re.facing = rside < 0 ? 1 : -1;
+          G.enemies.push(re);
+          alive++;
+        }
       }
     }
 
@@ -3842,7 +3898,7 @@ function drawEnemy(e){
   /* 长矛 */
   ctx.save();
   var sa = 0;
-  if(e.state==="windup") sa = -0.9 * (1 - e.t/(e.kind==="boss"?0.55:0.34));
+  if(e.state==="windup") sa = -0.9 * (1 - e.t/(e.kind==="boss"?BOSS_WINDUP:0.34));
   if(e.state==="strike") sa = 0.75;
   /* 握矛的手臂 */
   ctx.strokeStyle = col; ctx.lineWidth = 10;
