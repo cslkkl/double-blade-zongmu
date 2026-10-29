@@ -20,10 +20,10 @@
 <title>双刃战士 · 纵目</title>
 <meta name="description" content="三星堆纵目祭司主题横版双人清版动作游戏，零依赖，双击即玩。">
 <meta name="theme-color" content="#1a140e">
-<link rel="icon" href="assets/icon/favicon.ico?v=20261026f" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="assets/icon/icon-32.png?v=20261026f">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/icon/icon-16.png?v=20261026f">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/icon/apple-touch-icon.png?v=20261026f">
+<link rel="icon" href="assets/icon/favicon.ico?v=20261030a" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icon/icon-32.png?v=20261030a">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icon/icon-16.png?v=20261030a">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icon/apple-touch-icon.png?v=20261030a">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{width:100%;height:100%;overflow:hidden;background:#05060a;
@@ -473,14 +473,20 @@
   </div>
 </div></div>
 
-<!-- 脚本版本号：改了 js/ 下任何文件就把这里 +1。
+<!-- 脚本版本号：改了 js/ 或素材就 node tools/bump-version.mjs --note "说明"。
+     格式 <YYYYMMDD><字母>，日期段是**改动当天**、跨天从 a 重排；全站四页共用一个令牌。
+     口径的唯一 home 在 docs/DEPLOY.md「四、缓存版本号」，这里只留结论与历史。
      为什么必须带：文件名不带 hash，浏览器与 CDN 会长期缓存 js/*.js。
      玩家拿到旧版 touch.js 就会在桌面上看到手机虚拟键（旧版 available()
      把「支持 PointerEvent」当成「有触屏」，鼠标一点就切档），
      而且刷新几次都改不掉 —— 缓存不认文件名。
      这个项目没有构建步骤（禁 npm / CDN，file:// 要能双击跑），
-     所以版本号靠手改；改 js/ 就 bump 一次。
-     当前版本：20261026-f
+     所以版本号只能落在文本里；但它是纯字符串替换，交给脚本做，别手改。
+     当前版本：20261030-a
+       a = 版本号改成脚本生成：日期段取**改动当天**、跨天从 a 重排（原来只说得清「+1」，
+           于是 10-30 的提交还挂着 20261026 的日期段）。四个页面共用一个令牌，
+           由 tools/bump-version.mjs 写盘、`--check` 守漂移。
+     上一次：20261026-f
        f = 青铜剑行走朝向：`walk-sword-0..3.webp` 原本画成面朝左（其余 10 把与空手都朝右），
            已水平镜像回来，`WEAPON_CLIP.sword.walk.anchorX` 同步取 `1 - 旧值`
      上一次：20261026-e
@@ -499,18 +505,18 @@
        j = BGM 换成 assets/audio/bgm-main.mp3；i = 模式选择页打开即高亮当前项。
      —— 两边曾各自把版本号提到 e，同号两个版本会让缓存分不清，合并后统一顺延；
         这次也撞在一起（本地 k、上游 l），取两者之外的 m。 -->
-<script src="js/assets.js?v=20261026f"></script>
-<script src="js/anim-data.js?v=20261026f"></script>
-<script src="js/background.js?v=20261026f"></script>
-<script src="js/char-rig.js?v=20261026f"></script>
-<script src="js/enemies-assets.js?v=20261026f"></script>
-<script src="js/fx.js?v=20261026f"></script>
-<script src="js/guide.js?v=20261026f"></script>
-<script src="js/rumble.js?v=20261026f"></script>
-<script src="js/touch.js?v=20261026f"></script>
-<script src="js/ui-shell.js?v=20261026f"></script>
-<script src="js/audio.js?v=20261026f"></script>
-<script src="js/intro-video.js?v=20261026f"></script>
+<script src="js/assets.js?v=20261030a"></script>
+<script src="js/anim-data.js?v=20261030a"></script>
+<script src="js/background.js?v=20261030a"></script>
+<script src="js/char-rig.js?v=20261030a"></script>
+<script src="js/enemies-assets.js?v=20261030a"></script>
+<script src="js/fx.js?v=20261030a"></script>
+<script src="js/guide.js?v=20261030a"></script>
+<script src="js/rumble.js?v=20261030a"></script>
+<script src="js/touch.js?v=20261030a"></script>
+<script src="js/ui-shell.js?v=20261030a"></script>
+<script src="js/audio.js?v=20261030a"></script>
+<script src="js/intro-video.js?v=20261030a"></script>
 <script>
 "use strict";
 /* =====================================================================
