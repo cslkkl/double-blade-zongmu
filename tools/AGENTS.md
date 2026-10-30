@@ -4,6 +4,7 @@
 
 本目录特有约束：
 - 脚本只读源图、只写 `assets/` 与 `js/anim-data.js`；不许写 `index.html` 或其它 `js/*.js`。
+- 两个例外：`bump-version.mjs` 只写四个 html 的 `?v=`；`visits.py` 只读日志、什么都不写。
 - 产物路径（`DST` / `OUT_*`）一律相对仓库根（`ASSETS = ROOT / "assets"`、`ROOT / "js" / "anim-data.js"`），不写盘符；外部生图源目录走环境变量 `SD_IMG_SRC`，脚本已有 `--src` 的以 `--src` 优先，两者都没有就报错退出，不许静默读空目录。改路径只改脚本顶部的路径口径块，不许散落到函数里。
 - 生成物写完必须 `node --check js/anim-data.js`；改敌人相关必跑 `node tools/selftest_enemies.mjs`。
 - 跑 `slice_anim.py` 前先确认敌人帧可重出：它会清空 `assets/anim/` 全部 `.webp`。

@@ -20,11 +20,11 @@
 | 玩法 | `docs/GAMEPLAY.md` | 机制、数值、六阵、文物对照、青铜病知识（唯一口径）、艺术处理边界 | [docs/GAMEPLAY.md](docs/GAMEPLAY.md) |
 | 游戏本体 | `index.html` | 玩法逻辑、状态机、HUD | 直接读，无子手册 |
 | 渲染层 | `js/` | 素材加载、视差、帧动画、特效、UI、声音、触屏 | [js/README.md](js/README.md) · [js/AGENTS.md](js/AGENTS.md) |
-| 素材流水线 | `tools/` | 生图后处理、切片、自检 | [tools/README.md](tools/README.md) · [tools/AGENTS.md](tools/AGENTS.md) |
+| 素材流水线 | `tools/` | 生图后处理、切片、自检、访问日志查询 | [tools/README.md](tools/README.md) · [tools/AGENTS.md](tools/AGENTS.md) |
 | 素材契约 | `docs/ASSETS.md` | 画布、锚点、朝向、`scaleFix` 的唯一口径 | [docs/ASSETS.md](docs/ASSETS.md) |
 | 素材产物 | `assets/` | 生成物，只读，不手改 | [tools/README.md](tools/README.md) |
 | 素材展示页 | `showcase.html` + `.css` + `.js` | 录屏用的素材总览（只读 `js/anim-data.js` 与 `assets/`） | 本文件「素材展示页」一节 |
-| 部署与手机 | `docs/DEPLOY.md` · `docs/MOBILE.md` | 上线要求、移动端实现与验收 | 同左 |
+| 部署与手机 | `docs/DEPLOY.md` · `docs/MOBILE.md` | 上线要求、`?v=` 缓存版本号、访问统计、移动端实现与验收 | 同左 |
 | 修复记录 | `docs/HISTORY.md` + `docs/audit/` | 审计问题状态总表；三份审计原文归档 | [docs/HISTORY.md](docs/HISTORY.md) |
 
 ## 验证命令（每次收工全跑，全绿才算完）
@@ -224,6 +224,7 @@ CHAR     // 12 个动作的中文名 / 英文名
 - 想重新出素材 → [tools/README.md](tools/README.md)；素材契约 → [docs/ASSETS.md](docs/ASSETS.md)。
 - 想查某次决策与调查的来龙去脉 → [.agents/notes/](.agents/notes/)。
 - 想部署 / 手机端怎么用 → [docs/DEPLOY.md](docs/DEPLOY.md) · [docs/MOBILE.md](docs/MOBILE.md)。
+- 想看访问量 / 谁来过 → `python tools/visits.py`；口径与 Caddy 侧配置在 [docs/DEPLOY.md](docs/DEPLOY.md) 「五、访问统计」。
 - 想知道这轮修了什么 → [docs/HISTORY.md](docs/HISTORY.md)；审计原文在 `docs/audit/`。
 - 想投稿 / 录屏 → [文案包.md](文案包.md) · [操作与录屏说明.md](操作与录屏说明.md)。
 - 想查原作机制 → [docs/ORIGINAL-GAME.md](docs/ORIGINAL-GAME.md)。

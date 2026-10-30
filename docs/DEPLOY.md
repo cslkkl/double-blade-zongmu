@@ -2,7 +2,7 @@
 
 静态站点，无构建步骤、无后端、无依赖。把文件放进任意静态服务器的目录即可。
 
-> **本页是唯一 home**：要传什么、缓存头、HTTPS / 横屏 / 触屏三条上线要求。
+> **本页是唯一 home**：要传什么、缓存头、`?v=` 版本号、访问统计、HTTPS / 横屏 / 触屏三条上线要求。
 > **改这里之后要同步**：[../操作与录屏说明.md](../操作与录屏说明.md) 的「交付物是哪三样」（同一件事的现场版）。
 > **本页被引用**：[../AGENTS.md](../AGENTS.md) 分层索引 · [README.md](README.md) 事实路由表。
 > 手机端实现细节不在这里，在 [MOBILE.md](MOBILE.md)。
@@ -224,7 +224,66 @@ node tools/bump-version.mjs --check                # 只校验：27 处是否同
 
 ---
 
-## 五、已知的手机端取舍
+## 五、访问统计（查日志）
+
+> **本页是唯一 home**：Caddy 侧配置、日志格式、判据、查询方式。
+> 工具只有一处：[../tools/visits.py](../tools/visits.py)。不装面板、不装数据库、无常驻进程。
+
+Caddy 自己写 JSON 访问日志，要看的时候跑一句命令。字段用 `filter` 编码器裁过，
+一行约 **334 字节**（默认 471~706）：
+
+```caddyfile
+log {
+	output file /var/log/caddy/visits.log {
+		roll_size 20MiB      # 单位必须写 MiB，写 20mb 不认
+		roll_keep 20
+		roll_keep_for 720h   # 保留 30 天
+	}
+	format filter {
+		wrap json
+		fields {
+			user_id delete
+			resp_headers delete
+			request>remote_port delete
+			request>proto delete
+			request>tls delete
+			request>headers>Accept delete
+			# …其余请求头同理，只留 User-Agent
+			request>headers>Referer rename referer
+		}
+	}
+}
+```
+
+留下 **时间 / IP / 方法 / Host / 路径 / 状态码 / 字节数 / 耗时 / UA / Referer**。
+`level` / `logger` / `msg` 删不掉（编码器核心字段，不走字段过滤），每行固定多占约 110 字节。
+
+**三条判据**（都是实测结论，改脚本前先看）：
+
+- **PV 只认 `status=200`**。`/zongmu/play`（无斜杠）会 308 跳到 `/zongmu/play/`，
+  一次浏览器访问产生 2 条日志，全算会让 PV 正好翻倍。
+- **页面 = 以 `/` 结尾或以 `.html` 结尾**，其余按扩展名算素材。因为 Caddy 2.6.2 没有 `skip_log`
+  （2.7 才有）、`log` 也不吃路径匹配器（实测报 `unexpected line ending after '@pages'`）、
+  还不能放进 `handle`（`not an ordered HTTP handler`），所以 webp / js / mp3 一定会进日志，
+  只能在读取时筛。
+- **UV 按 `remote_ip` 去重**，不做 cookie / 指纹，同一 NAT 后面的人算一个。
+
+**查询**（服务器上直接跑；也可把日志拉回本地再用同一条命令）：
+
+```bash
+python3 tools/visits.py                 # 今天，按页面
+python3 tools/visits.py --days 7        # 最近 7 天
+python3 tools/visits.py --by day        # 按天
+python3 tools/visits.py --by host       # IP 访问 vs 域名访问
+python3 tools/visits.py --tail 20       # 最近 20 条原始请求
+python3 tools/visits.py --exclude-local # 剔掉 127.0.0.1，自己 curl 测试不算
+```
+
+日志记了 `request.host`，所以域名上线后流量会自动分开，不用改配置。
+
+---
+
+## 六、已知的手机端取舍
 
 1. **画面不随屏幕分辨率提高清晰度**。canvas 内部按逻辑分辨率绘制（高度 900、
    宽度见下条），在 2K/3K 屏上是被 CSS 放大后的结果，边缘略软。

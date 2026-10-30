@@ -17,7 +17,7 @@
 | 文物称谓（本体 / 角色） | [GAMEPLAY.md](GAMEPLAY.md) 第五节 | `README.md` 一张脸、`文案包.md`、`操作与录屏说明.md` 话术、`showcase.html` 资料栏 |
 | 青铜病措辞与三条区分 | [GAMEPLAY.md](GAMEPLAY.md) 第六节 | `README.md`、`showcase.html` 按语、`文案包.md` 4.2 / 4.6、`操作与录屏说明.md` 已知边界 |
 | 素材契约（朝向 / 画布 / 锚点 / `scaleFix`） | [ASSETS.md](ASSETS.md) | `tools/README.md`、`js/AGENTS.md` 提醒行 |
-| 上线要传什么、缓存头、`?v=` 缓存版本号 | [DEPLOY.md](DEPLOY.md) | `README.md` 无（门面不写部署）；其余文档只留指针 |
+| 上线要传什么、缓存头、`?v=` 缓存版本号、访问统计 | [DEPLOY.md](DEPLOY.md) | `README.md` 无（门面不写部署）；其余文档只留指针；查询工具 `tools/visits.py` |
 | 设计决策与防错清单 | [ARCHITECTURE.md](ARCHITECTURE.md) | 各处「详见架构文档」指针 |
 
 **为什么留着抄本而不全删**：抄本的读者条件不同 ——
