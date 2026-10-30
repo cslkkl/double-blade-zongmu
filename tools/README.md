@@ -210,6 +210,16 @@
 - **探针怎么造**（踩过的坑都在这）：`file://` 下 `getImageData` 抛 `SecurityError`，必须走截图；游戏主循环一直在动会让 Playwright 截图超时，要么 `animations: "disabled"` 并裁剪到画布，要么先停 rAF；`<canvas>` 会被全局 CSS 拉成 1600×900，必须显式写 `style.width/height`；**探针里不许画任何文字或辅助线** —— 它们会进像素统计，曾造出 3.4px 的假不对称。
 - 幂等性：纯只读（只读截图），无副作用。
 
+## selftest_drop.mjs — 掉落池自检
+
+- 做什么：从 `index.html` 抽出 `DROP_POOL` 与 `pickDropKey` 两段源码，在 `vm` 里单独执行，校验七件事：0~20 阵都抽得出非空池子；玉璋刃 / 骨牙匕只在前两阵出现、第三阵起一个不漏地退场；11 件武器在各自解锁阵次起真的抽得到；`heavyMul` 只放大非基础件（`from > 0`），第一阵倍率 1 与倍率 2 同分布；池内均匀 —— 实际分布与「条目数即权重」一致（±2%），谁把加权表请回来当场失败；**第三、四、五阵各有一件新武器首次入池**（不许第三阵一次开满）；**池子平均伤害随阵次单调不减、件数不缩水**。
+- 怎么替代随机：`Math.random` 临时换成固定种子的线性同余序列，才能断言「均匀」而不是靠运气。
+- 何时跑：改 `DROP_POOL`、改 `pickDropKey`、改 `heavyMul` 的传参、调整任何武器的解锁 / 退场阵次后。
+- 输入：`index.html`（只读那两段，不跑整份内联脚本 —— 它要 DOM / canvas）。
+- 输出：stdout 报表；退出码 0 = 通过，1 = 有失败项。
+- 幂等性：纯只读，无副作用。
+- 回归防线实测：把 `short` / `dagger` 的 `until:2` 删掉 → 8 项失败；把 `hammer` / `bow` 从第三阵推到第四、五阵 → 3 项失败（第三阵无新武器、平均伤害回头、池子缩水）。
+
 ## selftest_weapons.mjs — 武器视觉自检
 
 - 做什么：node + mock canvas 跑 `char-rig.js` 与 `fx.js`，校验五件事：出招序列的字段约束（4 帧共用画布与 `scaleFix`、`anchorX` 是逐帧数组）；每把武器都能拿到「站立帧 / 出招图 / 专属刀光」三件套；挥砍过程中真的播到了多个不同帧；缺键能逐级落回（序列 → 单帧 → 动画 clip；专属刀光 → 通用 slash-1..3 → 纯代码弧光）而不抛异常；**刀光朝向与刃口高光锚定**（5b / 5c 两节）。
@@ -341,3 +351,4 @@
 | 锚点或 `scaleFix` 相关逻辑 | `docs/ARCHITECTURE.md` 的「跨帧对齐约定」 |
 | `align_apply.py` / `align_weapon_frames.html` | `char-rig.js` 的 `anchorOf` / `footOf`、`js/anim-data.js` 的 `WEAPON_CLIP`、`selftest_weapons.mjs` |
 | `selftest_audio.mjs` | `js/audio.js` 的导出清单；导出增删要同步改用例，否则自检会漏掉新接口 |
+| `selftest_drop.mjs` | `index.html` 的 `DROP_POOL` / `pickDropKey`；改池子结构或加减武器要同步它的 5 组断言 |

@@ -34,6 +34,7 @@ node tools/check-inline.mjs          # index.html 内联脚本语法
 node tools/selftest_enemies.mjs      # 敌人绘制自检（mock canvas，不开浏览器）
 node tools/selftest_audio.mjs        # 声音自检（mock Web Audio，不开浏览器）
 node tools/selftest_weapons.mjs      # 武器视觉自检（三件套覆盖 / 绘制分流 / 降级）
+node tools/selftest_drop.mjs         # 掉落池自检（阵次进退场 / 均匀无权重 / heavyMul 只放大非基础件）
 node tools/bump-version.mjs --check  # 四页 27 处 ?v= 是否同一个令牌
 Get-ChildItem js -Filter *.js | ForEach-Object { node --check $_.FullName }
 python <maintenance-flow>/check-markdown-links.py . --fragments
@@ -106,6 +107,17 @@ CHAR     // 12 个动作的中文名 / 英文名
 
 ## 验证快照
 
+- **2026-10-30（合入上游 12 个提交：键位重排 / 透明图标 / 入口收敛 / BOSS 加压 / 剑行走镜像 / 版本号脚本）**：
+  `check-inline` 通过（内联脚本 153786 字符）；`selftest_enemies` / `selftest_audio` / `selftest_weapons` / `selftest_drop` 全 0 失败；
+  `node --check` 12/12 + `showcase.js` 通过；`bump-version --check` 一致（`20261030a`，27 处 / 4 文件）；
+  链接检查 50 文件 574 链接 0 错 0 警告。4 处冲突按语义解：
+  ① `AGENTS.md` 验证命令取并集（`selftest_drop` + `bump-version --check`），快照条目两线全留、统计按合并后实测重写；
+  ② `README.md` 以门面新版为骨架（上游结构 + 本线三张主视觉与素材段），剔除上游重复的「怎么玩」；
+  ③ `操作与录屏说明.md` / `文案包.md` 取「破阵开箱 + 一个动作一个键 + BOSS 600 血」这一组事实，
+  键位统一到 `J` / `K` / `L`（`OPERATIONS.md` 是口径），丢弃上游的「小兵 35% 掉落」「结算页按继续」「六刀环绕」旧表述。
+  **合并出的语义冲突**：本线删掉了小兵掉落并改了宝箱与 BOSS 血量，上游 `docs/GAMEPLAY.md` 仍写「35% 概率掉武器 / 一次 1 件 / 血 600」，
+  已按代码改写为 `DROP_POOL` 阵次表 + 一箱两件 + 空手伤害 1；`docs/GAMEPLAY.md` 与 `README.md` 的「四层视差 / 前景遮挡」也按代码改成三层且无遮挡层。
+  规模：`index.html` 4895 行；`js/` 12 个模块；`assets/` 282 文件 20.08 MB（剔除音视频 280 文件 8.76 MB）。
 - **2026-10-26（合并键位重排 + 透明图标 + 入口收敛后）**：`index.html` 4797 行，`assets/` 281 文件 19.59 MB。
   键位重排（一个动作一个键、玩家二改方向键 + 小键盘）、透明底图标全套、启动器绕开 IE、
   `tools` 全部去硬编码。**同时修掉 `#31`/`#32` 合并时 12 个 script 标签各写两次的问题**（`guide.js` 双份轮询会重复绑监听）。
@@ -123,8 +135,11 @@ CHAR     // 12 个动作的中文名 / 英文名
 - **2026-10-26（手机端逻辑视口加宽，填满屏幕）**：`check-inline` 通过；`selftest_enemies` / `selftest_audio` / `selftest_weapons` 全 0 失败；`node --check` 12/12；链接检查 0 错。`W` 改为可变量：桌面恒 1600，触屏按 `H × 视口宽高比` 加宽、上限 2100、量化 8px。**高度恒 900，所以缩放与角色尺寸一个像素都不变**（844×390 实测仍是 0.4339）。填充率：iPhone SE 100% / iPhone 13 99.8% / 安卓 20:9 99.9% / 21:9 99.9%（加宽前 17.9~20% 是黑边）；iPad 4:3 与竖屏不加宽、行为不变；桌面超宽屏仍留白、零回归。浏览器 `file://` 实测多种视口：0 报错 0 警告，双人 HUD 两侧血条各自贴边（右边距 13px = `right:28px` × 0.458），竖屏遮罩正常。
 - **2026-10-26（手机虚拟键美术：青铜盘 + 金线纹样 + 攻击键跟随武器）**：素材：`tools/prep_touch.py` 出 `assets/touch/` **10 张 144 KB**（2 张青铜盘 256² + 8 张金线纹样 256²、长边 179）。三层：盘（`plate` 正圆 / `plate-sq` 圆角方，占画布 0.96）→ 暗刻纹样（`opacity .52`）→ 原有文字；**攻击键持械时键面直接显示当前武器图标**（复用 `assets/icons/` 既有 10 张 + `index.html` 的 `WP_ICON`，路径从 `Assets.MANIFEST` 取，零新增图）。浏览器 `file://` 实测 844×390 `?touch=1`：**盘 2/2、纹样 8/8 全 ready**；11 把武器逐个切过去 `atk` 全 `armed` 且图标名正确（`rock→wpRock` 按 0.411 单独缩放、`blade/jar/bell` 走物品族），空手退回 `bare`；10 枚键 0 重叠；控制台 0 报错 0 警告；桌面档 `?touch=0` **对 `assets/touch/` 零请求**、无按键层。展示页（`node serve-showcase.mjs`，http）实测：界面 tab 的「手机虚拟键」组 10 格全部加载、**78 个请求 0 张 404**，顶栏统计 199 帧 / **278 文件**（268 → +10）/ 49 组 / 11 武器。参数是截图调出来的：纹样 `.44` 看不见 → `.52`；武器图标 `0.72` 会让近方形的眼形石压住盘沿金纹 → `0.62`；按下态金雾会盖住武器图标 → `.tch-wp{z-index:1}`。
 - **2026-10-26（两条手机特性合并后，`#31` + `#32`）**：`check-inline` 通过（内联脚本 148293 字符）；`selftest_enemies` / `selftest_audio` / `selftest_weapons` 全 0 失败；`node --check` 12/12 + `showcase.js` 通过；链接检查 31 文件 92 链接 **0 错 / 13 警告**（与 `main` 基线同数，未新增）；换行检查 78 文件 0 混行。合并时 4 个文件冲突逐条按语义解：版本号两条线各自占 `20261026b` 与 `20261025n`，合并后统一取 **`20261026c`**；[js/README.md](js/README.md) 与 [docs/MOBILE.md](docs/MOBILE.md) 的触屏段两处都在描述同一套美术，取随代码进来的定稿（`.52` / `0.62` / `z-index` / 实测包围盒），丢弃分支侧的初稿；`AGENTS.md` 两条快照都保留、统计按合并后实测重写。**规格：`W` 只在触屏档加宽、高度恒 900，所以 `scaleFix` 与所有判定盒不受影响**。
-- 素材分布：`anim/` 199、`fx/` 13、`icons/` 10、`icon/` 10、`ui/` 10、`touch/` 10、`interact/` 6、`props/` 8、`char/` 1、`audio/` 1、`video/` 1、根 11。
-- 素材预算：单帧 ≤ 60 KB（实测最大 55.4 KB）、总量 ≤ 8 MB（上调依据见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 的「素材流水线」）。**8 MB 只算游戏素材**：含 `audio/`（6.78 MB）+ `video/`（4.53 MB）时总量 20.11 MB，**剔除音视频后 279 文件 8.79 MB，超预算 0.79 MB**（2026-10-26 实测；其中 `assets/touch/` 10 张 0.14 MB、`assets/exhibition/手柄键位.png` 0.48 MB）。剩下的都是运行时真加载的，再压只能整批降采样重出。
+- **2026-10-26（掉落池改阵次进退场 + 后三阵拆散解锁）**：`check-inline` 通过（内联脚本 149443 字符）；`selftest_enemies` / `selftest_audio` / `selftest_weapons` / **`selftest_drop`（新增，55 项断言）** 全 0 失败；`node --check` 12/12 + `showcase.js` 通过；链接检查 0 错；换行检查 0 混行。`DROP_TIERS`（3 个档、按 `clamp(wave,0,2)` 取档）换成 **`DROP_POOL`（每件武器一条 `from` / `until`）**，池内仍均匀、仍无加权表。两处改动：①玉璋刃 / 骨牙匕 `until:2`，第三阵起不再掉落 —— 判据是敌人构成（厚甲俑 12 血要砍 6 刀、BOSS 60 血要砍 30 刀），不是手感；②陶罐雷推到第四阵、青铜铃推到第五阵，后三阵各有一件新武器入池。结果：小兵池 4 → 7 → 7 → 8 → 9 件，弱件占比 50% → 29% → **0%**，池子平均伤害 3.88 → 4.50 → 5.57 → 6.38 → 6.67 **只升不降**（各阵抽 30000 次实测）。顺带修掉旧注释两处与代码不符：写着「5 阵起加远程与投掷四件」，实际第三阵就全开了。回归防线实测两轮：删两处 `until:2` → 8 项失败；把 `hammer` / `bow` 也推到第四、五阵 → 3 项失败（第三阵无新武器、平均伤害回头、池子缩水）。
+- **2026-10-26（奖励收敛到破阵后 + 投稿文案对齐代码）**：`check-inline` 通过（内联脚本 149553 字符）；`selftest_enemies` / `selftest_audio` / `selftest_weapons` / `selftest_drop` 全 0 失败；`node --check` 12/12 + `showcase.js` 通过；链接检查 31 文件 95 链接 0 错；换行检查 0 混行。**三处奖励改动**：①小兵不再掉武器（删掉 `hitEnemy` 里 35% 那道概率门），整局散落武器 29.8 → **0**；②破阵宝箱每阵 2 座 → **1 座**，场上可交互物 15 → 10 座；③宝箱一箱 1 件 → **2 件**（0 号位必给武器，1 号位消耗品海贝 59% / 玉器 41%），整局武器供给 35.9 → **8 把**（5 座宝箱 + BOSS 三件套）。`G.chests` 上限 4 → 2。**投稿文案纠错 20 处**（`文案包.md` / `交付清单.md` / `操作与录屏说明.md`）：四阵 → 六阵、武器数值表全部换成真值（旧表写匕首 14 耐久 / 长剑 2 伤 12 耐久 / 石锤 3 伤 7 耐久，实际是骨牙匕 2.5/26、青铜剑 4/22、神树锤 8/14）、「碎掉退回无限耐久的短剑」→ 退回空手伤害 1、「按攻击键拾取」→ 按拾取键、「六刀环绕」→ 连环斩击（实际 1.5 秒 / 0.13 秒一跳，约 12 次）、「阵间结算页按继续」→ 3 秒喘息后自动进下一阵。
+- 规模：`index.html` 4895 行；`js/` 12 个模块；`assets/` 282 个文件 20.08 MB。
+- 素材分布：`anim/` 199、`fx/` 13、`icons/` 10、`icon/` 11、`ui/` 10、`touch/` 10、`interact/` 6、`props/` 8、`char/` 1、`exhibition/` 1、`audio/` 1、`video/` 1、根 11。
+- 素材预算：单帧 ≤ 60 KB（实测最大 52.8 KB，`pickup-sword.webp`）、总量 ≤ 8 MB（上调依据见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 的「素材流水线」）。**8 MB 只算游戏素材**：含 `audio/`（6.8 MB）+ `video/`（4.5 MB）时总量 20.08 MB，**剔除音视频后 280 文件 8.76 MB，超预算 0.76 MB**（2026-10-30 实测；其中 `assets/touch/` 10 张 0.14 MB、`assets/exhibition/手柄键位.png` 0.48 MB）。剩下的都是运行时真加载的，再压只能整批降采样重出。
 - 帧数：角色 12 个 clip 共 43 帧；敌人 4 类共 14 帧；武器站立帧 11、持械行走 11 把（其中斧头 3 帧，见活跃坑）。**出招只剩一套**：`WEAPON_CLIP.attack` 每把 4 帧（11 把 = 44 帧），旧的 `atk-<key>` 单帧与 `atk-<key>-<i>` 序列已删。
 - 关卡：6 阵共 85 体。
 - 无 CI，以上为本机手工结果；改完代码重跑一遍再写结论。

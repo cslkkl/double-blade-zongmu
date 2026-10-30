@@ -1331,9 +1331,10 @@ function waveCleared(){
 function nextWave(){
   if(G.waveIdx >= G.waves.length-1){ goWin(); return; }
   G.waveIdx++;
-  /* 宝箱是破阵奖励，不是开局摆设：每破一阵在这里落 2 件战利品（落在新阵开头，
-     玩家在整个新阵与阵末喘息期里都能开）。落点沿用「玩家当前位置 ±错开」
-     避开出生点正下方；喘息期正好开箱换手，带着新武器进下一阵。
+  /* 宝箱是破阵奖励，不是开局摆设，而且**每破一阵只落一座**（原 2 座）。
+     小兵不再掉武器之后，这一座就是整局唯一的武器来源，所以箱内必出 1 把武器，
+     另配 1 件消耗品 —— 每阵只有这一次，一箱两件才对得起它的位置。
+     落在新阵开头，玩家在整个新阵与阵末喘息期里都能开。
      BOSS 阵破掉直接 goWin，不走这里。
 
      ⚠️ 以前这里写 G.chests = [] —— 会把上一阵**没来得及开**的箱子凭空没收。
@@ -1341,10 +1342,9 @@ function nextWave(){
      改成只清「已经开过的」（state 不是 closed），没开的留着继续能开；
      同时限制总量，避免多阵累积把地图塞满。 */
   G.chests = G.chests.filter(function(c){ return c && !c.opened; });
-  while(G.chests.length > 4) G.chests.shift();   /* 最多留 4 个，丢最老的 */
+  while(G.chests.length > 2) G.chests.shift();   /* 最多留 2 个，丢最老的 */
   var base = G.p1 ? G.p1.x : 560;
   addChest(base + 360, G.waveIdx);
-  addChest(base - 480, G.waveIdx);
   G.phase = "play";
   hideOv();
   startWave(G.waveIdx);
@@ -2333,25 +2333,28 @@ function openChest(c, p){
   burst(c.x, c.y-64, 14, "#9fe0c0", 260);
   if(S){ S.chest(); } else { sfxCrit(); }
   Rumble.player(p.padTag, "chest");   /* 120/80/120 递增三段 */
-  /* 一张宝箱爆 1 件：武器 / 海贝 / 玉器（降频收敛：不再一次喷两件） */
-  var n = 1;
-  for(var i=0;i<n;i++) chestReward(c, p, i);
+  /* 一箱两件：0 号位固定是武器，1 号位是消耗品。
+     2026-10-25 曾经改成「一箱一件」（当时小兵还在按 35% 掉武器，宝箱不必扛供给）；
+     现在小兵完全不掉武器，破阵宝箱是整局唯一的武器来源，且每阵只落一座 ——
+     一箱必须给到 1 把武器，再配 1 件消耗品，否则「每关一次」的奖励撑不起全程。 */
+  chestReward(c, p, 0);
+  chestReward(c, p, 1);
   showHitText(c.x, c.y-210, "宝箱开启");
 }
 
-function chestReward(c, p, i){
-  var ox = (i === 0 ? -52 : 52) + rnd(-10,10);
-  var r = Math.random();
-  /* 开箱概率：武器 32% / 海贝 40% / 玉器 28%（合计 100；海贝回血更稳，武器降频）。
-     宝箱武器从偏好池抽：重武器与远程权重加倍 —— 破阵奖励该比小兵掉落更值得期待，
-     但不搞稀有度系统（heavyMul=2，见 DROP_TIERS）。 */
-  if(r < 0.32){
+/* slot 0 = 武器（必出）；slot 1 = 消耗品（海贝 / 玉器） */
+function chestReward(c, p, slot){
+  var ox = (slot === 0 ? -52 : 52) + rnd(-10,10);
+  if(slot === 0){
+    /* 武器从偏好池抽：重武器与远程权重加倍（heavyMul=2，见 DROP_POOL）——
+       破阵奖励该比普通掉落更值得期待，但不搞稀有度系统。 */
     var wp = newWeapon(pickDropKey(G.waveIdx, 2));
     dropWeapon(c.x + ox, c.y, wp);
     showHitText(c.x + ox, c.y - 170, "得 " + wp.name);
     return;
   }
-  var kind = (r < 0.72) ? "cowrie" : "jade";
+  /* 海贝 : 玉器 = 40 : 28，与旧的概率池同比例（海贝回血更稳，略多） */
+  var kind = (Math.random() < 0.59) ? "cowrie" : "jade";
   G.pickups.push({
     kind: kind, x: c.x + ox, y: c.y - 80,
     vx: ox*2.4, vy: -470, g: 1700,
@@ -2430,21 +2433,51 @@ function nearestInteract(){
 }
 
 /* ---------------- 掉落池 ----------------
-   波数解锁池：档内均匀随机，不再用 33 个数字的加权表。
-   第 0 档（1-2 阵）四件基础；3 阵起加重武器三件；5 阵起加远程与投掷四件。
-   heavyMul 只对第 1、2 档才存在的武器生效（基础四件不吃加成）：
-   宝箱传 2 —— 重武器与远程权重加倍，破阵奖励该比小兵掉落更值得期待，
-   但不搞稀有度系统；敌人掉落传 1，纯均匀。 */
-var DROP_TIERS = [
-  ["short", "dagger", "sword", "rock"],
-  ["axe", "spear", "blade"],
-  ["hammer", "jar", "bell", "bow"]
+   每件武器一条：解锁阵次 from / 退场阵次 until（不含 until 本身）。
+   池子 = 该阵「已解锁且未退场」的全部武器，池内均匀随机 ——
+   不用加权表（那张 33 个数字的表已删，别再请回来）。
+
+   heavyMul 只放大 from > 0 的非基础件：宝箱传 2，破阵奖励该比小兵掉落更值得期待；
+   敌人掉落传 1，纯均匀。基础四件不吃加成 —— 否则宝箱会和敌人掉落一样平庸。
+
+   玉璋刃 / 骨牙匕在第三阵退场。判据是敌人构成，不是手感：
+   铜锈俑 5 血、疾行俑 3 血，第一、二阵里 2 伤武器仍是主力升级；
+   厚甲俑第三阵起登场，12 血要砍 6 刀，末阵 BOSS 60 血要砍 30 刀。
+   再掉就是占手 —— 单手一把语义下，捡错一把等于当场变弱，比不掉更糟。
+
+   骨牙匕另有一条：全场总输出最低（2.5 × 26 = 65，玉璋刃 2 × 55 = 110，
+   青铜剑 88、青铜钺 108、神树锤 112）。它只在开局当「快而脆」的选择成立。
+
+   眼形石留在基础档不是凑数：7 伤、弹数 3，是前期唯一的高伤远程。
+
+   后三阵各有一件新武器入池，不让第三阵一次开满、第四第五阵原样重复：
+     第三阵「厚甲压上来」→ 神树锤（2 刀砍死厚甲）、神鸟弓（远程保命）
+     第四阵「坑壁塌了」  → 陶罐雷（12 伤、半径 130，炸开塌下来的土）
+     第五阵「它们数着我的名字」→ 青铜铃（弹一下再爆，铃响即点名）
+   池子平均伤害 3.88 → 4.50 → 5.57 → 6.38 → 6.67，只升不降；
+   池子大小 4 → 7 → 7 → 8 → 9，从不缩水。末阵与第五阵同池 ——
+   BOSS 自己必掉三件套（剑 / 弓 / 锤），小兵池再变没有意义。 */
+var DROP_POOL = [
+  { k:"short",  from:0, until:2 },   /* 玉璋刃：只在第一、二阵 */
+  { k:"dagger", from:0, until:2 },   /* 骨牙匕：同上 */
+  { k:"sword",  from:0 },            /* 青铜剑 */
+  { k:"rock",   from:0 },            /* 眼形石 */
+  { k:"axe",    from:1 },            /* 青铜钺：第二阵起 */
+  { k:"spear",  from:1 },            /* 三枝叉 */
+  { k:"blade",  from:1 },            /* 玉璋镖 */
+  { k:"hammer", from:2 },            /* 神树锤：第三阵起 */
+  { k:"bow",    from:2 },            /* 神鸟弓：第三阵起 */
+  { k:"jar",    from:3 },            /* 陶罐雷：第四阵起 */
+  { k:"bell",   from:4 }             /* 青铜铃：第五阵起 */
 ];
 function pickDropKey(wave, heavyMul){
-  var tier = clamp(Math.floor(wave || 0), 0, 2), pool = [], t, i, w;
-  for(t=0; t<=tier; t++){
-    w = (t === 0) ? 1 : (heavyMul || 1);   /* 基础四件不吃 heavyMul 加成 */
-    for(i=0; i < DROP_TIERS[t].length * w; i++) pool.push(DROP_TIERS[t][i % DROP_TIERS[t].length]);
+  var w = Math.max(0, Math.floor(wave || 0)), pool = [], i, e, mul, j;
+  for(i=0; i<DROP_POOL.length; i++){
+    e = DROP_POOL[i];
+    if(w < e.from) continue;
+    if(e.until !== undefined && w >= e.until) continue;
+    mul = (e.from > 0) ? (heavyMul || 1) : 1;   /* 基础件不吃 heavyMul 加成 */
+    for(j=0; j<mul; j++) pool.push(e.k);
   }
   return pool[(Math.random()*pool.length)|0] || "dagger";
 }
@@ -2742,14 +2775,14 @@ function hitEnemy(e, dmg, dir, big, weak, kb){
     burst(e.x, e.y-e.h*0.5, 26, "#c9a765", 480);
     sfxDie();
     G.shake = Math.max(G.shake, 12);
-    /* 掉落武器：BOSS 走下面固定的三件套，普通敌人按 34% 从当前波次池里抽 */
+    /* 小兵不掉武器 —— 武器只在破阵后由宝箱给（见 nextWave / chestReward）。
+       整局散落武器从 29.8 把降到 0，地面不再堆成一片。
+       BOSS 是唯一例外：它必掉固定的三件套，那是通关奖励，不属于「小兵掉落」。 */
     if(e.kind === "boss"){
       Rumble.play("all", "bossDie");   /* 三连重震：两只手柄一起庆祝 */
       dropWeapon(e.x-170, e.y, newWeapon("sword"));
       dropWeapon(e.x,     e.y, newWeapon("bow"));     /* 远程保底：保证玩家体验过直线弹道 */
       dropWeapon(e.x+170, e.y, newWeapon("hammer"));
-    } else if(Math.random() < 0.35){   /* 概率门：约 1/3 的敌人掉武器，其余只吃打击反馈 */
-      dropWeapon(e.x, e.y, newWeapon(pickDropKey(G.waveIdx, 1)));
     }
   }
 }
