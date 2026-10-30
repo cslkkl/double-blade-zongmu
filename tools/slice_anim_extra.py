@@ -231,6 +231,7 @@ def patch_js(entries):
 
 
 def main():
+    SA.source_dir()      # 源目录缺失直接退出，不写空产物
     print("=== 新动作切片 ===")
     entries = []
     for png, clip, nominal, fps, loop in NEW:

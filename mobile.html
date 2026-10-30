@@ -13,6 +13,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#05060a">
+<!-- 图标和 index.html 用同一套 PNG：本文件与 index.html 同在仓库根，
+     部署后也同在 /zongmu/play/，所以 assets/icon/* 这条相对路径两处都成立。
+     不写 play/ 前缀，也不内联 data-URI —— 图标只有一份源，改配色只改 assets/。 -->
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icon/icon-32.png?v=20261030a">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icon/icon-16.png?v=20261030a">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icon/apple-touch-icon.png?v=20261030a">
 <meta name="format-detection" content="telephone=no">
 <title>双刃战士 · 纵目</title>
 <style>

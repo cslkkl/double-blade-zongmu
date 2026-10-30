@@ -1,11 +1,19 @@
-# 三星堆 · 双刃战士 — 进行中计划与移交
+# 双刃战士 · 纵目 — 进行中计划与移交
 
 状态：生效（跨会话延续）
+
+> 本文件只记进行中的线与待决策项。已完成的事项进 [HISTORY.md](HISTORY.md)，
+> 已归档的移交进 [archive/](archive/)。
+>
+> **本页不是事实 home**：计划里提到的数值 / 键位 / 命名以 [GAMEPLAY.md](GAMEPLAY.md) 与
+> [OPERATIONS.md](OPERATIONS.md) 为准。
+> **改这里之后要同步**：无 —— 但一条线落地后，对应条目要搬进 [HISTORY.md](HISTORY.md) 或
+> [archive/](archive/)，并把 [../AGENTS.md](../AGENTS.md) 待办里的事项划掉。
+> **本页被引用**：[../AGENTS.md](../AGENTS.md) 文档地图 · [README.md](README.md) 事实路由表。
 
 ## 一句话现状
 
 工作区干净、与 `origin/main` 同步（`ec6a1ae` 开场短片之后）。**2026-10-25 的「清死素材 + 封生成入口」一批已完成但尚未提交**，其余只剩两条待决策与一条人眼对齐工作。
-
 ## 上一批已完成（2026-10-25，未提交）
 
 ### A. 删无消费方的素材与键（省 293 KB 启动白加载）
@@ -35,7 +43,6 @@
 | `selftest_weapons.mjs` 断言改为「按渠道判定」 | 并新增一条「不许画出 `atk-*` 悬空路径」的防线 |
 
 ⚠️ **这是本批最重要的设计**：两个脚本如果照旧跑，1.78 MB 会静默长回来，数据块也复活。所以入口必须默认关，需要显式 `--with-atk`。
-
 ### C. `slice_anim_extra.py` 的 `scaleFix` 不再被覆盖
 
 脚本**算不出**正确值 —— 弯腰（`pickup`）与蹲低（`attack-thrust`）的内容高天然更矮，按包围盒反算会把弯腰的人放大到站立高度（踩过的坑：宽高比 2.19 → 1.19）。所以：
@@ -129,6 +136,6 @@ docs/PLAN.md（本文）、js/AGENTS.md 与 tools/AGENTS.md（子目录规则）
 
 ## 并行的另一条线
 
-- 半月斩朝左时特效反了的修复：**已完成并归档**，见 [移交-半月斩朝向.md](移交-半月斩朝向.md)。
+- 半月斩朝左时特效反了的修复：**已完成并归档**，见 [archive/半月斩朝向-移交.md](archive/半月斩朝向-移交.md)。
 - 定案是「凸背朝人面向的方向」，落在 `js/fx.js` 的 `ART_CONVEX` + `slashMirror()`；
   回归防线在 `tools/selftest_weapons.mjs` 的 5b / 5c 两节。

@@ -19,9 +19,11 @@ sys.path.insert(0, HERE)   # slice_anim.py 与本文件同在 tools/
 
 import slice_anim as S  # noqa: E402
 
-SRC = r"C:\Users\11965\Desktop\imagegen无限\output\sanxingdui-enemy"
-OUT_IMG = os.path.join(ROOT, "assets", "anim")
-OUT_JS = os.path.join(ROOT, "js", "anim-data.js")
+# 路径口径与 slice_anim.py 一致：源图走 $SD_IMG_SRC，产物落仓库内。
+SRC = S.IMG_SRC / "sanxingdui-enemy"       # <SD_IMG_SRC>/sanxingdui-enemy
+SRC_GIVEN = False                          # 上层用 --src 指定过（见 slice_anim.run_enemy）
+OUT_IMG = S.ASSETS / "anim"                # assets/anim
+OUT_JS = S.ROOT / "js" / "anim-data.js"    # js/anim-data.js
 
 # kind, 文件, 帧数, fps, loop
 CLIPS = [
@@ -137,6 +139,10 @@ def measure(images):
 
 
 def main():
+    if not SRC_GIVEN and not os.environ.get("SD_IMG_SRC"):
+        raise SystemExit("缺少生图源目录：设置环境变量 SD_IMG_SRC 指向 imagegen 的 output 目录，或用 --src 指定。")
+    if not SRC.is_dir():
+        raise SystemExit("源图目录不存在：%s（检查 SD_IMG_SRC 或 --src）" % SRC)
     os.makedirs(OUT_IMG, exist_ok=True)
     os.makedirs(os.path.dirname(OUT_JS), exist_ok=True)
 

@@ -2,6 +2,12 @@
 
 > 本文档面向人/Agent阅读，完整描述游戏的剧情、场景、角色、操作、敌人、武器、BOSS与胜负规则。
 
+> **这是原作 4399《双刃战士》（Double Edged）的说明，不是本作的设定**：
+> 本作的机制与数值在 [GAMEPLAY.md](GAMEPLAY.md)，键位在 [OPERATIONS.md](OPERATIONS.md)。
+> 文中出现的「双刃战士 / 双刃战士无敌版 / 新双刃战士」都是原作的名字，不要与本作
+> 「双刃战士 · 纵目」混用。
+> **本页被引用**：[GAMEPLAY.md](GAMEPLAY.md) 末尾 · [README.md](README.md) 事实路由表 · [../AGENTS.md](../AGENTS.md) 文档地图。
+
 ---
 
 ## 0. 元信息
@@ -260,3 +266,8 @@
 3. **双人合作+互坑**：既能并肩作战，也能把队友武器打飞。
 4. **神话BOSS有梗**：每个BOSS都对应一个希腊神话知识点（阿喀琉斯之踵、点石成金、美杜莎石化、米诺陶诺斯撞柱）。
 5. **反套路结局**：救公主前先杀队友，童年回忆杀。
+
+---
+
+回到本作的设定：[GAMEPLAY.md](GAMEPLAY.md) · 键位 [OPERATIONS.md](OPERATIONS.md) ·
+设计 [ARCHITECTURE.md](ARCHITECTURE.md) · 文档路由 [README.md](README.md)。

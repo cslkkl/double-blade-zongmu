@@ -2,12 +2,33 @@
 原画里那几团紫灰色块是实心的（alpha 接近 255），不是抠图残留。
 前景本来就该是深色剪影，所以整层按亮度重映射成暗绿黑，只保留明暗层次，去掉紫色色相。
 """
+import os
+
 import numpy as np
 from pathlib import Path
 from PIL import Image
 
-SRC = Path(r"C:\Users\11965\Desktop\imagegen无限\output\sx-scene\foreground-occlusion.png")
-DST = Path(r"C:\Users\11965\Desktop\三星堆\assets\bg-fg.webp")
+# ---------------------------------------------------------------- 路径口径
+ROOT = Path(__file__).resolve().parent.parent          # 仓库根
+ASSETS = ROOT / "assets"                               # 产物根
+
+# 外部生图源目录：不在仓库里，用环境变量给，没给就明确报错退出
+IMG_SRC = Path(os.environ.get("SD_IMG_SRC", "")).expanduser()
+
+
+def require_img_src():
+    """取外部生图源目录；未设 SD_IMG_SRC 或目录不存在就退出，绝不写出空产物。"""
+    if not os.environ.get("SD_IMG_SRC"):
+        raise SystemExit("缺少生图源目录：设置环境变量 SD_IMG_SRC 指向 imagegen 的 output 目录，或用 --src 指定。")
+    if not IMG_SRC.is_dir():
+        raise SystemExit("生图源目录不存在：%s（检查 SD_IMG_SRC）" % IMG_SRC)
+    return IMG_SRC
+
+
+SRC = require_img_src() / "sx-scene" / "foreground-occlusion.png"   # 单张源图
+DST = ASSETS / "bg-fg.webp"
+if not SRC.is_file():
+    raise SystemExit("缺少源图：%s（检查 SD_IMG_SRC 下的 sx-scene/foreground-occlusion.png）" % SRC)
 
 im = Image.open(SRC).convert("RGBA")
 a = np.array(im).astype(np.float32)

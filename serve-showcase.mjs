@@ -31,7 +31,15 @@ function arg(name, fallback) {
   return fallback;
 }
 const PORT = Number(arg("port", process.env.PORT || 8801));
+/* 谁来开浏览器：仍然由本进程开（双击 启动展示页.bat 时，node 就在那个窗口前台跑，
+   不会再另起一个控制台）。判定「默认处理器是不是 IE」只在 bat 里做一次：
+   不是 IE 就不传 --browser，这里走 `start "" <url>` 用默认浏览器；
+   是 IE 才传 --browser <Chromium 绝对路径>。两处端口默认都是 8801。 */
 const OPEN = !argv.includes("--no-open");
+/* 指定用哪个浏览器打开（可选）。win32 上默认走 `start "" <url>`，即系统默认程序；
+   双击 启动展示页.bat 时，bat 只在「默认处理器是 IE」时才传 --browser <Chromium 路径>，
+   避免把展示页交给 IE（getImageData 直接抛错）。传空或平台非 win32 时忽略。 */
+const BROWSER = process.platform === "win32" ? arg("browser", "") : "";
 const ENTRY = "/showcase.html";
 
 const MIME = {
@@ -112,7 +120,11 @@ server.listen(PORT, "127.0.0.1", () => {
 
   if (!OPEN) return;
   if (process.platform === "win32") {
-    spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
+    if (BROWSER) {
+      spawn(BROWSER, [url], { detached: true, stdio: "ignore" }).unref();
+    } else {
+      spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
+    }
   } else if (process.platform === "darwin") {
     spawn("open", [url], { detached: true, stdio: "ignore" }).unref();
   } else {

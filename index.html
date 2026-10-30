@@ -20,10 +20,10 @@
 <title>双刃战士 · 纵目</title>
 <meta name="description" content="三星堆纵目祭司主题横版双人清版动作游戏，零依赖，双击即玩。">
 <meta name="theme-color" content="#1a140e">
-<link rel="icon" href="assets/icon/favicon.ico" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="assets/icon/icon-32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/icon/icon-16.png">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/icon/apple-touch-icon.png">
+<link rel="icon" href="assets/icon/favicon.ico?v=20261030a" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icon/icon-32.png?v=20261030a">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icon/icon-16.png?v=20261030a">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icon/apple-touch-icon.png?v=20261030a">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{width:100%;height:100%;overflow:hidden;background:#05060a;
@@ -473,14 +473,29 @@
   </div>
 </div></div>
 
-<!-- 脚本版本号：改了 js/ 下任何文件就把这里 +1。
+<!-- 脚本版本号：改了 js/ 或素材就 node tools/bump-version.mjs --note "说明"。
+     格式 <YYYYMMDD><字母>，日期段是**改动当天**、跨天从 a 重排；全站四页共用一个令牌。
+     口径的唯一 home 在 docs/DEPLOY.md「四、缓存版本号」，这里只留结论与历史。
      为什么必须带：文件名不带 hash，浏览器与 CDN 会长期缓存 js/*.js。
      玩家拿到旧版 touch.js 就会在桌面上看到手机虚拟键（旧版 available()
      把「支持 PointerEvent」当成「有触屏」，鼠标一点就切档），
      而且刷新几次都改不掉 —— 缓存不认文件名。
      这个项目没有构建步骤（禁 npm / CDN，file:// 要能双击跑），
-     所以版本号靠手改；改 js/ 就 bump 一次。
-     当前版本：20261026-c
+     所以版本号只能落在文本里；但它是纯字符串替换，交给脚本做，别手改。
+     当前版本：20261030-a
+       a = 版本号改成脚本生成：日期段取**改动当天**、跨天从 a 重排（原来只说得清「+1」，
+           于是 10-30 的提交还挂着 20261026 的日期段）。四个页面共用一个令牌，
+           由 tools/bump-version.mjs 写盘、`--check` 守漂移。
+     上一次：20261026-f
+       f = 青铜剑行走朝向：`walk-sword-0..3.webp` 原本画成面朝左（其余 10 把与空手都朝右），
+           已水平镜像回来，`WEAPON_CLIP.sword.walk.anchorX` 同步取 `1 - 旧值`
+     上一次：20261026-e
+       e = 末阵施压 + 旋风斩击退：器心活着就一直补小怪，BOSS 起手/冷却略快、受击僵直略短，
+           旋风斩的单次击退从 620 降到 50（原来第一下就把人推出判定圈，后十下全空）
+     上一次：20261026-d
+       d = 合键位重排 + 透明图标 + 入口收敛；同时修掉 `#31`/`#32` 合并时把
+           12 个 script 标签各写了两次的问题（guide.js 双份轮询会重复绑定监听）
+     上一次：20261026-c
        c = 两条手机特性合并：逻辑视口按屏幕比例加宽（`W` 变成可变量）+ 虚拟键换青铜盘 / 金线纹样
            并让攻击键跟随手上武器。两条曾各自占 20261026b 与 20261025n，合并后统一顺延；
        n = 手机虚拟键换青铜盘 + 金线纹样，攻击键跟随手上武器；b = 逻辑视口加宽填满横屏；
@@ -490,30 +505,18 @@
        j = BGM 换成 assets/audio/bgm-main.mp3；i = 模式选择页打开即高亮当前项。
      —— 两边曾各自把版本号提到 e，同号两个版本会让缓存分不清，合并后统一顺延；
         这次也撞在一起（本地 k、上游 l），取两者之外的 m。 -->
-<script src="js/assets.js?v=20261026c"></script>
-<script src="js/anim-data.js?v=20261026c"></script>
-<script src="js/background.js?v=20261026c"></script>
-<script src="js/char-rig.js?v=20261026c"></script>
-<script src="js/enemies-assets.js?v=20261026c"></script>
-<script src="js/fx.js?v=20261026c"></script>
-<script src="js/guide.js?v=20261026c"></script>
-<script src="js/rumble.js?v=20261026c"></script>
-<script src="js/touch.js?v=20261026c"></script>
-<script src="js/ui-shell.js?v=20261026c"></script>
-<script src="js/audio.js?v=20261026c"></script>
-<script src="js/intro-video.js?v=20261026c"></script>
-<script src="js/assets.js?v=20261026c"></script>
-<script src="js/anim-data.js?v=20261026c"></script>
-<script src="js/background.js?v=20261026c"></script>
-<script src="js/char-rig.js?v=20261026c"></script>
-<script src="js/enemies-assets.js?v=20261026c"></script>
-<script src="js/fx.js?v=20261026c"></script>
-<script src="js/guide.js?v=20261026c"></script>
-<script src="js/rumble.js?v=20261026c"></script>
-<script src="js/touch.js?v=20261026c"></script>
-<script src="js/ui-shell.js?v=20261026c"></script>
-<script src="js/audio.js?v=20261026c"></script>
-<script src="js/intro-video.js?v=20261026c"></script>
+<script src="js/assets.js?v=20261030a"></script>
+<script src="js/anim-data.js?v=20261030a"></script>
+<script src="js/background.js?v=20261030a"></script>
+<script src="js/char-rig.js?v=20261030a"></script>
+<script src="js/enemies-assets.js?v=20261030a"></script>
+<script src="js/fx.js?v=20261030a"></script>
+<script src="js/guide.js?v=20261030a"></script>
+<script src="js/rumble.js?v=20261030a"></script>
+<script src="js/touch.js?v=20261030a"></script>
+<script src="js/ui-shell.js?v=20261030a"></script>
+<script src="js/audio.js?v=20261030a"></script>
+<script src="js/intro-video.js?v=20261030a"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -538,6 +541,25 @@ var W = BASE_W;
 var BREATHER = 3.0;             /* 每阵之间的喘息，玩家可以走动、开箱、回气 */
 var MAX_ALIVE = 7;              /* 同屏存活上限：刷怪排队，波次因此被拉长 */
 var INTERACT_R = { x: 80, y: 150 };   /* 宝箱 / 机关的开箱判定半径 */
+
+/* BOSS 的手感参数。杂兵的对应数字散在 updateEnemy 里，BOSS 这几个单独拎出来，
+   是因为它们要一起读：起手略长、收招更快、挨打后爬起更快 —— 合起来是「一直在逼」。
+   ⚠️ 绘制层（画长矛起手角度）也读 BOSS_WINDUP，改这里就够，别在 draw 里另写一份。 */
+var BOSS_WINDUP   = 0.50;             /* 起手（杂兵 0.34）：玩家仍有预警窗口 */
+var BOSS_CD_AFTER = [0.35, 1.00];     /* 收招后到下一次起手（杂兵 0.50~1.30） */
+var BOSS_CD_HURT  = [0.20, 0.55];     /* 受击僵直结束后到下一次起手（杂兵 0.25~0.70） */
+var BOSS_STUN     = 0.17;             /* 受击僵直本身（杂兵 0.22）：白打的时间更短 */
+/* 末阵：器心没死就一直叫小怪。间隔是「两只之间」的秒数，同屏仍受 MAX_ALIVE 管。 */
+var BOSS_REINFORCE = [3.0, 4.5];
+
+/* 旋风斩的击退。默认档（big = 620）是给单次挥砍用的 —— 一下把人打飞很爽；
+   但旋风斩每 0.13 秒扫一次、共 11 轮，620 的累计漂移实测 493px，
+   **第一下就把人推出 200 的判定圈**，后十下全空，1.5 秒无敌换不到伤害。
+   这里走自己的小值：单次 ≈3.7px、11 轮累计 ≈40px。
+   按 updateEnemy 的 hurt 分支（e.vx *= (1-9*dt)，位移积分下来是 vx/9）复算过：
+   kb=50 时起始距离 92 / 120 / 150 三种情况扫完全程都还在 200 圈内；
+   kb=90 只覆盖到 120，150 之外会滑出去（这条是选 50 而不是 90 的依据）。 */
+var WHIRL_KB = 50;
 
 /* 地上东西的寿命（秒）。没人捡就消失，防止场上杂物越积越多、画面变脏。 */
 var DROP_LIFE = 30;             /* 掉落武器：比消耗品活得久（约 2.5 倍），单手一把下换手成本高，捡得从容 */
@@ -771,6 +793,11 @@ window.addEventListener("keydown", function(e){
      早就查了修饰键，这里是同一个口径。 */
   if(e.ctrlKey || e.metaKey || e.altKey) return;
   if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].indexOf(e.key)>=0) e.preventDefault();
+  /* 数字键盘必须按 code 再拦一次：NumLock 关掉时 Numpad7/9/1/3 会退化成
+     Home/PgUp/End/PgDn，e.key 变成导航键，页面会跟着滚。玩家二的五个动作键
+     全在小键盘上，所以这里不看 NumLock 状态、一律拦。
+     判定一律走 e.code（物理位置），NumLock 开着关着都是同一颗键。 */
+  if(/^Numpad/.test(e.code)) e.preventDefault();
   if(!KEYS[e.code]) KEYS[e.code+"_p"] = true;
   KEYS[e.code] = true;
   ac();
@@ -1105,12 +1132,13 @@ function Enemy(kind, x){
   this.hitOnce = false;
   this.deadT = 0;
   /* 血量按「本阵能拿到的武器要砍几刀」定，四种差异明显、可一眼分辨。
-     参照玉璋刃（2 伤，起手武器）：疾行俑 2 刀 / 锈蚀俑 3 刀 / 厚甲兵 6 刀 / 器心 30 刀。
-     拿到神树锤（8 伤）之后：锈蚀俑 1 刀 / 厚甲兵 2 刀 / 器心 8 刀。 */
+     参照玉璋刃（2 伤，起手武器）：疾行俑 2 刀 / 锈蚀俑 3 刀 / 厚甲兵 6 刀 / 器心 300 刀。
+     拿到神树锤（8 伤）之后：锈蚀俑 1 刀 / 厚甲兵 2 刀 / 器心 75 刀。
+     BOSS 血量已按需求上调十倍（60 → 600），硬直期伤害翻倍仍是主要输出手段。 */
   if(kind==="walker"){ this.hp=5;  this.maxHp=5;  this.spd=110; this.scale=1.0;  this.dmg=1; }
   else if(kind==="fast"){ this.hp=3;  this.maxHp=3;  this.spd=225; this.scale=0.82; this.dmg=1; }
   else if(kind==="brute"){ this.hp=12; this.maxHp=12; this.spd=78;  this.scale=1.28; this.dmg=2; }
-  else { this.hp=60; this.maxHp=60; this.spd=95; this.scale=2.05; this.dmg=2; } // boss
+  else { this.hp=600; this.maxHp=600; this.spd=95; this.scale=2.05; this.dmg=2; } // boss
   this.w = 70*this.scale; this.h = 160*this.scale;
 }
 Enemy.prototype.rect = function(){
@@ -1129,6 +1157,7 @@ var G = {
   camX:0, shake:0, hitstop:0, flash:0,
   waveIdx:0, waves:[],
   spawnQueue:[], spawnTimer:0,
+  bossReinforceT:0,          /* 末阵增援的倒计时：器心没死就一直补小怪 */
   combo:0, comboT:0, maxCombo:0,
   time:0, phaseT:0,
   banner:0,
@@ -1187,13 +1216,41 @@ function startGame(mode){
   /* 触屏按键的摆法跟模式走：单人两个拇指分家、双人各占半屏。
      在 Player 创建之前设，这样第一帧的按键布局就是对的。 */
   if(window.Touch && Touch.setMode) Touch.setMode(G.mode);
-  G.p1 = new Player(560, 1,
-    {l:["KeyA"], r:["KeyD"], j:["KeyW","Space"], a:["KeyF","KeyJ"], act:["KeyG"],
-     drop:["KeyE"], give:["KeyR"]}, "p1");
-  G.p2 = (G.mode === "solo") ? null
-       : new Player(700, -1,
-           {l:["ArrowLeft"], r:["ArrowRight"], j:["ArrowUp","ShiftRight"], a:["Slash","Numpad0","KeyK"], act:["Semicolon"],
-            drop:["Period"], give:["Quote"]}, "p2");
+  /* 键位：一个动作一个键，与手柄逐条一一对应。
+     高频在 home 行、低频抬一格，所以键盘图与手柄图可以逐行对照着看：
+       动作    手柄      玩家一   玩家二
+       移动    左摇杆    A / D    ← / →
+       挥刀    A         J        小键盘 4
+       跳跃    X         W        ↑
+       旋风斩  B         K        小键盘 5
+       拾取    Y         L        小键盘 6
+       递给    十字↑     I        小键盘 8
+       丢弃    十字↓     U        小键盘 7
+
+     为什么这么分：玩家一左手 A/D 走、右手 J/K/L 打；玩家二左手方向键走、
+     右手小键盘打。两人各占一块，中间不再需要横跨大半个键盘去够 `;` / `.` / `'`。
+     小键盘按物理位置（e.code）判定，NumLock 开或关都是同一颗键。
+
+     单人时没有第二个人，把玩家二那一套并给玩家一 —— 否则习惯「方向键走位」的
+     玩家在单人里一个键都不响，读起来像键盘坏了。双人时两套必须严格不相交：
+     keyPressed 会消费 _p 标记，共用一个键就会被一方吃掉。 */
+  var solo = (G.mode === "solo");
+  G.p1 = new Player(560, 1, {
+    l:    solo ? ["KeyA","ArrowLeft"]  : ["KeyA"],
+    r:    solo ? ["KeyD","ArrowRight"] : ["KeyD"],
+    j:    solo ? ["KeyW","ArrowUp"]    : ["KeyW"],
+    a:    solo ? ["KeyJ","Numpad4"]    : ["KeyJ"],
+    skill:solo ? ["KeyK","Numpad5"]    : ["KeyK"],
+    act:  solo ? ["KeyL","Numpad6"]    : ["KeyL"],
+    drop: solo ? ["KeyU","Numpad7"]    : ["KeyU"],
+    give: solo ? ["KeyI","Numpad8"]    : ["KeyI"]
+  }, "p1");
+  G.p2 = solo ? null
+       : new Player(700, -1, {
+           l:["ArrowLeft"], r:["ArrowRight"], j:["ArrowUp"],
+           a:["Numpad4"], skill:["Numpad5"], act:["Numpad6"],
+           drop:["Numpad7"], give:["Numpad8"]
+         }, "p2");
   G.enemies = []; G.particles = []; G.slashes = []; G.drops = []; G.texts = []; G.projectiles = []; G.hits = [];
   G.chests = []; G.mechanisms = []; G.pickups = [];
   G.breatherT = 0; G.mechSpawned = false; G.mechSkipBreather = false;
@@ -1221,6 +1278,7 @@ function startWave(i){
   var w = G.waves[i];
   G.spawnQueue = w.list.slice();
   G.spawnTimer = 1.0;
+  G.bossReinforceT = BOSS_REINFORCE[0];   /* 末阵第一次增援从本阵开场算起 */
   G.breatherT = 0;
   G.mechSpawned = false;
   G.mechSkipBreather = false;
@@ -1460,7 +1518,7 @@ var introHolding = false;           /* 本帧是否处于按住状态 */
 var introRunning = false;           /* 短片是否正在播 */
 
 /* 键盘：这一批键都算「继续」，按住任意一个都能跳过 */
-var INTRO_KEYS = ["Space","Enter","Escape","KeyF","KeyJ","Slash","Numpad0","KeyK"];
+var INTRO_KEYS = ["Space","Enter","Escape","KeyJ","KeyK","Numpad4","Numpad5"];
 var introKeyDownAt = 0;             /* 第一个按下的时刻，0 = 没按 */
 
 function introEls(){
@@ -1634,9 +1692,11 @@ function padConfirmEdge(){
    ① 先见到所有动作键都松开的一帧 → uiKbSeenUp = true
    ② 之后任何一次「请求标记 + 真的还按着某个动作键」才算确认。
    请求标记由 keydown 置位（见输入段的 __confirmReq），这里负责消费它。 */
-var CONFIRM_KEYS = ["KeyA","KeyD","KeyW","Space","KeyF","KeyJ","KeyG","KeyE","KeyR",
-                    "ArrowLeft","ArrowRight","ArrowUp","ShiftRight",
-                    "Slash","Numpad0","KeyK","Semicolon","Period","Quote"];
+/* 与 startGame 里的两张键位表逐项对齐（单人时 P1 还会多一份方向键 / 小键盘），
+   漏一项的后果：那一颗键按下去时闸判不到「还按着」，结算页当场被顶掉。 */
+var CONFIRM_KEYS = ["KeyA","KeyD","KeyW","KeyJ","KeyK","KeyL","KeyU","KeyI","Space",
+                    "ArrowLeft","ArrowRight","ArrowUp",
+                    "Numpad4","Numpad5","Numpad6","Numpad7","Numpad8"];
 function kbConfirmEdge(){
   var anyHeld = false;
   for(var i=0;i<CONFIRM_KEYS.length;i++){
@@ -1928,7 +1988,7 @@ function updatePlayer(p, dt, inp, other){
   if(Math.abs(p.vx)>50 && p.onGround) p.walk += Math.abs(p.vx)*dt*0.024;
   else p.walk *= (1-7*dt);
 
-  /* ---- 武器动作：E 丢弃 / R 递队友（P2 为 . '）
+  /* ---- 武器动作：U 丢弃 / I 递队友（玩家二为 小键盘 7 / 8）
      手柄对应 十字下 丢弃、十字上 递队友。
      两个都是「按下瞬间」触发，与攻击键一样走 keyPressed 的一次性标记；
      标记无条件吃掉，动作只在能动（未挥砍 / 未受击）时执行，避免攒着延后触发。 */
@@ -1945,9 +2005,12 @@ function updatePlayer(p, dt, inp, other){
     }
   }
 
-  /* ---- 旋风斩发动：能量满 + 招式键（手柄 B）或 攻击与跳同按 ----
-     手柄有了独立的 B，键盘保持「攻击+跳」的手感，两条路都通。 */
-  if(p.energy >= 100 && (inp.skill || (inp.atk && inp.jump)) && p.whirlT<=0){
+  /* ---- 旋风斩发动：能量满 + 技能键 ----
+     手柄 B / 键盘 K（玩家二 小键盘 5）/ 触屏「技」，三条路都是一颗独立的键。
+     以前键盘走「攻击 + 跳跃同按」：两个键都是按下沿（keyPressed 读即消费），
+     要求两颗键落在同一帧才成立 —— 手指天然错开 5~30ms，等于赌 16.7ms 的窗口，
+     玩家读到的是「有时放得出、多数时候放不出」。现在每个动作都有独立键。 */
+  if(p.energy >= 100 && inp.skill && p.whirlT<=0){
     p.whirlT = 1.5; p.whirlTick = 0; p.energy = 0;
     /* 无敌帧与 whirlT 同寿 —— 文档与 HUD 都承诺「1.5 秒无敌」，而敌人的命中判定
        只看 p.inv。不给这一行，玩家转到一半会被小兵砍中掉血，读到的是「技能是假的」。
@@ -2032,19 +2095,21 @@ function updatePlayer(p, dt, inp, other){
    规则：
      · 拾取 → 空手就直接上手；手上有别的就换手，换下来的那把落回原地
      · 同款不叠：手上就是这一款 → 不捡，飘字提示先扔掉
-     · E(.) → 丢手上那把，回到空手
-     · R(') → 手上那把递给队友，距离 160px 内；队友手上有武器时两人对换
-   拾取走独立的 act 键，与攻击键分开（见 updatePlayer 里那两道闸）。
-   这几个键与现有键位不冲突：P1 用 A/D/W/空格/F/J/G/E/R，P2 用方向键/右Shift///小键盘0/K/;/. '，
+     · U(小键盘7) → 丢手上那把，回到空手
+     · I(小键盘8) → 手上那把递给队友，距离 160px 内；队友手上有武器时两人对换
+   拾取走独立的 act 键（L / 小键盘6），与攻击键分开（见 updatePlayer 里那两道闸）。
+   这几张表与手柄逐条对应，键位总表见 startGame() 的注释。
    ui-shell 只认 1/2/H/Esc。 */
 
 var GIVE_RANGE = 160;              /* 递给队友的距离上限（世界像素） */
-/* 提示文案里的键名。键盘按玩家分，手柄统一按面键名 —— 插着手柄还提示「按 F」
+/* 提示文案里的键名。键盘按玩家分，手柄统一按面键名 —— 插着手柄还提示「按 J」
    会让人下意识去找键盘，所以同一套文案要按「这个人当前用的是什么」切换。
-   Xbox 与 PS 的键位编号相同、刻字不同，这里取两者都认的记法。 */
+   Xbox 与 PS 的键位编号相同、刻字不同，这里取两者都认的记法。
+   ⚠️ 这张表必须跟着 startGame() 的键位表走：气泡写着按 A 就能递过去，
+      实际绑定却是 U，玩家会以为按键坏了。 */
 var KEY_LABEL = {
-  p1: { drop:"E", give:"R", atk:"F", open:"G" },
-  p2: { drop:".", give:"'", atk:"/", open:";" }
+  p1: { drop:"U", give:"I", atk:"J", open:"L" },
+  p2: { drop:"小键盘7", give:"小键盘8", atk:"小键盘4", open:"小键盘6" }
 };
 var PAD_LABEL = { drop:"十字下", give:"十字上", atk:"A", open:"Y", skill:"B", jump:"X" };
 /* 触屏文案：手指没有「键名」，只能写屏幕上的字。这几个词与 js/touch.js
@@ -2674,7 +2739,7 @@ function whirlHit(p){
     var e = G.enemies[i];
     if(e.state==="dead") continue;
     if(Math.abs(e.x - p.x) < R && Math.abs(e.y - p.y) < 260){
-      hitEnemy(e, 2, e.x > p.x ? 1 : -1, true, false);
+      hitEnemy(e, 2, e.x > p.x ? 1 : -1, true, false, WHIRL_KB);
       G.combo++; G.comboT = 0.9;
       if(G.combo > G.maxCombo) G.maxCombo = G.combo;
       hitAny = true;
@@ -2687,12 +2752,15 @@ function whirlHit(p){
 function showHitText(x,y,txt){
   G.texts.push({ x:x, y:y, txt:txt, life:0.9, max:0.9 });
 }
-function hitEnemy(e, dmg, dir, big, weak){
+function hitEnemy(e, dmg, dir, big, weak, kb){
   e.hp -= dmg;
-  e.hurtT = 0.22;
-  e.vx = dir * (big ? 620 : 380);
+  /* BOSS 的受击僵直比杂兵短一点点：它的弱点窗口是 recover（受伤 ×2），
+     不是挨打这两下。缩短这里只影响「玩家能白打多久」，不动弱点机制。 */
+  var stun = (e.kind === "boss") ? BOSS_STUN : 0.22;
+  e.hurtT = stun;
+  e.vx = dir * (kb !== undefined ? kb : (big ? 620 : 380));
   e.state = "hurt";
-  e.t = 0.22;
+  e.t = stun;
   G.hitstop = big ? 0.075 : 0.04;
   G.shake = Math.max(G.shake, big ? 15 : 7);
   burst(e.x, e.y - e.h*0.6, big?16:9, weak ? "#ffd0ff" : "#f7e2a8", big?430:300);
@@ -2741,7 +2809,7 @@ function updateEnemy(e, dt){
     e.t -= dt;
     e.vx *= (1-9*dt);
     e.x += e.vx*dt;
-    if(e.t<=0){ e.state="walk"; e.cd = rnd(0.25,0.7); }
+    if(e.t<=0){ e.state="walk"; e.cd = e.kind==="boss" ? rnd(BOSS_CD_HURT[0], BOSS_CD_HURT[1]) : rnd(0.25,0.7); }
     return;
   }
 
@@ -2759,7 +2827,7 @@ function updateEnemy(e, dt){
       } else {
         e.vx *= (1-8*dt);
         e.x += e.vx*dt;
-        if(e.cd <= 0){ e.state="windup"; e.t = e.kind==="boss"?0.55:0.34; }
+        if(e.cd <= 0){ e.state="windup"; e.t = e.kind==="boss" ? BOSS_WINDUP : 0.34; }
       }
       break;
 
@@ -2800,7 +2868,7 @@ function updateEnemy(e, dt){
 
     case "recover":
       e.t -= dt;
-      if(e.t<=0){ e.state="walk"; e.cd = rnd(0.5,1.3); }
+      if(e.t<=0){ e.state="walk"; e.cd = e.kind==="boss" ? rnd(BOSS_CD_AFTER[0], BOSS_CD_AFTER[1]) : rnd(0.5,1.3); }
       break;
   }
 
@@ -2848,13 +2916,14 @@ function update(dt){
       right: keyDown(G.p1.keys.r) || pad1.right || (tch1 && tch1.right),
       jump:  keyPressed(G.p1.keys.j) || pad1.jump || (tch1 && tch1.jump),
       atk:   keyPressed(G.p1.keys.a) || pad1.atk || (tch1 && tch1.atk),
-      /* 拾取 / 开箱走独立键：键盘 act（P1 G / P2 ;）或手柄 Y。
+      /* 拾取 / 开箱走独立键：键盘 act（P1 L / P2 小键盘 6）或手柄 Y。
          与攻击键分开是硬要求 —— 同一个键既挥刀又捡东西时，站在掉落物旁一按就会
          先捡、把这一刀吃掉，玩家读到的是「乱拾取」。 */
       act:   (G.p1.keys.act && keyPressed(G.p1.keys.act)) || pad1.act || (tch1 && tch1.act),
       drop:  pad1.drop || (tch1 && tch1.drop),
       give:  pad1.give || (tch1 && tch1.give),
-      skill: pad1.skill || (tch1 && tch1.skill)
+      /* 技能：键盘 K / 小键盘 5 走独立键，与手柄 B、触屏「技」同义 */
+      skill: (G.p1.keys.skill && keyPressed(G.p1.keys.skill)) || pad1.skill || (tch1 && tch1.skill)
     };
     var in2 = null;
     if(G.p2){
@@ -2866,7 +2935,8 @@ function update(dt){
         act:   (G.p2.keys.act && keyPressed(G.p2.keys.act)) || pad2.act || (tch2 && tch2.act),
         drop:  pad2.drop || (tch2 && tch2.drop),
         give:  pad2.give || (tch2 && tch2.give),
-        skill: pad2.skill || (tch2 && tch2.skill)
+        /* 技能：键盘 小键盘 5 走独立键，与手柄 B、触屏「技」同义 */
+        skill: (G.p2.keys.skill && keyPressed(G.p2.keys.skill)) || pad2.skill || (tch2 && tch2.skill)
       };
       /* 单手柄时两人共用移动 */
       if(PADS[0] && !PADS[1]){
@@ -2912,6 +2982,35 @@ function update(dt){
         en.facing = side < 0 ? 1 : -1;
         G.enemies.push(en);
         G.spawnTimer = rnd(0.8, 1.4);      /* 分批刷新：0.8~1.4 秒一体 */
+      }
+    }
+
+    /* 末阵增援：器心不死就一直叫小怪。
+       独立于 spawnQueue 的两个理由：
+         1. 队列排空是「本阵打完」的判定条件之一（见下面的 waveCleared），
+            增援混进队列会让「BOSS 已死但队列里还排着一只」多拖几秒才通关；
+         2. 直接生成才能只认「BOSS 还活着」这一个条件 —— 它一死，倒计时当场作废。
+       同屏上限仍走 MAX_ALIVE，所以是持续压力而不是爆量。 */
+    var bossAlive = false;
+    for(var bi=0; bi<G.enemies.length; bi++){
+      if(G.enemies[bi].kind === "boss" && G.enemies[bi].state !== "dead"){ bossAlive = true; break; }
+    }
+    if(bossAlive && G.waveIdx >= G.waves.length-1 && G.breatherT <= 0){
+      G.bossReinforceT -= dt;
+      if(G.bossReinforceT <= 0){
+        G.bossReinforceT = rnd(BOSS_REINFORCE[0], BOSS_REINFORCE[1]);
+        if(alive < MAX_ALIVE){
+          /* 兵种配比：厚甲兵更少，免得同屏一堆硬壳把节奏拖死 */
+          var roll = Math.random();
+          var rkind = roll < 0.45 ? "walker" : (roll < 0.80 ? "fast" : "brute");
+          var rside = (Math.random() < 0.5) ? -1 : 1;
+          var rx = rside < 0 ? G.camX - 60 : G.camX + W + 60;
+          rx = clamp(rx, 50, WORLD_W-50);
+          var re = new Enemy(rkind, rx);
+          re.facing = rside < 0 ? 1 : -1;
+          G.enemies.push(re);
+          alive++;
+        }
       }
     }
 
@@ -3841,7 +3940,7 @@ function drawEnemy(e){
   /* 长矛 */
   ctx.save();
   var sa = 0;
-  if(e.state==="windup") sa = -0.9 * (1 - e.t/(e.kind==="boss"?0.55:0.34));
+  if(e.state==="windup") sa = -0.9 * (1 - e.t/(e.kind==="boss"?BOSS_WINDUP:0.34));
   if(e.state==="strike") sa = 0.75;
   /* 握矛的手臂 */
   ctx.strokeStyle = col; ctx.lineWidth = 10;

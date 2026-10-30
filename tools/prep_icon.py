@@ -3,12 +3,32 @@
 favicon 必须小尺寸也能认出，所以按 16/32/48 逐级检查轮廓是否还成立。
 输出 PNG（透明边不要，图标本身满版）+ ICO（多尺寸打包）。
 """
+import os
 from pathlib import Path
 
 from PIL import Image
 
-SRC = Path(r"C:\Users\11965\Desktop\imagegen无限\output\sanxingdui-icon\game-icon.png")
-DST = Path(r"C:\Users\11965\Desktop\三星堆\assets\icon")
+# ---------------------------------------------------------------- 路径口径
+ROOT = Path(__file__).resolve().parent.parent          # 仓库根
+ASSETS = ROOT / "assets"                               # 产物根
+
+# 外部生图源目录：不在仓库里，用环境变量给，没给就明确报错退出
+IMG_SRC = Path(os.environ.get("SD_IMG_SRC", "")).expanduser()
+
+
+def require_img_src():
+    """取外部生图源目录；未设 SD_IMG_SRC 或目录不存在就退出，绝不写出空产物。"""
+    if not os.environ.get("SD_IMG_SRC"):
+        raise SystemExit("缺少生图源目录：设置环境变量 SD_IMG_SRC 指向 imagegen 的 output 目录，或用 --src 指定。")
+    if not IMG_SRC.is_dir():
+        raise SystemExit("生图源目录不存在：%s（检查 SD_IMG_SRC）" % IMG_SRC)
+    return IMG_SRC
+
+
+SRC = require_img_src() / "sanxingdui-icon" / "game-icon.png"   # 单张源图
+DST = ASSETS / "icon"
+if not SRC.is_file():
+    raise SystemExit("缺少源图：%s（检查 SD_IMG_SRC 下的 sanxingdui-icon/game-icon.png）" % SRC)
 DST.mkdir(parents=True, exist_ok=True)
 
 SIZES = [16, 32, 48, 64, 128, 180, 192, 512]

@@ -3,6 +3,11 @@
 本文只写**不变的设计决策**。
 「有哪些文件、怎么改」在 [../js/README.md](../js/README.md) 与 [../tools/README.md](../tools/README.md)。
 
+> **本页是唯一 home**：不可破约束、渲染顺序、防错清单。
+> **改这里之后要同步**：[../AGENTS.md](../AGENTS.md) 的「硬约束」五条（摘要版）。
+> **本页被引用**：[../AGENTS.md](../AGENTS.md) 分层索引 · [README.md](../README.md) 想再往下看 · 各页「详见架构文档」。
+> 全部路由见 [README.md](README.md) 的事实路由表。
+
 ## 不可破坏的约束
 
 - 零外部依赖：无 CDN、无 npm、无外部字体、无网络请求。
@@ -11,7 +16,7 @@
 - 逻辑**高度**固定 900，`#stage` 用 `transform: scale()` 等比缩放到窗口。
 - 逻辑**宽度** `W` 可变：桌面恒 1600；触屏设备按视口比例加宽到 `H × 宽高比`，上限 2100。
   只加宽不改高，所以角色身高、精灵比例、所有判定距离一个像素都不变 ——
-  加宽等于「多看到一段关卡」，不是拉伸也不是裁切。见 [手机端适配.md](手机端适配.md) 的「逻辑视口加宽」。
+  加宽等于「多看到一段关卡」，不是拉伸也不是裁切。见 [手机端适配.md](MOBILE.md) 的「逻辑视口加宽」。
 - 地面线 `GROUND = 706`、世界宽 `WORLD_W = 3400` 是所有坐标的基准，改动等于重做关卡。
 
 ## 为什么不用 Phaser / 任何引擎
@@ -184,7 +189,7 @@
 - 手机版有独立入口 `mobile.html`，它只做一次跳转（带 `?touch=1` 强制触屏档）。**不复制一份 index.html** —— 复制就会漂移，改一处要同步两处，迟早不同步。强制参数存在的原因：从主屏图标启动时没有「第一次手指落下」事件，自动判断会等不到。
 - 按键层 `position:fixed` 贴视口，不进 `#stage`（那是 1600×900 逻辑坐标，会被 `transform:scale` 缩到 43px，低于 44px 触摸目标下限）。
 - 触屏设备上的 `pointerup` 会丢（来电、切 App、锁屏、手指滑出屏幕）。三道兜底缺一不可：一次性键超时回收、`pointercancel`、失焦三清。方向键不参与超时回收。
-- `index.html` 的 script 标签带 `?v=` 版本号：文件名不带 hash，浏览器与 CDN 会长期缓存 `js/*.js`，玩家拿到旧版 `touch.js` 就会在桌面上看到手机虚拟键且刷新不掉。
+- `index.html` 的 script 标签带 `?v=` 版本号：文件名不带 hash，浏览器与 CDN 会长期缓存 `js/*.js`，玩家拿到旧版 `touch.js` 就会在桌面上看到手机虚拟键且刷新不掉。**格式与生成方式见 [DEPLOY.md](DEPLOY.md) 「四、缓存版本号」**，由 `node tools/bump-version.mjs --note "说明"` 写，不手改。
 
 ## 状态机
 
@@ -226,3 +231,8 @@
 - 改声音：跑 `node tools/selftest_audio.mjs`。它只证明节点被正确创建与调用，证明不了音色好不好听 —— 配方表改完要人耳听一遍。
 - 换刀光素材：先跑 `python tools/measure_slash.py`，把新数值同时填进 `js/fx.js` 的 `ARC` 与 `tools/selftest_weapons.mjs` 的 `ARC_FIXTURE`（5c 会校验两处一致），再看 `convex_dir`：全为 −1 说明仍是「凸背朝左」，`ART_CONVEX` 不用动；出现 +1 就要跟着改。
 - 验刀光朝向：`node tools/selftest_weapons.mjs` 的 5b 是唯一自动化防线（14 项断言，改回旧写法当场红）。要人眼复核就用 `tools/probe_slash_orient.py`，但**探针页里不许放文字或辅助线** —— 它们会进像素统计，曾造出 3.4px 的假不对称。
+
+---
+
+本页是不变决策的唯一 home；改完同步 [../AGENTS.md](../AGENTS.md) 的「硬约束」摘要。
+数值去 [GAMEPLAY.md](GAMEPLAY.md)，键位去 [OPERATIONS.md](OPERATIONS.md)，素材契约去 [ASSETS.md](ASSETS.md)。

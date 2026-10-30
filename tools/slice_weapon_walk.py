@@ -11,10 +11,18 @@
   一走就空手」——连续性断在最常发生的那一帧。程序化浮沉只能遮一时，
   走路必须有逐帧素材，所以单开这一条数据通道。
 
+⚠️ 朝向：本脚本**不做朝向判定**，条带画成什么方向就切什么方向。
+  2026-10-30 发现 sword 那一批被画成了面朝左（其余 10 把与空手都是朝右），
+  产物 `walk-sword-0..3.webp` 已手工水平镜像回去，`WEAPON_CLIP.sword.walk.anchorX`
+  同步换成 `1 - 旧值`。**重跑本脚本会用源图盖掉这个修正** —— 重跑前先确认源条带朝向：
+  看鼻子朝哪边（截一张产物图人眼判即可）。别用「剪影列投影相关」自动判：
+  斧、铃这类一侧体积很大的武器会误报（已实测 axe/bell 在修正后仍被判反向）。
+
 统一画布：与出招序列同一套做法（4 格并集外扩 4px、底边贴齐、水平居中、
 等比缩到长边 ≤ 560）。scaleFix 一把武器一个（4 帧共用），anchorX 逐帧一个。
 
 用法：
+  python tools/slice_weapon_walk.py                          # 默认 $SD_IMG_SRC/weapon-walk
   python tools/slice_weapon_walk.py --src <条带目录>
   python tools/slice_weapon_walk.py --src <目录> --only axe,hammer
   python tools/slice_weapon_walk.py --src <目录> --debug
@@ -35,16 +43,18 @@ import slice_weapon_assets as WA            # noqa: E402
 import slice_weapon_seq as SQ               # noqa: E402
 
 ROOT = HERE.parent
-# 产物路径不能沿用 slice_anim 的 OUT_IMG / OUT_JS —— 那两个是相对它的硬编码
-# SRC（C:\Users\11965\...）拼出来的，换机器就没有那个目录。这里显式指到仓库内。
+# 产物路径一律落仓库内（ASSETS / ROOT），不含盘符。
 OUT_IMG = ROOT / "assets" / "anim"
 OUT_JS = ROOT / "js" / "anim-data.js"
 DBG = ROOT / "_dbg"
 
-# WA.idle_baseline() 读的是它自己的 OUT_IMG（硬编码路径）。
-# 把它也指到仓库内，这样基准检测在任何机器上都成立。
+# WA.idle_baseline() 读的是 WA.OUT_IMG，把它也指到仓库内，
+# 这样基准检测在任何机器上都成立。
 WA.OUT_IMG = OUT_IMG
 WA.OUT_JS = OUT_JS
+
+# 源条带目录：--src > $SD_IMG_SRC/weapon-walk > 报错
+SRC = None
 
 FRAMES = SQ.FRAMES
 MAX_SIDE = SQ.MAX_SIDE
@@ -147,16 +157,23 @@ def measure_body(im, use_fallback=True):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--src", default="", help="条带目录（含 walk-<key>.png）")
+    ap.add_argument("--src", default="",
+                    help="条带目录（含 walk-<key>.png）；默认 $SD_IMG_SRC/weapon-walk")
     ap.add_argument("--only", default="", help="只切这几把（逗号分隔）")
     ap.add_argument("--fps", type=int, default=10, help="数据里的 fps 仅作参考值")
     ap.add_argument("--debug", action="store_true")
     args = ap.parse_args()
 
-    src = Path(args.src) if args.src else None
-    if not src or not src.is_dir():
-        print("!! 用 --src 指定条带目录（含 walk-<key>.png）")
-        return 1
+    global SRC
+    if args.src:
+        SRC = Path(args.src).expanduser()
+    elif os.environ.get("SD_IMG_SRC"):
+        SRC = SA.IMG_SRC / "weapon-walk"
+    else:
+        raise SystemExit("缺少生图源目录：设置环境变量 SD_IMG_SRC 指向 imagegen 的 output 目录，或用 --src 指定。")
+    src = Path(SRC)
+    if not src.is_dir():
+        raise SystemExit("源图目录不存在：%s（检查 SD_IMG_SRC 或 --src）" % src)
 
     only = [x.strip() for x in args.only.split(",") if x.strip()]
     keys = [k for k in KEYS if (not only or k in only)]

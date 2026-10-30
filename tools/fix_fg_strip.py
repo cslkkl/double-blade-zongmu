@@ -2,12 +2,33 @@
 原 bg-fg.webp 是 16:9 整图（顶部有横梁/挂帘/铁链，草地占近半屏），
 平铺进游戏像盖了一层黑布。这里只取底部草叶剪影，压成约 18% 高的细条。
 """
+import os
+
 import numpy as np
 from pathlib import Path
 from PIL import Image
 
-SRC = Path(r"C:\Users\11965\Desktop\imagegen无限\output\sx-scene\foreground-occlusion.png")
-DST = Path(r"C:\Users\11965\Desktop\三星堆\assets\bg-fg-strip.webp")
+# ---------------------------------------------------------------- 路径口径
+ROOT = Path(__file__).resolve().parent.parent          # 仓库根
+ASSETS = ROOT / "assets"                               # 产物根
+
+# 外部生图源目录：不在仓库里，用环境变量给，没给就明确报错退出
+IMG_SRC = Path(os.environ.get("SD_IMG_SRC", "")).expanduser()
+
+
+def require_img_src():
+    """取外部生图源目录；未设 SD_IMG_SRC 或目录不存在就退出，绝不写出空产物。"""
+    if not os.environ.get("SD_IMG_SRC"):
+        raise SystemExit("缺少生图源目录：设置环境变量 SD_IMG_SRC 指向 imagegen 的 output 目录，或用 --src 指定。")
+    if not IMG_SRC.is_dir():
+        raise SystemExit("生图源目录不存在：%s（检查 SD_IMG_SRC）" % IMG_SRC)
+    return IMG_SRC
+
+
+SRC = require_img_src() / "sx-scene" / "foreground-occlusion.png"   # 单张源图
+DST = ASSETS / "bg-fg-strip.webp"
+if not SRC.is_file():
+    raise SystemExit("缺少源图：%s（检查 SD_IMG_SRC 下的 sx-scene/foreground-occlusion.png）" % SRC)
 
 im = Image.open(SRC).convert("RGBA")
 a = np.array(im).astype(np.float32)

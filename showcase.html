@@ -1,11 +1,22 @@
 <!DOCTYPE html>
+<!-- 素材总览页：只读 js/anim-data.js 与 assets/，不改游戏与素材。
+     改这里的文案之后要同步：
+       · 顶栏统计与分区副标题 → showcase.js（数字全部由它算，HTML 里不写死）；
+       · 「按语」里的青铜病措辞 → docs/GAMEPLAY.md 第六节（唯一口径）；
+       · 资料栏的文物称谓 → docs/GAMEPLAY.md 第五节；
+       · 页面标题的作品名 → 全仓统一写法「双刃战士 · 纵目」。
+     路由表见 docs/README.md。 -->
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>素材总览 · 双刃战士 纵目</title>
-<!-- 不写这一行浏览器会去要 /favicon.ico（根目录没有），控制台留一条 404 噪声 -->
-<link rel="icon" href="assets/icon/favicon.ico">
+<title>素材总览 · 双刃战士 · 纵目</title>
+<!-- 图标与 /zongmu/ 索引页同一套（assets/icon/，透明底）。带 ?v= 是因为这些文件
+     被 Caddy 以 max-age=30 天缓存，不带版本号的话改完图浏览器还在用旧的深色底那张。 -->
+<link rel="icon" href="assets/icon/favicon.ico?v=20261030a" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icon/icon-32.png?v=20261030a">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icon/icon-16.png?v=20261030a">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icon/apple-touch-icon.png?v=20261030a">
 <link rel="stylesheet" href="showcase.css">
 </head>
 <body>
@@ -34,9 +45,12 @@
     <cite>游戏内台词</cite>
   </blockquote>
   <div class="gloss">
-    <p><b>青铜上的绿是保护层</b> —— 碱式碳酸铜，致密稳定，封住基体，器物才躺得住三千年。</p>
-    <p><b>长成浅绿粉末的那层不是</b>：那叫<em>青铜癌</em>，氯离子自催化，反应自己喂自己，
-      把铜吃光、把器物从里掏空。游戏里锈从坑壁爬上来，讲的就是它。</p>
+    <p><b>青铜上的绿，多数是保护层</b> —— 赤铜矿与孔雀石一类致密锈层，封住金属基体，
+      器物才躺得住三千年。绿色本身不是坏消息。</p>
+    <p><b>长成浅绿粉末的那层才是病</b>：<em>青铜病</em>（俗称青铜癌），氯离子参与的活性腐蚀，
+      产物是浅绿粉末状的氯铜矿，遇湿就扩展，能在器物之间「传染」，一路把铜吃掉。
+      「癌」只是比喻 —— 它不可逆、会蔓延。游戏里锈从坑壁爬上来，讲的就是它；
+      拟人化成敌人是再创作，完整表述见 <code>docs/GAMEPLAY.md</code>。</p>
   </div>
 </div>
 

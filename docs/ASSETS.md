@@ -1,7 +1,14 @@
-# 武器素材契约（生图 → 切片 → 渲染 的唯一口径）
+# 素材契约 — 生图 → 切片 → 渲染的唯一口径
 
 > 这份文档的唯一目的：**让任何 agent（或人）接着做素材时不会把方向、命名、
 > 比例搞乱**。改素材前先读这一页，不要从别处的描述里猜。
+>
+> 具体脚本的用法与幂等性在 [../tools/README.md](../tools/README.md)；
+> 生成时最容易踩的坑在 [../tools/AGENTS.md](../tools/AGENTS.md)。
+
+> **本页是唯一 home**：朝向、画布、锚点、`scaleFix`、画风基准。
+> **改这里之后要同步**：`showcase.js` 的统计与比例文案 · [../AGENTS.md](../AGENTS.md) 验证快照里的帧数 / 体积。
+> **本页被引用**：[../AGENTS.md](../AGENTS.md) 分层索引 · [../tools/README.md](../tools/README.md) · [README.md](README.md) 事实路由表。
 
 ## 1. 朝向：一律朝右
 
@@ -147,3 +154,8 @@ WEAPON_CLIP[state] → 旧通道（ANIM_HOLD / WEAPON_WALK_CLIP / WEAPON_ATTACK_
 5. **`aux` 是两张状态拼一张条带** —— 别当单一状态塞进数据块
 6. **参考图本身全部朝右** —— 曾经有 agent 误判"6 张是左向"，把对的图改反了。
    判断一律看鼻子，不要看武器
+
+---
+
+本页是素材契约的唯一 home；改完同步 `showcase.js` 的统计文案与 [../AGENTS.md](../AGENTS.md) 验证快照。
+脚本用法去 [../tools/README.md](../tools/README.md)，尺寸口径的上游决策去 [ARCHITECTURE.md](ARCHITECTURE.md)。

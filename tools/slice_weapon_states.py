@@ -29,12 +29,14 @@
 
 用法
 ----
+  python tools/slice_weapon_states.py                       # 默认 $SD_IMG_SRC/weapon-states
   python tools/slice_weapon_states.py --src <条带目录>
   python tools/slice_weapon_states.py --src <目录> --only axe,hammer
   python tools/slice_weapon_states.py --src <目录> --sheets walk,attack
   python tools/slice_weapon_states.py --src <目录> --debug
 """
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
@@ -297,16 +299,21 @@ def fmt_clip(recs):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--src", required=True)
+    ap.add_argument("--src", default="",
+                    help="条带目录（含 <key>-<sheet>.png）；默认 $SD_IMG_SRC/weapon-states")
     ap.add_argument("--only", default="")
     ap.add_argument("--sheets", default="")
     ap.add_argument("--debug", action="store_true")
     args = ap.parse_args()
 
-    src = Path(args.src)
+    if args.src:
+        src = Path(args.src).expanduser()
+    elif os.environ.get("SD_IMG_SRC"):
+        src = SA.IMG_SRC / "weapon-states"
+    else:
+        raise SystemExit("缺少生图源目录：设置环境变量 SD_IMG_SRC 指向 imagegen 的 output 目录，或用 --src 指定。")
     if not src.is_dir():
-        print("!! 源目录不存在：%s" % src)
-        return 1
+        raise SystemExit("源图目录不存在：%s（检查 SD_IMG_SRC 或 --src）" % src)
 
     only = [x.strip() for x in args.only.split(",") if x.strip()]
     keys = [k for k in WEAPON_KEYS if (not only or k in only)]
