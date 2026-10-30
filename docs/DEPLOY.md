@@ -264,8 +264,9 @@ log {
 
 **三条判据**（都是实测结论，改脚本前先看）：
 
-- **PV 只认 `status=200`**。`/zongmu/play`（无斜杠）会 308 跳到 `/zongmu/play/`，
-  一次浏览器访问产生 2 条日志，全算会让 PV 正好翻倍。
+- **PV 算 `200` 与 `304`，不算其它 `3xx`**。`/zongmu/play`（无斜杠）会 308 跳到
+  `/zongmu/play/`，一次访问产生 2 条日志，把 308 算进去会让 PV 翻倍；而 304 是浏览器带缓存
+  重新验证后「页面还是那一页」，属于真实浏览，漏掉它就等于把回访抹掉（实测一次回访全是 304）。
 - **页面 = 以 `/` 结尾或以 `.html` 结尾**，其余按扩展名算素材。因为 Caddy 2.6.2 没有 `skip_log`
   （2.7 才有）、`log` 也不吃路径匹配器（实测报 `unexpected line ending after '@pages'`）、
   还不能放进 `handle`（`not an ordered HTTP handler`），所以 webp / js / mp3 一定会进日志，
@@ -275,11 +276,13 @@ log {
 **查询**（服务器上直接跑；也可把日志拉回本地再用同一条命令）：
 
 ```bash
-python3 tools/visits.py                 # 今天，按页面
+python3 tools/visits.py                 # 今天，按页面（PV / UV）
+python3 tools/visits.py --detail        # 每页 × 每 IP：时间 + 次数
 python3 tools/visits.py --days 7        # 最近 7 天
 python3 tools/visits.py --by day        # 按天
 python3 tools/visits.py --by host       # IP 访问 vs 域名访问
 python3 tools/visits.py --tail 20       # 最近 20 条原始请求
+python3 tools/visits.py --all           # 连其它站点一起看
 python3 tools/visits.py --exclude-local # 剔掉 127.0.0.1，自己 curl 测试不算
 ```
 

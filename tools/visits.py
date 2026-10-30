@@ -1,26 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""ops/visits.py — Caddy JSON 访问日志的只读报表。
+"""tools/visits.py — Caddy JSON 访问日志的只读报表。
 
-只读：不开连接、不写文件、不改 Caddy。口径与判据见 ops/README.md。
+只读：不开连接、不写文件、不改 Caddy。口径与判据见 docs/DEPLOY.md「五、访问统计」。
 
-为什么 PV 只认 200：`/zongmu/play`（无斜杠）会 308 跳到 `/zongmu/play/`，
-一次浏览器访问产生 2 条日志（308 + 200）。全算会让 PV 正好翻倍 ——
-所以 PV 只算 200，3xx 单列成「跳转」。
+为什么 PV 算 200 与 304、不算别的 3xx：
+`/zongmu/play`（无斜杠）会 308 跳到 `/zongmu/play/`，一次访问产生 2 条日志（308 + 200），
+全算会让 PV 翻倍；而 304 是浏览器带缓存重新验证后「页面还是那一页」，属于真实浏览。
+所以只排除 301/302/307/308，保留 200 与 304。
 
 为什么日志里还有素材请求：本机 Caddy 2.6.2 没有 skip_log（2.7 才有），
 `log` 也不吃路径匹配器，所以 webp / js / mp3 都会入日志。
 本脚本按「以 / 结尾或以 .html 结尾」判页面，其余一律当资源，不计入访问。
 
 用法
-    python3 ops/visits.py                          # 今天，按页面
-    python3 ops/visits.py --days 7                 # 最近 7 天
-    python3 ops/visits.py --by day                 # 按天
-    python3 ops/visits.py --by hour --days 1       # 今天几点有人
-    python3 ops/visits.py --by host                # IP 访问 vs 域名访问
-    python3 ops/visits.py --tail 20                # 最近 20 条原始请求（干净表格）
-    python3 ops/visits.py --all --days 30          # 连其它站点一起看
-    python3 ops/visits.py access.log               # 直接给文件（可多个 / 可给目录）
+    python3 tools/visits.py                        # 今天，按页面
+    python3 tools/visits.py --detail               # 每个页面 × 每个 IP：时间 / 次数
+    python3 tools/visits.py --days 7               # 最近 7 天
+    python3 tools/visits.py --by day               # 按天
+    python3 tools/visits.py --by hour --days 1     # 今天几点有人
+    python3 tools/visits.py --by host              # IP 访问 vs 域名访问
+    python3 tools/visits.py --tail 20              # 最近 20 条原始请求（干净表格）
+    python3 tools/visits.py --all --days 30        # 连其它站点一起看
+    python3 tools/visits.py access.log             # 直接给文件（可多个 / 可给目录）
 """
 from __future__ import annotations
 
@@ -168,6 +170,7 @@ def main() -> int:
     ap.add_argument("--all", action="store_true", help="连其它站点的页面一起看")
     ap.add_argument("--assets", action="store_true", help="把静态资源请求也算进分组")
     ap.add_argument("--tail", type=int, metavar="N", help="列出最近 N 条原始请求")
+    ap.add_argument("--detail", action="store_true", help="每页 × 每 IP：时间 / 次数")
     ap.add_argument("--exclude-local", action="store_true", help="剔除 127.0.0.1（自己 curl 测试用）")
     args = ap.parse_args()
 
@@ -190,9 +193,9 @@ def main() -> int:
 
     # ---------- 一次遍历，全部计数 ----------
     total = 0
-    n_page = n_asset = n_redir = n_err = 0
+    n_page = n_asset = n_redir = n_err = n_notmod = 0
     other_site_pages = 0
-    pv = Counter()                                # 页面 -> 200 次数
+    pv = Counter()                                # 页面 -> 200 + 304 次数
     uv = defaultdict(set)                         # 页面 -> 独立 IP
     by_day = defaultdict(lambda: [0, set()])      # 'YYYY-MM-DD' -> [PV, IP 集]
     by_hour = Counter()
@@ -200,6 +203,7 @@ def main() -> int:
     by_ip = Counter()
     by_device = Counter()
     by_host = Counter()
+    detail = defaultdict(lambda: [0, None, None])  # (页面, IP) -> [次数, 首次, 末次]
     touch_hits = 0
     recent = []
 
@@ -237,13 +241,17 @@ def main() -> int:
         if not is_page(path) and not args.assets:
             n_asset += 1
             continue
-        if isinstance(status, int) and 300 <= status < 400:
+        # 304 = 浏览器带着缓存重新验证后「页面还是那一页」，是真实浏览，要算 PV。
+        # 其余 3xx（301 / 302 / 307 / 308）是地址跳转，算了会让 PV 翻倍。
+        if status == 304:
+            n_notmod += 1
+        elif isinstance(status, int) and 300 <= status < 400:
             n_redir += 1
             continue
-        if isinstance(status, int) and status >= 400:
+        elif isinstance(status, int) and status >= 400:
             n_err += 1
             continue
-        if status != 200:
+        elif status != 200:
             continue
 
         is_game = path == GAME_ROOT or path.startswith(GAME_ROOT + "/")
@@ -258,6 +266,11 @@ def main() -> int:
         by_day[dt.strftime("%Y-%m-%d")][0] += 1
         by_day[dt.strftime("%Y-%m-%d")][1].add(ip)
         by_hour[dt.strftime("%H:00")] += 1
+        if args.detail:
+            slot = detail[(label, ip)]
+            slot[0] += 1
+            slot[1] = dt if slot[1] is None else min(slot[1], dt)
+            slot[2] = dt if slot[2] is None else max(slot[2], dt)
 
     # ---------- 输出 ----------
     print()
@@ -265,9 +278,10 @@ def main() -> int:
     print(f"日志来源  {', '.join(os.path.basename(f) for f in files)}")
     print()
     print(f"总请求    {total}")
-    print(f"页面 PV   {n_page}          ← 只算 200，3xx 跳转不计（否则无斜杠地址会翻倍）")
+    print(f"页面 PV   {n_page}          ← 算 200 与 304（缓存重验证也是真实浏览），跳转不计")
     print(f"资源请求  {n_asset}         ← webp / js / mp3 / css，不算访问")
     print(f"3xx 跳转  {n_redir}         ← /x → /x/ 的补斜杠")
+    print(f"3xx 缓存  {n_notmod}         ← 304，已计入上面的 PV")
     print(f"4xx/5xx   {n_err}")
     if other_site_pages:
         print(f"其它站点  {other_site_pages} 次页面请求（--all 一起看）")
@@ -313,6 +327,16 @@ def main() -> int:
         table(["状态码", "次数"], [[s, c] for s, c in st])
     if touch_hits:
         print(f"\n带 ?touch=1 的请求  {touch_hits}（手机强制档）")
+
+    if args.detail:
+        print("\n每页 × 每 IP")
+        rows = []
+        for (label, ip), (n, first, last) in sorted(detail.items(), key=lambda x: (x[1][1], x[0][0])):
+            span = f"{first:%m-%d %H:%M:%S}"
+            if first != last:
+                span = f"{first:%H:%M:%S}~{last:%H:%M:%S}"
+            rows.append([label, span, ip, n])
+        table(["页面", "时间", "IP", "次数"], rows)
 
     if args.tail:
         print(f"\n最近 {len(recent)} 条请求")
