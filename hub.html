@@ -437,17 +437,12 @@
     color:var(--paper);
   }
 
+  /* 页脚只有署名与一行出处：三个入口在上面的卡片里，返回首页在顶栏面包屑里，
+     页脚再列一遍就是同一份信息写两处，删掉。 */
   .foot-in{
-    display:grid;
-    grid-template-columns:repeat(12,1fr);
-    gap:clamp(16px,2.4vw,40px);
     padding-top:clamp(32px,5vh,56px);
     padding-bottom:clamp(32px,5vh,56px);
   }
-
-  .foot-a{grid-column:span 6}
-  .foot-b{grid-column:span 3}
-  .foot-c{grid-column:span 3;justify-self:end}
 
   .foot .mark{
     font-size:clamp(15px,1.6vw,18px);
@@ -462,28 +457,6 @@
     color:#b3b3b3;
     max-width:46ch;
   }
-
-  .foot h4{
-    margin:0 0 10px;
-    font-size:10px;
-    font-weight:700;
-    letter-spacing:0.18em;
-    text-transform:uppercase;
-    color:#b3b3b3;
-  }
-
-  .foot ul{list-style:none;margin:0;padding:0}
-  .foot li{margin-bottom:7px}
-
-  .foot a{
-    color:var(--paper);
-    text-decoration:none;
-    font-size:13px;
-    transition:color 150ms ease-out;
-  }
-
-  /* 深墨绿底上陶土棕只有 2.5:1，看不清 —— 深底上的 hover 一律用金黄 */
-  .foot a:hover{color:var(--gold)}
 
   /* ------------------------------------------------------------ 选中文字
 
@@ -500,8 +473,6 @@
     outline:2px solid var(--ink);
     outline-offset:3px;
   }
-
-  .foot a:focus-visible{outline-color:var(--paper)}
 
   @media (prefers-reduced-motion: reduce){
     *{transition:none !important}
@@ -528,7 +499,6 @@
     .hero-sub dl{justify-self:start;margin-top:6px;flex-wrap:wrap}
     .card{grid-column:span 12;min-height:0}
     .fact{grid-column:span 4}
-    .foot-a,.foot-b,.foot-c{grid-column:span 12;justify-self:start}
   }
 </style>
 </head>
@@ -687,24 +657,8 @@
 
 <footer class="foot">
   <div class="wrap foot-in">
-    <div class="foot-a">
-      <span class="mark">双刃战士 · 纵目</span>
-      <p>东莞市博物馆 × 碳基社区「AI 创作者进馆计划」参赛作品（AI 编程赛道）。</p>
-    </div>
-    <div class="foot-b">
-      <h4>入口</h4>
-      <ul>
-        <li><a href="play/">桌面端</a></li>
-        <li><a href="play/mobile.html">手机端</a></li>
-        <li><a href="showcase/">素材总览</a></li>
-      </ul>
-    </div>
-    <div class="foot-c">
-      <h4>索引</h4>
-      <ul>
-        <li><a href="/">← 返回站点首页</a></li>
-      </ul>
-    </div>
+    <span class="mark">双刃战士 · 纵目</span>
+    <p>东莞市博物馆 × 碳基社区「AI 创作者进馆计划」参赛作品（AI 编程赛道）。</p>
   </div>
 </footer>
 
