@@ -45,6 +45,35 @@ tools/        0.3 MB   素材流水线（只在本地跑）
 `assets/promo/` 14 个 / 15.31 MB（宣传片与海报，游戏里不播）、
 `assets/bg-fg.webp` 89 KB。
 
+### 本站实际布局（zlzayn.site 的 `/zongmu/`）
+
+上面「四样」是单站部署的形态（游戏页当站点根）。本站线上是三层结构，
+由 URL 语义决定，压不平：
+
+| 仓库 | 远程 | 动作 |
+|---|---|---|
+| `index.html` | `play/index.html` | 改名 |
+| `mobile.html` | `play/mobile.html` | 改名 |
+| `js/` | `play/js/` | 复制 |
+| `assets/` | `play/assets/` | 复制，排除 `promo/` 与 `video/_short_land_backup.mp4` |
+| `hub.html` | `index.html` | 改名（`/zongmu/` 的二级索引） |
+| `showcase.html` | `showcase/index.html` | 改名 |
+| `showcase.css` | `showcase/showcase.css` | 复制 |
+| `showcase.js` | `showcase/showcase.js` | 复制 |
+
+两条约束：
+
+- **必须改名**：`/zongmu/` 要能直接打开，首页只能是 `index.html`；
+  而仓库的 `index.html` 是游戏本体，只能挪进 `play/`。
+- **必须软链**：`showcase/` 不自包含 —— `js/anim-data.js` 有 212 条、
+  `js/assets.js` 有 40 条 `assets/...` 相对引用；故
+  `showcase/assets → ../play/assets`、`showcase/js → ../play/js`，避免复刻 21 MB。
+
+`_docs/` 已撤下（2026-11-10）：交付期快照，Caddy 一直 404，内容早落后于仓库。
+
+搬运由本机的 `D:\ProjectSomething\hwc-flexus\deploy.ps1` 执行，
+改动上表任何一行都必须同步它的 `$Targets.zongmu`，否则 `preflight` 直接报错。
+
 ---
 
 ## 二、三种部署方式，任选
